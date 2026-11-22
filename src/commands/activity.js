@@ -1,4 +1,4 @@
-// `thinker activity`: Recent activity in the terminal, as it runs down the right of the page's chat (upkeep.js:upkeepView,
+// `thinker activity`: Recent activity in the terminal, as it runs down the left of the page's chat (upkeep.js:upkeepView,
 // one computation): a line an action with what it came to, and for a pull request where to read it. Nothing here is
 // for the person to do: thinker does its work itself, and how it behaves -- or taking a thing back -- is said to it
 // (`thinker chat`), not typed as a flag. `run` is the check itself, as maintenance starts it every four hours

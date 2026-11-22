@@ -11,7 +11,7 @@ for (const [k, v] of Object.entries({ THINKER_LOG: 'local', THINKER_TELEMETRY: '
 delete process.env.THINKER_LLM;
 
 const { Store } = await import('../src/store.js');
-const { chatSend, chatReply, chatContext, chatAnswerPending, readChat, renderChat, canAnswer, refOf, CHAT_SYSTEM, CHAT_SCHEMA, CHAT } = await import('../src/chat.js');
+const { chatSend, chatReply, chatContext, chatAnswerPending, chatView, chatList, readChat, renderChat, renderChats, canAnswer, refOf, CHAT_SYSTEM, CHAT_SCHEMA, CHAT } = await import('../src/chat.js');
 const { behaviorOf, upkeepCheck, upkeepPending, upkeepFeed, SETTINGS } = await import('../src/upkeep.js');
 const { findMess, sweep } = await import('../src/upkeep-sweep.js');
 
@@ -228,4 +228,61 @@ test('with no model to call from here the message waits for the app\'s own sessi
   assert.match(renderChat(failed.messages).join('\n'), /thinker: \(could not answer: claude: not signed in\)/);
   assert.equal((await chatSend('   ', { repos: [api], home: bare, completeFn: fn })).error, 'nothing was said');
   assert.ok(CHAT.keep >= CHAT.shown);
+});
+
+test('conversations: a message goes on in the one last spoken in, a new one starts with its first message, and the history lists them newest first', async () => {
+  const { home, repos } = machine(['api']);
+  const fn = model({ reply: 'Nothing lately.', actions: [] }, { reply: 'I will ask first.', actions: [] }, { reply: 'Two things.', actions: [] }, { reply: 'Yes.', actions: [] });
+  const t0 = Date.parse('2026-11-18T09:00:00Z');
+  // what was said before there were several conversations (no `chat` on the message) is one of them
+  fs.mkdirSync(path.join(home, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(home, 'state', 'chat.json'), JSON.stringify({ messages: [{ id: 'a', at: new Date(t0 - 3 * DAY).toISOString(), role: 'you', text: 'hello   there\nthinker' }, { id: 'b', at: new Date(t0 - 3 * DAY).toISOString(), role: 'thinker', text: 'Hello.' }] }));
+  assert.deepEqual(chatView({ home }).chats.map(c => [c.id, c.title, c.messages]), [['first', 'hello there thinker', 2]]);
+  // no conversation named: the one last spoken in, shown what was said in it
+  const a = await chatSend('what have you done lately?', { repos, home, completeFn: fn, now: t0 });
+  assert.equal(a.chat, 'first'); assert.equal(a.messages.length, 4);
+  assert.match(fn.asked[0].prompt, /THE CONVERSATION SO FAR:\nTHE PERSON: hello {3}there\nthinker\nYOU: Hello\./);
+  // `new` starts another: named by the answer, and the model is shown that conversation alone
+  const b = await chatSend('ask me before you put up a pull request', { chat: 'new', repos, home, completeFn: fn, now: t0 + 60_000 });
+  assert.match(b.chat, /^[0-9a-f]{10}$/); assert.deepEqual(b.messages.map(m => [m.role, m.text, m.chat]), [['you', 'ask me before you put up a pull request', b.chat], ['thinker', 'I will ask first.', b.chat]]);
+  assert.match(fn.asked[1].prompt, /THE CONVERSATION SO FAR:\n\(this is its start\)/);
+  // one named is gone on with, whichever was spoken in last; one that is not kept starts a new one
+  const c = await chatSend('and what else?', { chat: 'first', repos, home, completeFn: fn, now: t0 + 120_000 });
+  assert.equal(c.chat, 'first'); assert.equal(c.messages.length, 6);
+  assert.doesNotMatch(fn.asked[2].prompt, /ask me before you put up a pull request/);
+  const gone = await chatSend('still there?', { chat: 'nosuchchat', repos, home, completeFn: fn, now: t0 + 180_000 });
+  assert.notEqual(gone.chat, 'nosuchchat'); assert.equal(gone.messages.length, 2);
+  // the history: a row a conversation by the first thing the person said in it, newest first by when it was last spoken in
+  assert.deepEqual(gone.chats, chatList(readChat({ home })));
+  assert.deepEqual(gone.chats.map(x => [x.id, x.title, x.messages, x.at]), [[gone.chat, 'still there?', 2, new Date(t0 + 180_000).toISOString()], ['first', 'hello there thinker', 6, new Date(t0 + 120_000).toISOString()], [b.chat, 'ask me before you put up a pull request', 2, new Date(t0 + 60_000).toISOString()]]);
+  assert.deepEqual([chatView({ home }).chat, chatView({ home, chat: b.chat }).messages.length, chatView({ home, chat: 'new' }).chat, chatView({ home, chat: 'new' }).messages.length], [gone.chat, 2, null, 0]);
+  // as the command prints it: when, the title, how much was said, and the id `--chat` takes; the open one is marked
+  const printed = renderChats(gone.chats, { now: t0 + DAY, open: 'first' });
+  assert.equal(printed.length, 3); assert.match(printed[1], /^▸ .+ {2}hello there thinker {2}· 6 messages · first$/); assert.match(printed[0], new RegExp(`^  .+ {2}still there\\? {2}· 2 messages · ${gone.chat}$`));
+  // nothing said in a new one is nothing kept
+  assert.equal((await chatSend('  ', { chat: 'new', repos, home, completeFn: fn })).error, 'nothing was said'); assert.equal(chatList(readChat({ home })).length, 3);
+});
+
+test('a message that waited is answered in its own conversation, and only the conversations last spoken in are kept', async () => {
+  const { home, repos } = machine(['api']);
+  const enqueue = () => {};
+  const one = await chatSend('first question', { chat: 'new', repos, home, have: [], enqueue, now: 1_000 });
+  const two = await chatSend('second question', { chat: 'new', repos, home, have: [], enqueue, now: 2_000 });
+  assert.deepEqual([one.messages.length, two.messages.length, one.pending, two.pending], [2, 2, true, true]);
+  const fn = model({ reply: 'First answer.', actions: [] }, { reply: 'Second answer.', actions: [] });
+  assert.equal(await chatAnswerPending({ repos, home, completeFn: fn, now: 3_000 }), 2);
+  assert.match(fn.asked[0].prompt, /THE CONVERSATION SO FAR:\n\(this is its start\)\n\nTHE PERSON NOW SAYS:\nfirst question\n/);
+  assert.match(fn.asked[1].prompt, /THE CONVERSATION SO FAR:\n\(this is its start\)\n\nTHE PERSON NOW SAYS:\nsecond question\n/);
+  assert.deepEqual(chatView({ home, chat: one.chat }).messages.map(m => m.text), ['first question', 'First answer.']);
+  assert.deepEqual(chatView({ home, chat: two.chat }).messages.map(m => m.text), ['second question', 'Second answer.']);
+  // CHAT.chats conversations are kept, the ones last spoken in; a conversation keeps its last CHAT.keep messages
+  const say = model({ reply: 'ok', actions: [] });
+  for (let i = 0; i < CHAT.chats; i++) await chatSend(`chat ${i}`, { chat: 'new', repos: [], home, completeFn: say, now: 10_000 + i });
+  const kept = chatList(readChat({ home }));
+  assert.equal(kept.length, CHAT.chats); assert.equal(kept[0].title, `chat ${CHAT.chats - 1}`); assert.ok(!kept.some(c => c.id === one.chat || c.id === two.chat), 'the two oldest went');
+  const long = Array.from({ length: CHAT.keep + 10 }, (_, i) => ({ id: `m${i}`, at: new Date(20_000 + i).toISOString(), role: i % 2 ? 'thinker' : 'you', text: `line ${i}`, chat: 'long' }));
+  fs.writeFileSync(path.join(home, 'state', 'chat.json'), JSON.stringify({ messages: long }));
+  await chatSend('one more', { chat: 'long', repos: [], home, completeFn: say, now: 30_000 });
+  const after = readChat({ home });
+  assert.equal(after.length, CHAT.keep); assert.equal(after.at(-1).text, 'ok'); assert.equal(after[0].text, 'line 12');
 });
