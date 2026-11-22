@@ -62,11 +62,12 @@
     .nav-link .badge { display: inline-block; min-width: 1.25rem; padding: 0.05rem 0.4rem; margin-left: 0.4rem; border-radius: 999px; background: #dc2626; color: #fff; font-size: 0.7rem; font-weight: 700; text-align: center; line-height: 1.3; vertical-align: 1px; }
     .nav-link .badge.quiet { background: #e5e7eb; color: #374151; }
     /* what needs the person, at the top of Recent activity */
-    /* Chat, the page thinker opens on (chat.js): the conversation fills the window under the nav, and Recent activity runs
-       down its right side as a line an action with what it came to (upkeep.js). The two scroll apart; nothing in either
-       changes height on a refresh. */
+    /* Chat, the page thinker opens on (chat.js): the conversation fills the window under the nav, and down its left side
+       (the owner, 2026-11-21) a toggle shows Recent activity, a line an action with what it came to (upkeep.js), or the
+       chat history, a line a conversation (chat.js:chatList). The two scroll apart; nothing in either changes height on
+       a refresh. */
     main:has(> #tab-chat:not([hidden])) { max-width: none; padding: 0; }
-    .home { display: grid; grid-template-columns: minmax(0, 1fr) 25rem; height: calc(100vh - var(--nav-h, 64px)); }
+    .home { display: grid; grid-template-columns: 25rem minmax(0, 1fr); height: calc(100vh - var(--nav-h, 64px)); }
     .home-chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
     .home-col { width: 100%; max-width: 50rem; margin: 0 auto; padding: 0 1.5rem; }
     .home-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-top: 1.1rem; padding-bottom: 0.4rem; }
@@ -94,12 +95,19 @@
     .chat-form textarea { display: block; width: 100%; resize: none; border: 0; border-radius: 12px; background: transparent; padding: 0.7rem 0.85rem; font-size: 0.95rem; line-height: 1.45; }
     .chat-form textarea:focus { outline: none; }
     .chat-form .btn { padding: 0.7rem 1.1rem; border-radius: 12px; }
-    .home-side { border-left: 1px solid #f0f0f0; background: #fcfcfc; overflow-y: auto; padding: 1.1rem 1.2rem 5rem; min-width: 0; }
-    .side-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
-    .side-head b { font-size: 0.95rem; letter-spacing: -0.02em; }
+    .home-side { border-right: 1px solid #f0f0f0; background: #fcfcfc; overflow-y: auto; padding: 1.1rem 1.2rem 5rem; min-width: 0; }
+    .side-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; min-height: 1.9rem; }
     .side-link { background: transparent; border: 0; padding: 0; color: #6b7280; font-size: 0.78rem; text-decoration: underline; cursor: pointer; }
     .side-link:hover { color: #111; }
-    .side-status { min-height: 1.2rem; font-size: 0.78rem; color: #6b7280; line-height: 1.45; margin: 0.25rem 0 0.8rem; }
+    .side-status { min-height: 1.2rem; font-size: 0.78rem; color: #6b7280; line-height: 1.45; margin: 0.6rem 0 0.8rem; }
+    /* the chat history: New chat, then a line a conversation under the day it was last spoken in; the open one is marked */
+    .side-new { display: block; width: 100%; text-align: left; border: 1px solid #e5e7eb; background: #fff; border-radius: 8px; padding: 0.45rem 0.7rem; margin-top: 0.8rem; font-size: 0.84rem; color: #111; cursor: pointer; }
+    .side-new:hover { border-color: #111; }
+    .side-day { font-size: 0.72rem; color: #6b7280; margin: 1.1rem 0 0.2rem; }
+    .side-chats { list-style: none; }
+    .side-chat { display: block; width: calc(100% + 1.1rem); margin: 0 -0.55rem; text-align: left; border: 0; background: transparent; border-radius: 6px; padding: 0.4rem 0.55rem; font-size: 0.84rem; line-height: 1.4; color: #111; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .side-chat:hover { background: #f4f4f5; }
+    .side-chat.on { background: #ededee; font-weight: 500; }
 
     .side-sub { font-size: 0.95rem; font-weight: 700; letter-spacing: -0.02em; margin: 1.6rem 0 0.2rem; }
     .side-total { font-size: 0.78rem; color: #6b7280; line-height: 1.45; margin-bottom: 0.3rem; }
@@ -127,7 +135,7 @@
     .side-meta a { color: #6b7280; }
     .chat-msg a { color: inherit; }
     .side-empty { font-size: 0.84rem; color: #6b7280; line-height: 1.5; padding: 0.6rem 0; }
-    @media (max-width: 900px) { .home { grid-template-columns: 1fr; height: auto; } .home-chat { min-height: 75vh; } .home-side { border-left: 0; border-top: 1px solid #f0f0f0; } }
+    @media (max-width: 900px) { .home { grid-template-columns: 1fr; height: auto; } .home-chat { min-height: 75vh; order: -1; } .home-side { border-right: 0; border-top: 1px solid #f0f0f0; } }
     .attn { display: flex; flex-direction: column; gap: 0.3rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 0.7rem 0.9rem; margin: 0 0 0.8rem; }
     .attn.ok { background: #f0fdf4; border-color: #bbf7d0; }
     .attn.wait { background: #fefce8; border-color: #fde68a; } .attn.wait code { background: #fef3c7; padding: 0 0.25rem; border-radius: 3px; }
@@ -433,21 +441,27 @@
 
   <main>
     <!-- Chat: the page thinker opens on. The conversation with thinker (chat.js:chatSend, as `thinker chat`), and down its
-         right side Recent activity: what needs the person, and a line an action with what it came to (upkeep.js:upkeepView,
-         as `thinker activity`) -->
+         left side, under a toggle, Recent activity: a line an action with what it came to (upkeep.js:upkeepView, as
+         `thinker activity`), or the chat history: a line a conversation (chat.js:chatList, as `thinker chat --history`) -->
     <section id="tab-chat" hidden>
       <div class="home">
+        <aside class="home-side" aria-label="Recent activity and chat history">
+          <div class="side-head"><div class="seg small" id="side-view" role="tablist" aria-label="Show"><button type="button" data-side="activity" class="on" role="tab" aria-selected="true">Activity</button><button type="button" data-side="history" role="tab" aria-selected="false">Chat history</button></div><button class="side-link" id="side-more" type="button" title="Every decision with what it saved, and the merged pull requests">All decisions</button></div>
+          <div id="side-activity">
+            <div class="side-status" id="side-status" role="status"></div>
+            <div id="side-body"><div class="side-empty"><span class="spinner"></span>Reading…</div></div>
+          </div>
+          <div id="side-history" hidden>
+            <button class="side-new" id="chat-new" type="button" title="Start a new conversation with thinker">+ New chat</button>
+            <div id="side-chats"></div>
+          </div>
+        </aside>
         <div class="home-chat">
           <div class="home-col home-head"><span class="chat-sub" id="chat-about"></span><select class="sel" id="h-repo" aria-label="Repository"></select></div>
           <div class="chat-log" id="chat-log" aria-live="polite"><div class="home-col" id="chat-msgs"></div></div>
           <div class="home-col"><div class="chat-hints" id="chat-hints"></div>
           <form class="chat-form" id="chat-form"><div class="chat-box"><div class="chat-attach" id="chat-attach"></div><textarea id="chat-input" rows="2" aria-label="Message to thinker" placeholder="Ask what it did, or tell it how to behave"></textarea></div><button class="btn" id="chat-send" type="submit">Send</button></form></div>
         </div>
-        <aside class="home-side" aria-label="Recent activity">
-          <div class="side-head"><b>Recent activity</b><button class="side-link" id="side-more" type="button" title="Every decision with what it saved, and the merged pull requests">All decisions</button></div>
-          <div class="side-status" id="side-status" role="status"></div>
-          <div id="side-body"><div class="side-empty"><span class="spinner"></span>Reading…</div></div>
-        </aside>
       </div>
     </section>
 
@@ -867,23 +881,37 @@ async function pollActivity() {
 // ---- the repositories with a cache on this machine ----
 // ---- Chat, the page thinker opens on ----
 // The conversation with thinker fills the page (/api/chat: chat.js:chatSend, as `thinker chat`): the person asks what it
-// did, and tells it how to behave. One conversation for the machine; a message says which repository is picked above
-// it. What thinker changed is listed under its answer in the server's own words (`did`). A message that had to be
-// queued for an app's own session shows as waiting, and the page checks back for the answer.
-// Down the right, Recent activity (/api/upkeep: upkeep.js:upkeepView, as `thinker activity`): a line an action with what
+// did, and tells it how to behave. A message says which repository is picked above it. What thinker changed is listed
+// under its answer in the server's own words (`did`). A message that had to be queued for an app's own session shows
+// as waiting, and the page checks back for the answer.
+// Down the left, a toggle between two views (the owner, 2026-11-21). Chat history (chat.js:chatList, as `thinker chat
+// --history`): the conversations, a line each by the first thing said in it, under the day it was last spoken in. The
+// page opens on the one last spoken in; a line opens another, and New chat one that starts with its first message.
+// Recent activity (/api/upkeep: upkeep.js:upkeepView, as `thinker activity`): a line an action with what
 // it came to, and for a pull request its link, since it may be in review for days. Nothing there is a button: thinker
 // does its work itself (the owner, 2026-11-21: "no more manual action please"), and doing, leaving or taking back a
 // thing is said to it in the chat. Nothing is looked for when the page is read: the answer is what the last check
 // kept, and a repository whose check is old is looked at in the background (`looking`), which the poll picks up. A
 // look never has thinker act. As everywhere, a refresh rebuilds in place (swapBody).
 let HREPO = hashTab() === 'chat' ? hashRepo() : 'all', UPK = null, UPK_FOR = null, HLOAD = 0, HPOLL = null;
-let CHAT_MSGS = [], CHAT_WAIT = null, CHAT_WAIT_REF = null, CHAT_POLL = null, CHAT_READ = false;
+let CHAT_MSGS = [], CHAT_WAIT = null, CHAT_WAIT_REF = null, CHAT_WAIT_IN = null, CHAT_POLL = null, CHAT_READ = false;
+// the conversation that is open (null: a new one, nothing said in it yet) and the history, newest first (null: not
+// read yet, which is not the same as none)
+let CHAT_ID = null, CHATS = null, CLOAD = 0;
 const HOME_POLL_MS = 30_000, HOME_FAST_MS = 4_000, SIDE_SESSIONS = 8;
 const CHAT_HINTS = ['What have you done lately?', 'Ask me before you put up a pull request', 'How do you decide what is important?'];
 const chatAbout = () => HREPO && HREPO !== 'all' ? HREPO : '';
 const upWhen = t => { const d = new Date(t), now = new Date(), day = x => x.toDateString(), time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); return day(d) === day(now) ? `today ${time}` : day(d) === day(new Date(now - 864e5)) ? `yesterday ${time}` : `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${time}`; };
 $('#h-repo').onchange = e => { HREPO = e.target.value; e.target.blur(); loadHome(); };
 $('#side-more').onclick = () => show('activity');
+// the side's toggle: Recent activity or the chat history. The history is drawn from what the page holds, then read again
+function setSide(v) {
+  document.querySelectorAll('#side-view button').forEach(b => { const on = b.dataset.side === v; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
+  $('#side-activity').hidden = v !== 'activity'; $('#side-history').hidden = v !== 'history'; $('#side-more').hidden = v !== 'activity';
+  if (v === 'history') loadHistory();
+}
+document.querySelectorAll('#side-view button').forEach(b => b.onclick = () => setSide(b.dataset.side));
+$('#chat-new').onclick = () => openChat(null);
 async function loadHome() {
   try { if (!REPOS.length) await fetchRepos(); } catch {}
   if (!HREPO) HREPO = REPOS.find(r => r.current)?.id || 'all';
@@ -963,9 +991,11 @@ function renderChat() {
     : m.pending ? `<div class="chat-msg thinker wait"><span class="spinner"></span>Waiting to answer through your agent's own session${m.via ? ` in ${esc(m.via)}` : ''}: the next time it is active there.</div>`
     : m.failed ? `<div class="chat-msg thinker bad">Could not answer: ${esc(m.failed)}</div>`
     : `<div class="chat-msg thinker">${chatText(m.text)}${m.did?.length ? `<ul class="chat-did">${m.did.map(x => `<li class="${x.ok ? '' : 'no'}">${x.ok ? '✓' : '✗'} ${chatText(x.text)}</li>`).join('')}</ul>` : ''}</div>`;
-  const empty = !CHAT_MSGS.length && !CHAT_WAIT;
+  // a message being answered shows in the conversation it was said in, whichever is opened meanwhile
+  const waiting = CHAT_WAIT && CHAT_WAIT_IN === CHAT_ID;
+  const empty = !CHAT_MSGS.length && !waiting;
   $('#chat-msgs').innerHTML = (empty ? '<div class="chat-empty"><h1>thinker</h1><p>Ask what it has been doing, or tell it how you want it to behave. It acts on what you say here.</p></div>' : CHAT_MSGS.map(bubble).join(''))
-    + (CHAT_WAIT ? `${CHAT_WAIT_REF ? refCard(CHAT_WAIT_REF, true) : ''}<div class="chat-msg you">${esc(CHAT_WAIT)}</div><div class="chat-msg thinker wait"><span class="spinner"></span>Thinking…</div>` : '');
+    + (waiting ? `${CHAT_WAIT_REF ? refCard(CHAT_WAIT_REF, true) : ''}<div class="chat-msg you">${esc(CHAT_WAIT)}</div><div class="chat-msg thinker wait"><span class="spinner"></span>Thinking…</div>` : '');
   $('#chat-hints').innerHTML = empty ? CHAT_HINTS.map((h, i) => `<button class="chat-hint" type="button" data-hint="${i}">${esc(h)}</button>`).join('') : '';
   $('#chat-hints').querySelectorAll('[data-hint]').forEach(b => b.onclick = () => sendChat(CHAT_HINTS[Number(b.dataset.hint)]));
   log.scrollTop = log.scrollHeight;
@@ -973,19 +1003,45 @@ function renderChat() {
   clearTimeout(CHAT_POLL);
   if (TAB === 'chat' && CHAT_MSGS.some(m => m.pending)) CHAT_POLL = setTimeout(loadChat, 5000);
 }
-async function loadChat() { try { CHAT_MSGS = (await api('/api/chat')).messages || []; } catch {} renderChat(); }
+// the first read asks for no conversation and gets the one last spoken in; after it, the one that is open
+const chatUrl = () => `/api/chat${CHAT_READ ? `?chat=${encodeURIComponent(CHAT_ID || 'new')}` : ''}`;
+async function loadChat() {
+  const seq = ++CLOAD;
+  try { const r = await api(chatUrl()); if (seq !== CLOAD) return; CHAT_MSGS = r.messages || []; CHATS = r.chats || []; CHAT_ID = r.chat || null; } catch { CHATS = CHATS || []; }
+  renderChat(); renderHistory();
+}
+async function loadHistory() { renderHistory(); try { CHATS = (await api(chatUrl())).chats || CHATS; renderHistory(); } catch {} }
+// A line a conversation, under the day it was last spoken in. What is shown stays until the one picked has been read.
+function renderHistory() {
+  const day = t => { const d = new Date(t), now = new Date(), k = x => x.toDateString(); return k(d) === k(now) ? 'Today' : k(d) === k(new Date(now - 864e5)) ? 'Yesterday' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
+  const days = [], el = $('#side-chats');
+  if (!CHATS) { el.innerHTML = '<div class="side-empty"><span class="spinner"></span>Reading…</div>'; return; }
+  for (const c of CHATS) { const d = day(c.at); if (days.at(-1)?.day !== d) days.push({ day: d, chats: [] }); days.at(-1).chats.push(c); }
+  const row = c => `<li><button class="side-chat${c.id === CHAT_ID ? ' on' : ''}" type="button" data-chat="${esc(c.id)}" title="${esc(c.title)}"${c.id === CHAT_ID ? ' aria-current="true"' : ''}>${esc(c.title || 'Nothing said yet')}</button></li>`;
+  swapBody(el, days.length ? days.map(g => `<div class="side-day">${esc(g.day)}</div><ol class="side-chats">${g.chats.map(row).join('')}</ol>`).join('') : '<div class="side-empty">No chats yet. Each conversation with thinker is listed here by the first thing you said in it.</div>');
+  el.querySelectorAll('[data-chat]').forEach(b => b.onclick = () => openChat(b.dataset.chat));
+}
+function openChat(id) {
+  if (id === CHAT_ID) { $('#chat-input').focus(); return; }
+  CHAT_ID = id;
+  if (id) loadChat(); else { ++CLOAD; CHAT_MSGS = []; renderChat(); }
+  renderHistory(); $('#chat-input').focus();
+}
 async function sendChat(text) {
   text = String(text || '').trim(); if (!text || CHAT_WAIT) return;
   // the card goes with this message and comes off the prompt box
   const ref = CHAT_REF; CHAT_REF = null; renderAttach();
-  CHAT_WAIT = text; CHAT_WAIT_REF = ref; $('#chat-send').disabled = true; renderChat();
+  const into = CHAT_ID;
+  CHAT_WAIT = text; CHAT_WAIT_REF = ref; CHAT_WAIT_IN = into; $('#chat-send').disabled = true; renderChat();
   try {
-    const r = await api('/api/chat', { message: text, repo: chatAbout(), ...(ref ? { about: ref } : {}) });
-    CHAT_MSGS = r.messages || CHAT_MSGS;
+    // `chat`: the conversation that is open; a new one starts with this message and is named by the answer
+    const r = await api('/api/chat', { message: text, repo: chatAbout(), chat: into || 'new', ...(ref ? { about: ref } : {}) });
+    CHATS = r.chats || CHATS;
+    if (CHAT_ID === into) { ++CLOAD; CHAT_ID = r.chat || null; CHAT_MSGS = r.messages || CHAT_MSGS; }
     // what it changed shows beside the conversation at once: how thinker behaves, what needs the person, what was done
-    if (CHAT_MSGS.at(-1)?.did?.length) { loadSide(); pollActivity(); }
+    if (r.messages?.at(-1)?.did?.length) { loadSide(); pollActivity(); }
   } catch (err) { toast(`Could not send that: ${err.message}`, true, 5000); $('#chat-input').value = text; CHAT_REF = ref; renderAttach(); }
-  CHAT_WAIT = null; CHAT_WAIT_REF = null; $('#chat-send').disabled = false; renderChat(); $('#chat-input').focus();
+  CHAT_WAIT = null; CHAT_WAIT_REF = null; CHAT_WAIT_IN = null; $('#chat-send').disabled = false; renderChat(); renderHistory(); $('#chat-input').focus();
 }
 $('#chat-form').onsubmit = e => { e.preventDefault(); const t = $('#chat-input').value; $('#chat-input').value = ''; sendChat(t); };
 // Enter sends, Shift+Enter is a new line; Escape, or Backspace in an empty box, takes the card off

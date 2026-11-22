@@ -672,12 +672,13 @@ test('the Factory tab and `thinker factory` read one computation, kept with the 
 });
 
 test('the page opens on the chat with Recent activity beside it: `thinker chat` and `thinker activity` are the same function and view, and nothing on either is for the person to do', async t => {
-  // 2026-11-21, the owner's calls: the chat is the page, Recent activity runs down its right side as a line an action
-  // with what it came to, and there is "no more manual action": thinker does its work itself
+  // 2026-11-21, the owner's calls: the chat is the page, Recent activity runs down its left side as a line an action
+  // with what it came to, under a toggle to the chat history, and there is "no more manual action": thinker does its
+  // work itself
   const html = read('ui/page.html');
   assert.match(html, /show\(H\(\)\.get\('tab'\) \|\| 'chat'\);/, 'no tab named: the chat');
   assert.match(html, /<button class="nav-link" data-tab="chat"/); assert.match(html, /<section id="tab-chat" hidden>/);
-  assert.match(html, /<aside class="home-side" aria-label="Recent activity">/);
+  assert.match(html, /<aside class="home-side" aria-label="Recent activity and chat history">/);
   assert.match(html, /esc\(f\.impactSaid\)/, 'the page prints the impact the server worded, as the command does');
   assert.match(read('upkeep.js'), /\$\{f\.impactSaid \? ` {2}\$\{f\.impactSaid\}` : ''\}/);
   // a pull request may be in review for days: its line carries its link through both doors
@@ -692,7 +693,12 @@ test('the page opens on the chat with Recent activity beside it: `thinker chat` 
   assert.doesNotMatch(html, /\/api\/upkeep\/|data-do|data-leave|data-undo|Leave it|Look again/);
   assert.doesNotMatch(read('commands/activity.js'), /upkeepDo|upkeepDismiss|upkeepUndo|setBehavior/);
   assert.match(read('cli.js'), /activity \[run \[--look\]\] \[--all\] \[--json\]/, 'the flags are in help');
-  assert.match(read('cli.js'), /chat \[message\] \[--json\]/);
+  assert.match(read('cli.js'), /chat \[message\] \[--new\] \[--chat id\] \[--history\] \[--json\]/);
+  // the chat history is one list (chat.js:chatList, through chatView): the page's side draws it, the command prints it,
+  // and both open on the conversation last spoken in where none is named and start another on the same word, `new`
+  assert.match(read('ui/server.js'), /chatView\(\{ home, chat: url\.searchParams\.get\('chat'\) \|\| null \}\)/); assert.match(read('commands/chat.js'), /const open = chatView\(\{ chat \}\);/);
+  assert.match(html, /CHATS = r\.chats \|\| \[\]/); assert.match(read('commands/chat.js'), /renderChats\(open\.chats, \{ open: open\.chat \}\)/);
+  assert.match(html, /chat: into \|\| 'new'/); assert.match(read('commands/chat.js'), /const chat = flags\.new \? 'new' : /);
   // doing, leaving and taking back a thing, and how thinker behaves, are said to it: the chat is the one door to them
   for (const fn of ['setBehavior(', 'steerBehavior(', 'upkeepDo(', 'upkeepDismiss(', 'upkeepUndo(']) assert.ok(read('chat.js').includes(fn), `the chat calls ${fn}`);
   // "Chat about this" on a line of the side: the line goes into the prompt box as a card and with the message as `about`;
@@ -734,7 +740,7 @@ test('the page opens on the chat with Recent activity beside it: `thinker chat` 
   assert.deepEqual([shown.pending, shown.notes, shown.items], [undefined, undefined, undefined], 'nothing listed for the person to work through');
   for (const route of ['do', 'leave', 'undo', 'look']) assert.equal((await ui.post(`/api/upkeep/${route}`, { repo: '', id: 'sweep' })).status, 404);
   // the chat: the message is answered, what it changed is said by the server, and the side says the same
-  assert.deepEqual((await ui.get('/api/chat')).messages, []);
+  assert.deepEqual(await ui.get('/api/chat'), { chat: null, messages: [], chats: [] });
   const said = await ui.post('/api/chat', { message: 'ask me before you do anything', repo: '' });
   assert.deepEqual(said.messages.map(m => [m.role, m.text]), [['you', 'ask me before you do anything'], ['thinker', "I'll wait for your word from now on."]]);
   assert.deepEqual(said.messages[1].did, [{ type: 'set', ok: true, text: 'level is now ask on this machine' }]);
@@ -745,6 +751,17 @@ test('the page opens on the chat with Recent activity beside it: `thinker chat` 
   // a message sent with a card keeps it, cut to what a line is
   const withCard = await ui.post('/api/chat', { message: 'what is this for?', repo: '', about: { kind: 'action', text: 'PR #12 in review: shortens AGENTS.md · Releases', url: 'https://github.com/o/r/pull/12', at, extra: 'dropped' } });
   assert.deepEqual(withCard.messages.at(-2).ref, { kind: 'action', text: 'PR #12 in review: shortens AGENTS.md · Releases', at, url: 'https://github.com/o/r/pull/12' });
+  // the chat history: a message with no conversation named went on in the one open, New chat starts another, and the
+  // rows the page lists are the rows `thinker chat --history` prints (chatList), newest first
+  assert.equal(withCard.chat, said.chat); assert.equal(withCard.messages.length, 4);
+  const fresh = await ui.post('/api/chat', { message: 'what did you do today?', repo: '', chat: 'new' });
+  assert.notEqual(fresh.chat, said.chat); assert.deepEqual(fresh.messages.map(m => m.text), ['what did you do today?', "I'll wait for your word from now on."]);
+  const { chatView } = await import('../src/chat.js');
+  assert.deepEqual(fresh.chats, chatView({ home: p.home }).chats);
+  assert.deepEqual(fresh.chats.map(c => [c.id, c.title, c.messages]), [[fresh.chat, 'what did you do today?', 2], [said.chat, 'ask me before you do anything', 4]]);
+  assert.equal((await ui.get('/api/chat')).chat, fresh.chat, 'no conversation named: the one last spoken in');
+  assert.equal((await ui.get(`/api/chat?chat=${said.chat}`)).messages.length, 4);
+  assert.deepEqual([(await ui.get('/api/chat?chat=new')).chat, (await ui.get('/api/chat?chat=new')).messages.length, (await ui.get('/api/chat?chat=new')).chats.length], [null, 0, 2]);
   assert.deepEqual(shown.delegated, { days: 14, total: { sessions: 0, reads: 0, runs: 0, handed: 0, saved: 0, unpriced: 0 }, sessions: [], said: '' });
 });
 
