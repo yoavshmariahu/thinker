@@ -383,7 +383,7 @@ export function priceCut(m, cand, { ttl = '1h', model = null, rates = null, mark
 // The decision, at a turn boundary only. Within a turn the set is returned unchanged, so the bytes
 // are too. `cand` comes from proxy.js:cutCandidates -- the results outside the newest turn and the
 // newest `keepMin`, big enough to be worth a placeholder, not already cut.
-// Every refusal says which of the seven branches below refused it (`reason`, 2026-11-08). The branches are not
+// Every refusal says which of the eight branches below refused it (`reason`, 2026-11-08; `recap` since 2026-11-22). The branches are not
 // distinguishable from the returned object: `mid-turn`, `one-cut` and `below-trigger` all answer `{cut, clear:
 // false}`, and a payback refusal is a size refusal with a `held` beside it. So the Messages door derived the
 // reason from `candidate` alone (`proxy.js`, one line) and called every refusal that had a candidate
@@ -401,9 +401,32 @@ export function priceCut(m, cand, { ttl = '1h', model = null, rates = null, mark
 export function decideCut(rec, cfg, m, opts = {}) {
   const eff = scaledPolicy(cfg, { rates: opts.rates ?? null });
   const d = decide(rec, eff, m, opts);
-  // a seed the decision did not keep is over: taken, gone stale, or the request has no room for the mark
-  if (rec.seed && !('seed' in d)) d.seed = null;
+  // a seed the decision did not keep is over: taken, gone stale, or the request has no room for the mark.
+  // A recap decided nothing, so it ends nothing either: the seed waits for the person's own request.
+  if (rec.seed && !('seed' in d) && d.reason !== 'recap') d.seed = null;
   return { ...d, policy: policyId(eff), ...(eff.scale ? { scale: eff.scale } : {}) };
+}
+// --- Claude Code's recap is not a turn (2026-11-22, the owner's call) --------------------------------------
+// Three minutes after a turn ends with the person idle, Claude Code sends the whole conversation again with
+// one message of its own on the end, to have a line ready for their return (`querySource: "away_summary"`
+// in its bundle; the wording is the same in 2.1.325 through 2.1.330). By `proxy.js:turnId`'s rule that
+// message is a prompt, so the recap read as a boundary: a cut was decided on it, or a seeded one made, at
+// the one moment nobody is there to use what the cut buys. Read from the owner's proxy log the day the
+// cutting went back on: of 30 cuts 7 lost money, 3 of those 7 were made on a recap and they were over half
+// the dollars lost; 124 of 534 priced boundaries sat on one. After a recap the person is back within five
+// minutes 31% of the time, within the cache's hour another 43%, after it 11%, and never 16% (776 recaps).
+// And the prompt they come back with carries the recap's own turn number, so it read as mid-turn: the recap
+// had taken the decision that belonged to it.
+// So a recap decides nothing and moves nothing. The set, the turn and a pending seed stay where the person's
+// last prompt left them, the request goes out with the set a mid-turn call would carry, and the prompt that
+// follows is the boundary. A person who types the same opening words loses one boundary's cut, no more.
+export const RECAP_OPENS = 'The user stepped away and is coming back.';
+export function isRecap(messages) {
+  const last = Array.isArray(messages) ? messages[messages.length - 1] : null;
+  if (last?.role !== 'user') return false;
+  const texts = typeof last.content === 'string' ? [last.content]
+    : Array.isArray(last.content) ? last.content.filter(b => b?.type === 'text').map(b => String(b.text ?? '')) : [];
+  return texts.some(t => t.trimStart().startsWith(RECAP_OPENS));
 }
 // --- a cut is seeded on one request and made on the next (2026-11-17, off by default) ---------------------
 // The API reads a cached prefix only where some request left a breakpoint, so a result replaced in the
@@ -418,7 +441,7 @@ export function decideCut(rec, cfg, m, opts = {}) {
 // boundary decides again.
 export const SEED_MS = { '1h': 55 * 60 * 1000, '5m': 4 * 60 * 1000 };
 const seedRung = (cand, seed) => (cand?.steps || []).find(s => s.ids[s.ids.length - 1] === seed.last) || null;
-function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Date.now(), model = rec.model, rates = null, mark = false, markTtl = ttl } = {}) {
+function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Date.now(), model = rec.model, rates = null, mark = false, markTtl = ttl, recap = false } = {}) {
   const same = { cut: rec.cut, clear: false };
   const size = cand?.ids.length ? cand.tokens : 0;
   // Cutting off (proxy.js:PROXY_DEFAULTS, the owner's call of 2026-11-19), and it is the first thing asked, so
@@ -428,6 +451,10 @@ function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Dat
   // that names no `cut` still cuts, so the guards' own tests go on exercising the mechanism unchanged, and what
   // production runs comes from `proxyConfig` and `desktopPolicy`, where the key is always present.
   if (cfg.cut === false) return { ...same, turn, candidate: size, reason: 'off' };
+  // Claude Code's recap (`isRecap`): not a boundary, whatever its turn number says, and asked before the seed so
+  // a seeded cut is not made on it either. No `turn` in the answer: the record stays on the person's last prompt
+  // and their next one is decided. `candidate` is what this request would have given up, for the log.
+  if (recap) return { ...same, candidate: size, reason: 'recap' };
   if (mark && rec.seed) {
     const rung = seedRung(cand, rec.seed);
     const live = rung && now - (rec.seed.ready || rec.seed.at) <= (SEED_MS[markTtl] || SEED_MS['5m']);
