@@ -90,13 +90,14 @@ function partChanges(view, { all = false } = {}) {
   for (const s of view.skills || []) if (take(s)) out.push({
     kind: 'skill', view: 'custom', waste: s.waste, key: `${s.client}:${s.key}`, sourceKey: s.key, label: s.label, repo: s.repo, off: Boolean(s.off),
     title: `${s.name} skill`, saving: s.wasted, windowSaving: s.wastedWindow, text: String(s.text || '').slice(0, 1200), why: `${s.usedShare != null ? `needed in ${Math.round(100 * s.usedShare)}% of prompts` : `opened in ${s.used} of ${s.loaded} sessions`}; its listing is in every one`, action: 'switch it off here',
-    sessions: s.loaded || 0, prompts: s.prompts || 0, options: switchOpts(s), ...describePart({ kind: 'skill', text: s.text }),
+    sessions: s.loaded || 0, used: s.used ?? null, prompts: s.prompts || 0, options: switchOpts(s), ...describePart({ kind: 'skill', text: s.text }),
   });
   for (const s of view.tools || []) if (take(s)) out.push({
     kind: 'tool', view: s.group === 'builtin' ? 'builtin' : 'custom', waste: s.waste, key: `${s.client}:${s.key}`, sourceKey: s.key, label: s.label, repo: s.repo, off: Boolean(s.off),
     title: `${s.name}${s.kind === 'mcp' ? ' MCP server' : s.kind === 'plugin' ? ' plugin' : ' tool'}`, saving: s.wasted, windowSaving: s.wastedWindow, text: String(s.text || '').slice(0, 1200),
     why: `${s.usedShare != null ? `needed in ${Math.round(100 * s.usedShare)}% of prompts` : `used in ${s.used} of ${s.loaded} sessions`}; ~${formatTokens(s.tokens)} tokens in every model call`, action: s.group === 'builtin' ? 'create a tool reference; the tool can still be used' : 'switch it off here',
-    builtin: s.group === 'builtin', sessions: s.loaded || 0, prompts: s.prompts || 0, options: s.group === 'builtin' && !s.off && s.label ? [ACTS.ref] : switchOpts(s), ...describePart({ kind: 'tool', name: s.name, builtin: s.group === 'builtin', toolKind: s.kind, text: s.text }),
+    // `used`: the sessions that called it, of the `sessions` that loaded it (upkeep.js judges a tool's use by them)
+    builtin: s.group === 'builtin', sessions: s.loaded || 0, used: s.used ?? null, prompts: s.prompts || 0, options: s.group === 'builtin' && !s.off && s.label ? [ACTS.ref] : switchOpts(s), ...describePart({ kind: 'tool', name: s.name, builtin: s.group === 'builtin', toolKind: s.kind, text: s.text }),
   });
   // A tool's output is not a change anyone is offered (2026-11-04, the owner's call). The clearing is thinker's
   // compression and it is on by default (cutting.js, applied by proxy.js on every request): it takes out the results

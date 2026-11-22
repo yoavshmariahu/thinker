@@ -23,12 +23,23 @@
 // decisions... This should happen in batches and only on actions that have clear value", and then their answers, one
 // by one, to how that should work:
 //   - It acts by itself (`level: 'auto'`). `ask` has it wait for the person's word in the chat; `off` stops the checks.
-//   - Clear value is dollars: a change is worth making when what it wastes comes to `minPerDay` ($1) a day or more
-//     here -- the tokens that went on it unused over the report's window, at what an input token costs here, a day.
-//     A change nothing can price is not made. What is under the bar stays in `thinker context`.
+//   - Clear value is dollars, and only the high ones (`worthOf`; the owner again, a day into the $1 bar: "only
+//     automatically make fixes that are high value not medium value. at least $5 per day and the tool should not have
+//     clear utility. push it towards tool references rather than removing entirely"). A change is worth making when
+//     what it wastes comes to `minPerDay` ($5) a day or more here -- the tokens that went on it unused over the
+//     report's window, at what an input token costs here, a day -- and the report grades that waste high, not medium.
+//     A change nothing can price is not made.
+//   - A tool somebody plainly uses is left alone whatever it costs: one called in `UPKEEP.clearUse` (a tenth) of the
+//     sessions that loaded it. By sessions, not prompts: a tool called once in a session of two hundred calls was
+//     needed in that session.
+//   - A tool is made a reference wherever one can be made (it stays callable: tool-stubs.js). What can only be switched
+//     off outright -- an MCP server, a plugin, a skill -- goes by itself only where no session called it at all, over
+//     `UPKEEP.removeSessions` of them, as a section is removed only where no prompt needed it.
+//   - What it found and passed over is kept with the reason (`passed`), for the chat: thinker says what it looked at
+//     and why it left it, and the person may still tell it to go ahead. What they tell it to do is held to none of this.
 //   - Batches: the changes worth making go together, once they come to `batchPerDay` ($5) a day between them and
 //     `batchEveryDays` (7) have passed since the last batch here. A batch is one line of the activity.
-//   - What it may do: shorten a section (`prs`), remove one (`remove`), switch off or reference a tool or an MCP
+//   - What it may do: shorten a section (`prs`), remove one (`remove`), reference or switch off a tool or an MCP
 //     server (`tools`). Not a skill (`skills`, off) unless the person says so.
 //   - A pull request is the only way it changes a repository's files: one for a batch, whatever it shortens and
 //     removes, left for a person to merge (thinker never merges its own), and opened even while an earlier one is
@@ -76,6 +87,8 @@ export const UPKEEP = {
   batchMax: 20,     // changes one batch may hold (what the report lists)
   removeSessions: 10, // sessions a section must have gone unneeded through before thinker removes it, not shortens it
   needShare: 0.1,   // a tool made a reference and still called in this share of prompts was needed after all
+  clearUse: 0.1,    // a tool called in this share of the sessions that loaded it is plainly of use: left alone, whatever it costs
+  passedMax: 12,    // things found and passed over that the chat is shown, the costliest first
   followGiveUpDays: 28, // a change nothing could measure in this long is left as it is
   followedDays: 180, // how long a change's check is remembered
 };
@@ -87,7 +100,7 @@ const short = (s, n = 160) => { s = String(s || '').replace(/\s+/g, ' ').trim();
 // Each setting with what it may be, and the words the chat and the command say it in.
 export const BEHAVIOR = {
   level: 'auto', prs: true, remove: true, tools: true, skills: false,
-  minPerDay: 1, batchPerDay: 5, batchEveryDays: 7, followUp: true, followUpDays: 7,
+  minPerDay: 5, batchPerDay: 5, batchEveryDays: 7, followUp: true, followUpDays: 7,
   // the two that are read from where their own part of thinker keeps them (`SETTINGS` below, `get`), never from the
   // upkeep block: on until that part says otherwise, and `null` for one the person has not set at all
   delegation: true, answerWords: null,
@@ -101,9 +114,9 @@ export const SETTINGS = {
   level: { read: oneOf('auto', 'ask', 'off'), about: 'auto: make the changes worth making by itself; ask: do nothing until told to in the chat; off: stop looking' },
   prs: { read: bool, about: 'whether it may put up a pull request that shortens or removes a section of an instruction file' },
   remove: { read: bool, about: 'whether such a pull request may remove a section outright; off, it only shortens' },
-  tools: { read: bool, about: 'whether it may switch off, or make a reference of, a tool or an MCP server nobody calls' },
+  tools: { read: bool, about: 'whether it may make a reference of a tool nobody calls (it stays callable), or switch off an MCP server no session called at all' },
   skills: { read: bool, about: 'whether it may switch off a skill nobody calls (off unless they say so)' },
-  minPerDay: { read: money(0.05, 1000), about: 'dollars a day a change must save here to be worth making' },
+  minPerDay: { read: money(0.05, 1000), about: 'dollars a day one change must save here before thinker makes it by itself (5 unless they say otherwise; its waste must also be graded high, and a tool plainly in use is never touched)' },
   batchPerDay: { read: money(0.05, 10_000), about: 'dollars a day the changes worth making must come to together before a batch of them goes' },
   batchEveryDays: { read: num(1, 90), about: 'least days between batches in one repository' },
   followUp: { read: bool, about: 'whether it checks each change once it has been in effect a while, and takes back by itself what did not pay' },
@@ -162,13 +175,14 @@ export function setBehavior(store, key, value, { scope = 'machine', home = think
   return { key, value: v, scope, said: `${key} is now ${v} ${scope === 'repo' ? 'in this repository' : 'on this machine'}` };
 }
 // "More like this" and "less like this" (the owner, 2026-11-21: a person "can steer future decisions about things like
-// that"): how readily thinker does one kind of thing, moved one step. A step halves or doubles the bar -- the dollars
-// a day a change must save, the size a read must be to be handed over -- so two words from the person are a definite change they are
-// told the size of, and never a number the model picked. `changes` is every change to what loads into a prompt (a
+// that"): how readily thinker does one kind of thing, moved one step. A step is the next bar down or up -- the dollars
+// a day a change must save, along `STEER.minPerDay.steps` (the choices the Settings tab offers); the size a read must
+// be to be handed over, halved or doubled -- so two words from the person are a definite change they are told the
+// size of, and never a number the model picked. `changes` is every change to what loads into a prompt (a
 // batch, a pull request, a tool: `prs` and `tools` are the same bar by the names single lines carry). `delegation` is
 // the delegation trigger's own setting (delegate.js: the size a read must be to be handed to a cheaper agent), which
 // is the machine's alone.
-export const STEER = { kinds: ['changes', 'prs', 'tools', 'delegation'], delegation: { min: 2000, max: 64_000 }, minPerDay: { min: 0.25, max: 64 } };
+export const STEER = { kinds: ['changes', 'prs', 'tools', 'delegation'], delegation: { min: 2000, max: 64_000 }, minPerDay: { steps: [0.25, 0.5, 1, 2, 5, 10, 20, 50] } };
 const half = (n, min) => Math.max(min, Math.round(n / 2)), twice = (n, max) => Math.min(max, n * 2);
 export function steerBehavior(store, kind, direction, { scope = 'machine', home = thinkerHome() } = {}) {
   const more = direction === 'more';
@@ -185,8 +199,9 @@ export function steerBehavior(store, kind, direction, { scope = 'machine', home 
   const b = behaviorOf(scope === 'repo' ? store : null, { home });
   const set = (key, value) => setBehavior(store, key, value, { scope, home });
   if ((kind === 'prs' || kind === 'tools') && !b[kind]) { if (!more) return { error: `thinker already does none of that ${where}` }; const r = set(kind, true); return r.error ? r : { said: `thinker does that again ${where}` }; }
-  // changes, prs, tools: the dollars a day a change must save, halved for more of them and doubled for fewer
-  const next = more ? Math.max(STEER.minPerDay.min, Math.round(b.minPerDay * 50) / 100) : Math.min(STEER.minPerDay.max, b.minPerDay * 2);
+  // changes, prs, tools: the dollars a day a change must save, the next step down for more of them and up for fewer
+  // (a bar set by hand between two steps moves to the step beyond it; one past either end stays where it is)
+  const steps = STEER.minPerDay.steps, next = (more ? steps.filter(x => x < b.minPerDay).at(-1) : steps.find(x => x > b.minPerDay)) ?? b.minPerDay;
   if (next === b.minPerDay) return { error: `the bar is already ${more ? 'as low' : 'as high'} as thinker will go (${formatDollars(b.minPerDay)} a day)` };
   const r = set('minPerDay', next);
   return r.error ? r : { said: `a change must now save ${formatDollars(next)} a day before thinker makes it ${where} (it was ${formatDollars(b.minPerDay)})` };
@@ -195,8 +210,8 @@ export function steerBehavior(store, kind, direction, { scope = 'machine', home 
 export function behaviorSaid(b) {
   if (b.level === 'off') return 'Thinker is not looking after this repository (upkeep is off).';
   if (b.level === 'ask') return 'Thinker does nothing here until you tell it to.';
-  const cuts = [b.prs ? (b.remove ? 'shortens or removes instruction sections nobody needs in a pull request' : 'shortens instruction sections nobody needs in a pull request') : '', b.tools ? 'switches off tools nobody calls' : '', b.skills ? 'switches off skills nobody calls' : ''].filter(Boolean);
-  const does = [cuts.length ? `${cuts.join(' and ')}, but only what saves ${formatDollars(b.minPerDay)} a day or more, together in one batch once that comes to ${formatDollars(b.batchPerDay)} a day, at most every ${plural(b.batchEveryDays, 'day')}` : ''].filter(Boolean);
+  const cuts = [b.prs ? (b.remove ? 'shortens or removes instruction sections nobody needs in a pull request' : 'shortens instruction sections nobody needs in a pull request') : '', b.tools ? 'makes a reference of tools nobody calls' : '', b.skills ? 'switches off skills nobody calls' : ''].filter(Boolean);
+  const does = [cuts.length ? `${cuts.join(' and ')}, but only high-waste parts that save ${formatDollars(b.minPerDay)} a day or more each, ${b.batchPerDay > b.minPerDay ? `together in one batch once that comes to ${formatDollars(b.batchPerDay)} a day` : 'together in one batch'}, at most every ${plural(b.batchEveryDays, 'day')}` : ''].filter(Boolean);
   return does.length ? `Thinker acts on its own here: it ${does.join('; ')}.${cuts.length && b.followUp ? ` ${plural(b.followUpDays, 'day')} after a change takes effect it checks it, and takes back what did not pay.` : ''}` : 'Thinker may act on its own here, but every kind of action is switched off.';
 }
 
@@ -230,6 +245,27 @@ const perDayOf = (c, rate) => (rate == null || !c.total || !c.days ? null : (c.t
 // What thinker does to a section by itself: removes it where no prompt of the window needed it at all, over enough
 // sessions to say so, and it may; shortens it otherwise (the report's own suggestion is always to shorten).
 const sectionAct = (c, b) => (b.remove && c.usedShare === 0 && (c.sessions || 0) >= UPKEEP.removeSessions && c.options?.some(o => o.act === 'remove') ? 'remove' : c.default.act);
+// Whether a change is worth thinker making by itself at the bar in force (`b`), and where it is not, why it is passed
+// over (`why`, which the chat says). The owner's rule, 2026-11-22: only what is high value, never medium; five dollars
+// a day at least; never a tool that is plainly of use; a reference before a switch-off. In the order a person would
+// ask: is it used, does it pay, can it be done gently.
+//   `use`: { used, loaded } -- the sessions that called a tool, of the ones that loaded it
+//   `ref`: the action leaves the tool callable (a tool reference), as against switching it off outright
+// An item an older check kept carries neither a grade nor a use, and waits for the next check to give it one.
+export function worthOf(it, b) {
+  if (it.chore !== 'context') return { ok: Boolean(it.important) };
+  const tool = it.kind === 'do', use = tool && it.use?.loaded > 0 && it.use.used != null ? it.use : null;
+  if (tool && !use) return { ok: false, why: 'the report does not say yet how many sessions called it' };
+  if (tool && use.used / use.loaded >= UPKEEP.clearUse) return { ok: false, why: `it is plainly of use: called in ${use.used} of the ${plural(use.loaded, 'session')} that loaded it, and a tool somebody uses is left alone whatever it costs` };
+  if (it.perDay == null) return { ok: false, why: 'nothing here can price it yet' };
+  if (it.perDay < b.minPerDay) return { ok: false, why: `it wastes ${formatDollars(it.perDay)} a day, and one change must save ${formatDollars(b.minPerDay)} a day before thinker makes it by itself` };
+  if (it.waste !== 'high') return { ok: false, why: it.waste ? `the report grades its waste ${it.waste}, not high` : 'the report has not graded its waste yet' };
+  if (tool && !it.ref) {
+    if (use.used > 0) return { ok: false, why: `it can only be switched off outright, not made a reference, and ${plural(use.used, 'session')} called it` };
+    if (use.loaded < UPKEEP.removeSessions) return { ok: false, why: `it can only be switched off outright, and ${plural(use.loaded, 'session')} is too few to say nobody needs it` };
+  }
+  return { ok: true };
+}
 const contextChore = {
   id: 'context',
   find(store, opts) {
@@ -238,14 +274,21 @@ const contextChore = {
     const rate = rateOf(view), canPr = (opts.fns?.prAvailable || prAvailable)(store.repo).ok;
     // a section is changed only as a pull request, which the team reviews: where none can be opened from here it is
     // not thinker's to change at all, by itself or on anybody's word
+    // a tool's or a skill's use by sessions: on the change itself, and from the report's own row where the changes
+    // were listed by a copy from before they carried it (a kept report outlives an update)
+    const useOf = c => { const row = c.used != null ? null : (c.kind === 'skill' ? view.skills : view.tools)?.find(t => `${t.client}:${t.key}` === c.key); return { used: c.used ?? row?.used ?? null, loaded: c.sessions || row?.loaded || 0 }; };
     return currentChanges(store, view, { now: opts.now, max: UPKEEP.batchMax }).filter(c => c.default && (c.kind !== 'section' || canPr)).map(c => {
-      const sec = c.kind === 'section', perDay = perDayOf(c, rate), act = sec ? sectionAct(c, opts.behavior) : c.default.act;
+      const sec = c.kind === 'section', perDay = perDayOf(c, rate), act = sec ? sectionAct(c, opts.behavior) : c.default.act, use = sec ? null : useOf(c);
       const worth = !c.total ? '' : perDay == null ? ` About ${formatTokens(c.total)} tokens went on it unused over the last ${c.days} days.` : ` About ${formatDollars(c.total * rate)} went on it unused over the last ${c.days} days, ${formatDollars(perDay)} a day.`;
       const label = !sec ? c.default.text : `Put up a PR to ${act === 'remove' ? 'remove' : 'shorten'} it`;
-      // `perDay`: what it is worth, which is what makes it `important` (openItems reads it against the bar in force);
+      // `perDay`: what it is worth; `waste`: the report's grade of it; `use`: the sessions that called a tool, of the
+      // ones that loaded it; `ref`: its action is a tool reference, which leaves it callable. Together they are what
+      // makes it `important` (worthOf; openItems reads them against the bar in force).
       // `rank`: the costliest first; `machine`: a tool is switched for every repository at once
       // `allow`: the setting that lets thinker make it by itself -- a section shortened, one removed, a tool, a skill
-      return { id: `change:${c.key}`, chore: 'context', kind: sec ? 'pr' : 'do', allow: sec ? (act === 'remove' ? 'remove' : 'prs') : c.kind === 'skill' ? 'skills' : 'tools', important: perDay != null && perDay >= opts.behavior.minPerDay, perDay, rank: c.total || 0, ...(c.kind === 'tool' ? { machine: true } : {}), title: c.title, detail: `${c.why.charAt(0).toUpperCase()}${c.why.slice(1)}.${worth}`, action: { label }, data: { key: c.key, act } };
+      const used = use && use.used != null && use.loaded ? `Called in ${use.used} of the ${plural(use.loaded, 'session')} that loaded it. ` : '';
+      const it = { id: `change:${c.key}`, chore: 'context', kind: sec ? 'pr' : 'do', allow: sec ? (act === 'remove' ? 'remove' : 'prs') : c.kind === 'skill' ? 'skills' : 'tools', perDay, waste: c.waste || null, ...(sec ? {} : { use, ref: /reference/i.test(c.default.text) }), rank: c.total || 0, ...(c.kind === 'tool' ? { machine: true } : {}), title: c.title, detail: `${used}${c.why.charAt(0).toUpperCase()}${c.why.slice(1)}.${worth}`, action: { label }, data: { key: c.key, act } };
+      return { ...it, important: worthOf(it, opts.behavior).ok };
     });
   },
   // a change decided through any door since the check (the command, a batch) is no longer open; nor is one whose
@@ -435,6 +478,8 @@ function judge(store, e, { now, b, view }) {
   if (e.kind === 'tool' && /reference/i.test(e.action || '') && view?.days && view.days * DAY <= now - since) {
     const row = (view.tools || []).find(t => `${t.client}:${t.key}` === e.key);
     if (row?.usedShare != null && row.usedShare >= UPKEEP.needShare) return { verdict: 'undo', why: `it was still called in ${Math.round(100 * row.usedShare)}% of prompts after it was made a reference` };
+    // and by the rule that would have left it alone in the first place (worthOf): plainly of use, by sessions
+    if (row?.loaded >= UPKEEP.removeSessions && row.used / row.loaded >= UPKEEP.clearUse) return { verdict: 'undo', why: `it was called in ${row.used} of the ${plural(row.loaded, 'session')} that loaded it after it was made a reference, which is plainly of use` };
   }
   // under five sessions on a side is early: looked at again, until it has been long enough to stop waiting
   if (fx && (!fx.few || late)) return { verdict: 'kept', why: `it saves ${formatTokens(Math.round(fx.delta))} tokens a prompt, over ${plural(fx.after.sessions, 'session')} since${fx.few ? ' (few, so the figure is early)' : ''}` };
@@ -525,10 +570,11 @@ const ORDER = { pr: 1, do: 2, note: 3 };
 // pull requests first, then the rest; within a kind the chores in their own order, then the costliest, then the newest
 const choreAt = it => { const i = CHORES.findIndex(c => c.id === it.chore); return i < 0 ? CHORES.length : i; };
 const byOrder = (a, b) => (ORDER[a.kind] ?? 9) - (ORDER[b.kind] ?? 9) || choreAt(a) - choreAt(b) || (b.rank || 0) - (a.rank || 0) || String(b.found || '').localeCompare(String(a.found || ''));
-// Everything worth doing the last check found that still holds and was not left alone, in the order it matters. A
-// context change is worth making at the bar in force now (`b.minPerDay`), not the one its check ran under, so a word
-// in the chat moves what is held at once.
-function openItems(store, { now = Date.now(), b = behaviorOf(store) } = {}) {
+// Everything the last check found that still holds and was not left alone, in the order it matters, each marked
+// `important` where it is worth doing. A context change is judged at the bar in force now (worthOf), not the one its
+// check ran under, so a word in the chat moves what is held at once; one that is not worth making by itself says why
+// (`passed`), which is what thinker tells somebody who asks what it looked at and left.
+function foundItems(store, { now = Date.now(), b = behaviorOf(store) } = {}) {
   const st = readUpkeep(store);
   let decided = new Set(); try { decided = decidedKeys(store, { now }); } catch {}
   // A pull request of thinker's own that was closed without merging means "not this" (the owner's answer, 2026-11-21):
@@ -542,25 +588,33 @@ function openItems(store, { now = Date.now(), b = behaviorOf(store) } = {}) {
     if (cur) items.push(cur);
   }
   // (one kept by a check from before the bar was dollars carries no figure, and waits for the next check to price it)
-  const worth = it => (it.chore === 'context' ? it.perDay != null && it.perDay >= b.minPerDay : Boolean(it.important));
-  return items.filter(it => worth(it) && (!st.dismissed[it.id] || now - Date.parse(st.dismissed[it.id]) >= UPKEEP.dismissDays * DAY)).map(it => (it.important ? it : { ...it, important: true })).sort(byOrder);
+  return items.filter(it => !st.dismissed[it.id] || now - Date.parse(st.dismissed[it.id]) >= UPKEEP.dismissDays * DAY).map(it => {
+    const w = worthOf(it, b), { passed, ...rest } = it;
+    return { ...rest, important: w.ok, ...(w.ok || !w.why ? {} : { passed: w.why }) };
+  }).sort(byOrder);
 }
+// Of those, what is worth doing.
+const openItems = (store, opts) => foundItems(store, opts).filter(it => it.important);
 // What thinker found and has not done, each with why (`pending`: it waits its turn or its batch, or the person's
 // word, or a setting says no), what is worth knowing (`notes`: a rule sessions keep breaking), and the batch those
 // changes make (`batch`: how many, what they waste a day together, why it has not gone). None of it is a list for the
 // person to work through: the page shows only how much is waiting, and the chat is shown all of it, so thinker can
-// say what it is holding and be told to go ahead.
+// say what it is holding and be told to go ahead. `passed`: what it found and is not making by itself, with why (it
+// is of use, it is under the bar, it could only be switched off outright), the costliest first -- for the chat alone,
+// where thinker says how it decided and the person may still say "do it".
 export function upkeepPending(store, { now = Date.now(), home = thinkerHome() } = {}) {
-  const st = readUpkeep(store), b = behaviorOf(store, { home }), pending = [], notes = [], open = openItems(store, { now, b });
+  const st = readUpkeep(store), b = behaviorOf(store, { home }), pending = [], notes = [], found = foundItems(store, { now, b }), open = found.filter(it => it.important);
+  const passed = found.filter(it => !it.important && it.chore === 'context' && it.action).sort((x, y) => (y.perDay || 0) - (x.perDay || 0)).slice(0, UPKEEP.passedMax).map(it => ({ ...it, why: it.passed || 'not worth making by itself' }));
   const batch = batchOf(store, b, { now, items: open });
   for (const it of open) {
     if (!it.action) { notes.push(it); continue; }
     const may = mayAct(store, it, b, { now, batch });
     pending.push({ ...it, why: may.ok ? (it.chore === 'context' ? 'it goes with the batch at the next check' : 'at its next check') : may.why || 'not now', ...(may.ok || may.later ? { later: true } : {}) });
   }
-  return { lastCheck: st.lastCheck, pending, notes, batch: { changes: batch.items.length, perDay: batch.perDay, ok: batch.ok, ...(batch.later ? { later: true } : {}), ...(batch.why ? { why: batch.why } : {}) } };
+  return { lastCheck: st.lastCheck, pending, notes, passed, batch: { changes: batch.items.length, perDay: batch.perDay, ok: batch.ok, ...(batch.later ? { later: true } : {}), ...(batch.why ? { why: batch.why } : {}) } };
 }
-const itemOf = (store, ref, now, b) => openItems(store, { now, b }).find(it => it.id === ref) || null;
+// by its id, worth doing or passed over: what the person names in the chat is theirs to have done
+const itemOf = (store, ref, now, b) => foundItems(store, { now, b }).find(it => it.id === ref) || null;
 const forget = (st, id) => { st.items = st.items.filter(it => it.id !== id); };
 
 // Do what an item offers, by its id. `by`: a check (`thinker`), or the person saying so in the chat (`you`), who is
@@ -826,7 +880,7 @@ export function upkeepDetail(store, id, { now = Date.now(), log, report, compres
       if (!of.length) return out;
       const kept = readUpkeep(store), rec = kept.done.find(d => d.id === id.slice(2)), followed = kept.followed, b = behaviorOf(store, { home }), secs = of.filter(h => h.kind === 'section');
       out.push(`A batch of ${plural(of.length, 'change')} made together on ${dateSaid(of.at(-1).at)}, ${rec?.by === 'you' ? 'on the person\'s word in the chat' : 'by thinker itself at one of its checks'}.${rec?.batch?.perDay ? ` Together they were wasting about ${formatDollars(rec.batch.perDay)} a day.` : ''}`);
-      out.push(`Why a batch: thinker makes a change only when it saves ${formatDollars(b.minPerDay)} a day or more by itself, and sends the ones that do together once they come to ${formatDollars(b.batchPerDay)} a day between them, at most every ${plural(b.batchEveryDays, 'day')}. Each of those is a setting the person can change by saying so.`);
+      out.push(`Why a batch: thinker makes a change by itself only where the report grades the waste high and it comes to ${formatDollars(b.minPerDay)} a day or more by itself (the bar as it stands now), never to a tool somebody plainly uses, and sends the ones that pass together${b.batchPerDay > b.minPerDay ? ` once they come to ${formatDollars(b.batchPerDay)} a day between them` : ''}, at most every ${plural(b.batchEveryDays, 'day')}. The dollars and the days are settings the person can change by saying so.`);
       for (const h of of) {
         out.push(...decisionFacts(h));
         const f = followed[h.id];
@@ -890,12 +944,12 @@ export function summary({ level, lastCheck, later, held, batch }) {
   const said = [inBatch ? `${plural(inBatch, 'change')} worth ${formatDollars(batch.perDay)} a day ${batch.ok ? 'going out in the next batch' : 'waiting for the next batch'}` : '', other ? `${inBatch ? `${other} more` : plural(other, 'change')} waiting ${other === 1 ? 'its' : 'their'} turn` : '', held ? `${held} held back until you say` : ''].filter(Boolean);
   return said.length ? `${said.join(', ')}.` : 'Up to date.';
 }
-// `pending` and `notes` are for the chat (chat.js:chatContext); the page and the command show the feed and the count.
+// `pending`, `notes` and `passed` are for the chat (chat.js:chatContext); the page and the command show the feed and the count.
 export function upkeepView(store, { now = Date.now(), log, report, compression, home = thinkerHome() } = {}) {
   const b = behaviorOf(store, { home }), on = b.level !== 'off';
-  const p = on ? upkeepPending(store, { now, home }) : { lastCheck: readUpkeep(store).lastCheck, pending: [], notes: [] };
+  const p = on ? upkeepPending(store, { now, home }) : { lastCheck: readUpkeep(store).lastCheck, pending: [], notes: [], passed: [] };
   const { set, ...behavior } = b;
-  const v = { level: b.level, behavior, behaviorSaid: behaviorSaid(b), lastCheck: p.lastCheck, later: p.pending.filter(i => i.later).length, held: p.pending.filter(i => !i.later).length, pending: p.pending, notes: p.notes, ...(p.batch ? { batch: p.batch } : {}), feed: upkeepFeed(store, { now, log, report }), delegated: upkeepDelegated(store, { now, log, compression, home }) };
+  const v = { level: b.level, behavior, behaviorSaid: behaviorSaid(b), lastCheck: p.lastCheck, later: p.pending.filter(i => i.later).length, held: p.pending.filter(i => !i.later).length, pending: p.pending, notes: p.notes, passed: p.passed || [], ...(p.batch ? { batch: p.batch } : {}), feed: upkeepFeed(store, { now, log, report }), delegated: upkeepDelegated(store, { now, log, compression, home }) };
   return { ...v, summary: summary(v) };
 }
 // Every repository's view as one (the page's All repositories): each line says whose it is, and the last check is

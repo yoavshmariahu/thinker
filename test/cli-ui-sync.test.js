@@ -718,8 +718,8 @@ test('the page opens on the chat with Recent activity beside it: `thinker chat` 
   assert.match(read('commands/activity.js'), /upkeepCheck\(store, \{ act: !flags\.look \}\)/);
   const { behaviorOf, upkeepView, upkeepCheck, BEHAVIOR } = await import('../src/upkeep.js');
   // by itself, only what clearly pays, in batches: the defaults both doors describe (the owner's answers, 2026-11-21)
-  assert.deepEqual([BEHAVIOR.level, BEHAVIOR.prs, BEHAVIOR.remove, BEHAVIOR.tools, BEHAVIOR.skills, BEHAVIOR.minPerDay, BEHAVIOR.batchPerDay, BEHAVIOR.batchEveryDays], ['auto', true, true, true, false, 1, 5, 7]);
-  assert.match(read('cli.js'), /worth \$1 a day or more, together in one batch once they come to \$5 a day, at most one\s+batch a repository a week/);
+  assert.deepEqual([BEHAVIOR.level, BEHAVIOR.prs, BEHAVIOR.remove, BEHAVIOR.tools, BEHAVIOR.skills, BEHAVIOR.minPerDay, BEHAVIOR.batchPerDay, BEHAVIOR.batchEveryDays], ['auto', true, true, true, false, 5, 5, 7]);
+  assert.match(read('cli.js'), /each high waste and worth \$5 a day or more, never a tool you plainly use,\s+together in one batch, at most one batch a repository a week/);
 
   // on the wire, over a home of its own: a pull request in review is a line with its link and what it is expected to
   // save, exactly as the command prints it; what thinker holds back is not on the page at all

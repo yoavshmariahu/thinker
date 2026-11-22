@@ -34,9 +34,13 @@ With no terminal, the report is printed.
 There are two ways in, and neither is a command to remember.
 
 **Thinker itself.** It makes the changes that clearly pay without being asked: an instruction section nobody
-needs is shortened or removed in a pull request (never in your working tree), a tool or MCP server nobody
-calls is switched off. A change has to save $1 a day or more, the ones that do go out together as one batch
-once they come to $5 a day, and a week later each is checked and taken back if it did not pay. Your next
+needs is shortened or removed in a pull request (never in your working tree), a tool nobody calls is made a
+reference, which keeps it callable. Only the high-value ones: a change has to be graded high waste and save
+$5 a day or more by itself, a tool you plainly use (called in a tenth of the sessions that load it) is left
+alone whatever it costs, and an MCP server is switched off outright only where no session called it at all.
+The ones that pass go out together as one batch, and a week later each is checked and taken back if it did
+not pay. Ask it in the chat what it looked at and left alone, and why; it will tell you, and do one anyway if
+you say so. Your next
 session says once what it did, `thinker activity` lists it, and `thinker chat` is where you tell it to do
 more, less or nothing (`upkeep: false` in `.thinker/config.json` stops it for a repository).
 

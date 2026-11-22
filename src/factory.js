@@ -202,12 +202,15 @@ export function detectLoops(tl, { corrected = new Set() } = {}) {
 }
 
 // --- one session ------------------------------------------------------------------------------------------------------
+// the stages each call's tokens go to: the first call after a prompt is Prompts (Review while a pull request is open),
+// a call with no tool is Think, else the stages of the tools it called
+const allocOf = (tl, calls) => calls.map((_, i) => tl.prompts.has(i) ? [tl.reviews.has(i) ? 'review' : 'prompts'] : tl.stagesOf[i].size ? [...tl.stagesOf[i]] : ['think']);
 // `corrected`: the exchanges (1-based, by prompt) the profile ledger read as corrected or redirected
 export function sessionFactory({ events = [], calls = [], model = null } = {}, { price = null, corrected = new Set() } = {}) {
   const tl = timeline(events, calls);
   const cost = calls.map(c => callCost(c, price)), tokens = calls.map(callTokens);
   const stages = Object.fromEntries(STAGE_KEYS.map(k => [k, { cost: 0, tokens: 0, calls: 0, rework: 0, reworkTokens: 0 }]));
-  const alloc = calls.map((_, i) => tl.prompts.has(i) ? [tl.reviews.has(i) ? 'review' : 'prompts'] : tl.stagesOf[i].size ? [...tl.stagesOf[i]] : ['think']);
+  const alloc = allocOf(tl, calls);
   const loops = detectLoops(tl, { corrected });
   const inLoop = new Array(calls.length).fill(false);
   for (const L of loops) for (let i = L.from; i <= L.to; i++) inLoop[i] = true;
@@ -226,6 +229,66 @@ export function sessionFactory({ events = [], calls = [], model = null } = {}, {
     stages,
     loops: loops.map(L => ({ ...L, cost: sum(L.from, L.to, cost), tokens: sum(L.from, L.to, tokens), calls: L.to - L.from + 1 })),
   };
+}
+
+// --- what happened inside a session's loops ---------------------------------------------------------------------------
+// For an answer about why (session-evidence.js, which the chat reads): one session's loops, each with the prompt that
+// opened its exchange and who wrote it, the steps taken inside it -- the commands run, with the first telling line of
+// what a failing one printed, and the files edited -- and the last thing the agent said in that exchange. The same
+// timeline, loops and allocation as sessionFactory, so every figure here is the Factory's own.
+// `stage`: only the loops with a call at that stage, each with the part of it that stage holds (`stageCost`);
+// `kind`: only the loops of that kind. The costliest first, by the stage's part where one is named.
+const oneLine = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
+const tail2 = f => String(f || '').split('/').filter(Boolean).slice(-2).join('/');
+const TELLING = /error|fail|rejected|conflict|denied|fatal|cannot|not found|no such|unexpected|timed? ?out/i;
+const firstError = result => { const lines = String(result || '').slice(0, 4000).split('\n').map(l => l.trim()).filter(Boolean); return oneLine(lines.find(l => FAIL_RE.test(l) || TELLING.test(l)) || lines[0] || '', 130); };
+// a command in a line: a script fed to it inline is named, not quoted
+const commandSaid = c => oneLine(String(c || '').replace(/<<-?\s*['"]?\w+['"]?[\s\S]*$/, '(an inline script)'), 110);
+function stepOf(e) {
+  if (e.name === 'Bash') { const bad = failed(e); return { text: `$ ${commandSaid(e.input?.command)}`, ...(bad ? { failed: true, error: firstError(e.result) } : {}) }; }
+  if (/^(Edit|Write|MultiEdit|NotebookEdit)$/.test(e.name)) return { edit: tail2(e.input?.file_path || e.input?.notebook_path) || 'a file' };
+  if (e.name === 'Read') return { read: tail2(e.input?.file_path) || 'a file' };
+  if (e.name === 'Skill') return { text: `ran the ${e.input?.skill || 'a'} skill` };
+  if (e.name === 'Agent' || e.name === 'Task') return { text: `handed to a ${e.input?.subagent_type || 'sub'} agent: ${oneLine(e.input?.description || e.input?.prompt, 80)}` };
+  return { text: String(e.name || 'a tool') };
+}
+// the steps of a loop as a few lines: runs of edits and of reads are one step each, and past `max` the failures, the
+// steps at the stage asked about, and the first and last are what is kept, in order (`more`: how many were left out)
+function stepsOf(tools, { stage = null, max = 8 } = {}) {
+  const steps = [];
+  for (const e of tools) {
+    const x = stepOf(e), at = stage ? stageOfTool(e.name, e.input) === stage : false, last = steps.at(-1);
+    if (x.edit) { if (last?.edits) { if (!last.edits.includes(x.edit)) last.edits.push(x.edit); last.n++; last.at ||= at; } else steps.push({ edits: [x.edit], n: 1, at }); }
+    else if (x.read) { if (last?.reads) { last.reads++; last.at ||= at; } else steps.push({ reads: 1, file: x.read, at }); }
+    else steps.push({ ...x, at });
+  }
+  const said = st => st.edits ? `edited ${st.edits.slice(0, 3).join(', ')}${st.edits.length > 3 ? ` and ${st.edits.length - 3} more` : ''}${st.n > st.edits.length ? ` (${st.n} edits)` : ''}`
+    : st.reads ? (st.reads === 1 ? `read ${st.file}` : `read ${st.reads} files`)
+    : st.failed ? `${st.text} → failed: ${st.error}` : st.text;
+  const score = (st, i) => (st.at ? 5 : 0) + (st.failed ? 3 : 0) + (i === 0 || i === steps.length - 1 ? 1 : 0) + (st.edits ? 1 : 0);
+  const keep = new Set(steps.map((st, i) => ({ i, s: score(st, i) })).sort((a, b) => b.s - a.s || a.i - b.i).slice(0, max).map(x => x.i));
+  return { steps: steps.filter((_, i) => keep.has(i)).map(said), more: steps.length - keep.size };
+}
+export function loopDetail({ events = [], calls = [], model = null } = {}, { price = null, corrected = new Set(), stage = null, kind = null, maxSteps = 8 } = {}) {
+  const tl = timeline(events, calls), alloc = allocOf(tl, calls);
+  const cost = calls.map(c => callCost(c, price)), tokens = calls.map(callTokens);
+  // each exchange's opening prompt and the last thing the agent said in it, counted as the timeline counts them
+  const promptOf = new Map(), saidOf = new Map(); let title = '';
+  { let x = 0; for (const e of events) { if (e.t === 'prompt') { x++; promptOf.set(x, e.text); if (!title && !isHarnessEvent(e.text)) title = e.text; } else if (e.t === 'say' && e.text) saidOf.set(x, e.text); } }
+  const part = (from, to, xs, k) => { let a = 0; for (let i = from; i <= to; i++) if (!k || alloc[i].includes(k)) a += (xs[i] || 0) / (k ? alloc[i].length : 1); return a; };
+  const loops = detectLoops(tl, { corrected }).filter(L => !kind || L.kind === kind).map(L => {
+    const inside = tl.tools.filter(e => e.ci >= L.from && e.ci <= L.to);
+    return {
+      kind: L.kind, name: LOOP_KINDS[L.kind]?.name || L.kind, sub: LOOP_KINDS[L.kind]?.sub || '', note: L.note, exchange: L.exchange, calls: L.to - L.from + 1,
+      cost: part(L.from, L.to, cost), tokens: part(L.from, L.to, tokens),
+      ...(stage ? { stageCost: part(L.from, L.to, cost, stage), stageTokens: part(L.from, L.to, tokens, stage) } : {}),
+      prompt: oneLine(promptOf.get(L.exchange), 260), person: tl.personExchanges.has(L.exchange),
+      ...stepsOf(inside, { stage, max: maxSteps }), said: oneLine(saidOf.get(L.exchange), 220),
+    };
+  }).filter(L => !stage || L.stageTokens > 0);
+  const by = L => (stage ? [L.stageCost, L.stageTokens] : [L.cost, L.tokens]);
+  loops.sort((a, b) => by(b)[0] - by(a)[0] || by(b)[1] - by(a)[1]);
+  return { model, priced: Boolean(price), title: oneLine(title, 140), calls: calls.length, exchanges: tl.exchanges, cost: cost.reduce((a, b) => a + (b || 0), 0), tokens: tokens.reduce((a, b) => a + b, 0), loops };
 }
 
 // --- by week ------------------------------------------------------------------------------------------------------------
@@ -352,31 +415,41 @@ function correctedBySession(store, { days, now }) {
   return by;
 }
 
+// One conversation's Factory record, kept by its file and by what the ledger read as corrected in it: null for one
+// with no model call of its own. One cache for the view and for the evidence the chat reads (session-evidence.js).
+export function sessionRecord(s, { corrected = new Map(), config = {} } = {}) {
+  try {
+    return cachedByFiles(CACHE, cacheKey('factory', String(RULES_VERSION), s.file, s.parent || '', [...(corrected.get(s.session) || [])].join(','), String(s.since || '')), [s.file], () => {
+      // a session continued in a new one is read from the moment it was continued (findRepoSessions marks it; transcripts.js:continuations)
+      const p = parseTranscript(s.file, { since: s.since || 0 });
+      if (!p.calls?.length || /auto-review/i.test(String(p.model || ''))) return null;
+      const price = listPrice(p.model, { config });
+      return { ...sessionFactory(p, { price, corrected: corrected.get(s.session) || new Set() }), model: p.model || null };
+    });
+  } catch { return null; }
+}
+// The conversations a window reads: the repository's sessions since `from` with their subagents' own, the exchanges
+// the ledger read as corrected, and the repository's config (its prices).
+export function windowSessions(store, { from, days, now = Date.now(), sessions } = {}) {
+  sessions ??= findRepoSessions(store.repo, days);
+  sessions = sessions.filter(s => s.mtime >= from);
+  const all = sessions.concat(subagentSessions(sessions).filter(s => s.mtime >= from));
+  const config = (() => { try { return store.config(); } catch { return {}; } })();
+  return { all, config, corrected: correctedBySession(store, { days, now }) };
+}
+
 export function factoryView(store, { weeks, days, now = Date.now(), sessions, onSession } = {}) {
   weeks ??= days ? Math.max(1, Math.ceil(days / 7)) : REPORT_WEEKS;
   const cols = weekColumns(now, weeks), from = cols[0].t;
   days = Math.ceil((now - from) / 86400_000) + 1;
   const weekly = weeklyTally(cols), share = clearingShare(), policy = currentPolicy(), arms = armTally(share, policy), armOf = new Map();
   let clearingOf = () => ({ cleared: 0, policy: null }); try { clearingOf = clearingFor({ home: thinkerHome() }); } catch {}
-  sessions ??= findRepoSessions(store.repo, days);
-  sessions = sessions.filter(s => s.mtime >= from);
-  const all = sessions.concat(subagentSessions(sessions).filter(s => s.mtime >= from));
-  const config = (() => { try { return store.config(); } catch { return {}; } })();
-  const corrected = correctedBySession(store, { days, now });
+  const { all, corrected, config } = windowSessions(store, { from, days, now, sessions });
   const stages = Object.fromEntries(STAGE_KEYS.map(k => [k, { cost: 0, tokens: 0, calls: 0, rework: 0, reworkTokens: 0 }]));
   const kinds = new Map(), perSession = new Map();
   let cost = 0, tokens = 0, calls = 0, measured = 0, unpriced = new Set();
   for (const s of all) {
-    let r;
-    try {
-      r = cachedByFiles(CACHE, cacheKey('factory', String(RULES_VERSION), s.file, s.parent || '', [...(corrected.get(s.session) || [])].join(','), String(s.since || '')), [s.file], () => {
-        // a session continued in a new one is read from the moment it was continued (findRepoSessions marks it; transcripts.js:continuations)
-        const p = parseTranscript(s.file, { since: s.since || 0 });
-        if (!p.calls?.length || /auto-review/i.test(String(p.model || ''))) return null;
-        const price = listPrice(p.model, { config });
-        return { ...sessionFactory(p, { price, corrected: corrected.get(s.session) || new Set() }), model: p.model || null };
-      });
-    } catch { r = null; }
+    const r = sessionRecord(s, { corrected, config });
     onSession?.(s);
     if (!r) continue;
     measured++; calls += r.calls; cost += r.cost; tokens += r.tokens;

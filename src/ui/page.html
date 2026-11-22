@@ -532,7 +532,7 @@
           <div class="home-col home-head"><span class="chat-sub" id="chat-about"></span></div>
           <div class="chat-log" id="chat-log" aria-live="polite"><div class="home-col" id="chat-msgs"></div></div>
           <div class="home-col"><div class="chat-hints" id="chat-hints"></div>
-          <form class="chat-form" id="chat-form"><div class="chat-box"><div class="chat-attach" id="chat-attach"></div><textarea id="chat-input" rows="2" aria-label="Message to thinker" placeholder="Ask what it did, or tell it how to behave"></textarea></div><button class="btn" id="chat-send" type="submit">Send</button></form></div>
+          <form class="chat-form" id="chat-form"><div class="chat-box"><div class="chat-attach" id="chat-attach"></div><textarea id="chat-input" rows="2" aria-label="Message to thinker" placeholder="Ask what I did and why, or tell me how to work"></textarea></div><button class="btn" id="chat-send" type="submit">Send</button></form></div>
         </div>
       </div>
     </section>
@@ -1042,7 +1042,7 @@ function renderAttach() {
   const el = $('#chat-attach');
   el.innerHTML = CHAT_REF ? refCard(CHAT_REF, false) : '';
   el.querySelector('[data-ref-x]')?.addEventListener('click', dropCard);
-  $('#chat-input').placeholder = CHAT_REF?.kind === 'stage' ? 'Ask about this stage, or how to improve it' : CHAT_REF ? 'Ask about this, or say you want more or less like it' : 'Ask what it did, or tell it how to behave';
+  $('#chat-input').placeholder = CHAT_REF?.kind === 'stage' ? 'Ask why this stage costs what it does, or how to improve it' : CHAT_REF ? 'Ask about this, or say you want more or less like it' : 'Ask what I did and why, or tell me how to work';
 }
 function dropCard() { CHAT_REF = null; renderAttach(); $('#chat-input').focus(); }
 function attachCard(kind, x) {
@@ -1087,7 +1087,7 @@ function renderChat() {
   // a message being answered shows in the conversation it was said in, whichever is opened meanwhile
   const waiting = CHAT_WAIT && CHAT_WAIT_IN === CHAT_ID;
   const empty = !CHAT_MSGS.length && !waiting;
-  $('#chat-msgs').innerHTML = (empty ? '<div class="chat-empty"><h1>thinker</h1><p>Ask what it has been doing, or tell it how you want it to behave. It acts on what you say here.</p></div>' : CHAT_MSGS.map(bubble).join(''))
+  $('#chat-msgs').innerHTML = (empty ? '<div class="chat-empty"><h1>Hi, I\'m thinker</h1><p>Ask me what I\'ve been up to and why, why your sessions cost what they do, or tell me how you\'d like me to work. I act on what you say here.</p></div>' : CHAT_MSGS.map(bubble).join(''))
     + (waiting ? `${CHAT_WAIT_REF ? refCard(CHAT_WAIT_REF, true) : ''}<div class="chat-msg you">${esc(CHAT_WAIT)}</div><div class="chat-msg thinker wait"><span class="spinner"></span>Thinking…</div>` : '');
   $('#chat-hints').innerHTML = empty ? CHAT_HINTS.map((h, i) => `<button class="chat-hint" type="button" data-hint="${i}">${esc(h)}</button>`).join('') : '';
   $('#chat-hints').querySelectorAll('[data-hint]').forEach(b => b.onclick = () => sendChat(CHAT_HINTS[Number(b.dataset.hint)]));

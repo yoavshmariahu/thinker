@@ -171,19 +171,22 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  link while it is in review and after; under them a line a session, what it handed to cheaper
                                  agents and what that saved. Thinker does its work itself: between sessions it makes the
                                  changes \`thinker context\` lists that clearly pay -- a section of the instruction file
-                                 nobody needs shortened or removed, a tool or MCP server nobody calls switched off -- each
-                                 worth $1 a day or more, together in one batch once they come to $5 a day, at most one
-                                 batch a repository a week. A batch is one line here and one pull request, left for a person
-                                 to merge. Nothing is listed for you to do. It checks with maintenance, every four hours; run
+                                 nobody needs shortened or removed, a tool nobody calls made a reference (it stays
+                                 callable) -- each high waste and worth $5 a day or more, never a tool you plainly use,
+                                 together in one batch, at most one batch a repository a week. A batch is one line here
+                                 and one pull request, left for a person to merge. Nothing is listed for you to do. It checks with maintenance, every four hours; run
                                  is that check (no model call; --look only looks). How it behaves, and taking a thing back,
                                  is said to it (\`thinker chat\`)
   chat [message] [--new] [--chat id] [--history] [--json]
-                                 talk to thinker, as on the page it opens on: ask what it did, tell it how to behave ("ask me
-                                 before putting up pull requests", "only changes worth $3 a day", "a batch a month at most",
-                                 "never remove a section, only shorten", "leave this repository alone"), steer it ("fewer
-                                 like that one", "hand more reads to cheaper agents"), have it send the next batch now, or
-                                 have it take a thing back ("turn that tool back on"). One model call a message,
-                                 through your agent's own login; what it changed is printed under its answer. With no message,
+                                 talk to thinker, as on the page it opens on: ask what it did and why, what it looked at
+                                 and left alone, or why your sessions went as they did ("why so much rework in the merge
+                                 step lately?": it reads the sessions with the most of it and says what they show); tell
+                                 it how to behave ("ask me before putting up pull requests", "only changes worth $10 a
+                                 day", "a batch a month at most", "never remove a section, only shorten", "leave this
+                                 repository alone"), steer it ("fewer like that one", "hand more reads to cheaper
+                                 agents"), have it send the next batch now, or have it take a thing back ("turn that tool
+                                 back on"). One model call a message, two when it reads sessions first, through your
+                                 agent's own login; what it changed or read is printed under its answer. With no message,
                                  the conversation so far. A message goes on with the conversation last spoken in; --new starts
                                  another with it, --chat <id> names one, and --history lists them, as the page's Chat history does
   settings [set <id> <value>] [--json]
