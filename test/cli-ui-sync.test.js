@@ -704,6 +704,10 @@ test('the page opens on the chat with Recent activity beside it: `thinker chat` 
   assert.doesNotMatch(html, /More like this|Less like this|data-ref-say/);
   // the card names its line (`id`), so the chat can be given what thinker knows behind it and answer about the thing
   assert.match(html, /CHAT_REF = \{ kind, id: x\.id \|\| '', text: x\.text,/); assert.match(read('chat.js'), /known = upkeepDetail\(whose\.store, card\.id, \{ now, home \}\)/);
+  // the Factory's own "Chat about this", to the right of a clicked stage's trend: the stage goes into the same prompt box
+  // as the same kind of card, named by its key, and the chat is given what the Factory holds on it from the kept report
+  assert.match(html, /chat\.className = 'fx-chat'; chat\.textContent = 'Chat about this'; chat\.onclick = \(\) => \{ fxPopClose\(\); chatAboutStage\(stage, dollars\); \};/);
+  assert.match(html, /CHAT_REF = \{ kind: 'stage', id: s\.key, text: /); assert.match(read('chat.js'), /lines: stageDetail\(v, card\.id, /); assert.match(read('chat.js'), /readReport\(r\.store\)\?\.view/, 'from the kept report, never made for a message');
   // per session, what was handed to cheaper agents and what that saved: the Report's delegation figure, one rule, both doors
   assert.match(read('upkeep.js'), /delegationBySession\(\{ events, compression: rows, config,/); assert.match(read('report-savings.js'), /for \(const r of delegationSavings\(\{ events, compression, config \}\)\) \{\n    const g = of\(r\.session\);/);
   assert.match(html, /Delegated to cheaper agents<\/div><div class="side-total">\$\{esc\(g\.said\)\}/); assert.match(read('upkeep.js'), /`Delegated to cheaper agents · \$\{delegatedTotalSaid\(v\.delegated\)\}`/);
