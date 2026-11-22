@@ -1,5 +1,5 @@
 // A previewed change to the instruction file (instruction-edit.js:previewEdit) made into a pull request, so a
-// decision on the Find Savings page is locked in by something a person can merge or close: the edit applied to the
+// decision on a section (thinker's own, or a person's through `thinker context --approve`) is locked in by something a person can merge or close: the edit applied to the
 // repository's default branch as one commit on a branch of its own, pushed to the origin, and a pull request opened
 // with `gh`. Nothing in the working tree changes, whatever branch it is on and whatever is uncommitted there.
 // History (context-suggest.js) keeps the pull request's number and follows its state: open is pending, merged is done,
@@ -169,7 +169,7 @@ function prBody(e, changes, baseName) {
   const rows = (e.sections || []).map(s => `| ${s.title.replace(/\|/g, '\\|')} | ~${formatTokens(s.tokensBefore)} → ~${formatTokens(s.tokensAfter)} |`);
   const saving = changes.reduce((a, c) => a + (c.saving || 0), 0), total = changes.reduce((a, c) => a + (c.total || 0), 0), days = changes[0]?.days;
   return [
-    `${e.action === 'remove' ? 'Removes' : 'Compresses'} ${rows.length === 1 ? 'a section' : `${rows.length} sections`} of the instruction file the coding agents read on every model call. Opened from thinker's Find Savings page (\`thinker ui\`).`,
+    `${e.action === 'remove' ? 'Removes' : 'Compresses'} ${rows.length === 1 ? 'a section' : `${rows.length} sections`} of the instruction file the coding agents read on every model call. Opened by thinker (\`thinker context\` shows what each section costs and how often sessions used it).`,
     '', '| section | tokens in every model call |', '|---|---|', ...rows,
     saving ? `\nSaves ~${formatTokens(saving)} input tokens a session${total && days ? `, ~${formatTokens(total)} over the ${days} days before it was decided` : ''}.` : '',
     `\nMerging makes the change on ${baseName}. Closing it without merging leaves the file as it is, and thinker suggests the sections again.`,

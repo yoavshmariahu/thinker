@@ -136,19 +136,15 @@
     .ctx-table tr.act-attn td { background: #fff7ed; }
     .ctx-table tr.act-wait td { background: #fefce8; }
 
-    /* both tabs take the width of the window: Save holds a document beside its annotations, Report its tables */
+    /* every tab takes the width of the window */
     main { max-width: 1440px; margin: 0 auto; padding: 2.25rem 2rem 4rem; }
     h1 { font-size: 1.9rem; font-weight: 700; letter-spacing: -0.04em; line-height: 1.15; }
     .lede { font-size: 1rem; color: #6b7280; line-height: 1.55; margin-top: 0.5rem; max-width: 680px; }
-    /* when the figures were measured, on a line of its own that is always there: text added to it (`updating…`) must not
-       wrap the lede onto another line and move the table under the reader (2026-10-25) */
-    #c-asof { display: block; min-height: 1.55em; font-size: 0.88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .kicker { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin-bottom: 0.45rem; }
     .section { margin-top: 2.25rem; }
     .section-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
     .section-title { font-size: 1.05rem; font-weight: 600; letter-spacing: -0.02em; }
     .muted { color: #6b7280; }
-    .gain { color: #15803d; font-weight: 600; }
 
     .controls { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-top: 1.4rem; }
     .seg { display: inline-flex; border: 1px solid #e5e7eb; border-radius: 8px; padding: 2px; background: #fafafa; }
@@ -156,26 +152,13 @@
     .seg button.on { background: #fff; color: #000; box-shadow: 0 1px 2px rgba(0,0,0,0.06); font-weight: 500; }
     .seg.small button { padding: 0.22rem 0.55rem; font-size: 0.74rem; }
 
-    .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.85rem; }
-    @media (max-width: 860px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    .cards.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    @media (max-width: 860px) { .cards.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 520px) { .cards, .cards.four { grid-template-columns: 1fr; } }
-    .card { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 10px; padding: 1.1rem 1.2rem 1rem; min-width: 0; }
-    .metric-num { font-size: 1.85rem; font-weight: 700; letter-spacing: -0.035em; line-height: 1; color: #111; font-variant-numeric: tabular-nums; }
-    .metric-num.gain { color: #15803d; }
-    .metric-label { font-size: 0.86rem; color: #444; margin-top: 0.5rem; line-height: 1.4; }
-    .metric-rows { list-style: none; margin-top: 0.8rem; padding-top: 0.7rem; border-top: 1px solid #ebebeb; display: flex; flex-direction: column; gap: 0.32rem; }
-    .metric-rows li { display: flex; justify-content: space-between; gap: 0.75rem; font-size: 0.82rem; color: #6b7280; font-variant-numeric: tabular-nums; }
-    .metric-rows li span:last-child { color: #111; font-weight: 600; white-space: nowrap; }
-
     table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
     th { text-align: left; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; padding: 0.5rem 0.6rem; border-bottom: 1px solid #e5e7eb; }
     td { padding: 0.55rem 0.6rem; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
     td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-    /* the Save tables, as the docs' example (site/docs.html "AGENTS.md this week"): a figure holding a caption with the
-       window's figures, the table, a line for what is picked, and a note */
+    /* a table of the page, as the docs' example (site/docs.html "AGENTS.md this week"): a figure holding a caption with the
+       window's figures, the table and a note */
     /* a table wider than the box scrolls inside it, never past its border -- but a scroll container anchors a sticky
        header to itself instead of to the page, so the figure only becomes one at the widths where the table cannot fit.
        Above that the headers stay under the view tabs while the table scrolls (ctx-table thead th below). */
@@ -301,16 +284,9 @@
     .fx-stage .rows .two { display: grid; grid-template-columns: 1fr auto auto; gap: 0 .5rem; white-space: nowrap; }
     .fx-stage .rows .two b.off { color: #6b7280; }
     .fx-stage.on .rows .two b.off { color: #c9cbd1; }
-    .savings-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-    .savings-dot { margin-right: .5rem; }
-    .savings-table thead th { position: static; }
     .savings-note { color: #777; font-size: .75rem; line-height: 1.6; margin: .85rem 0 0; }
-    .metrics-toggle { margin-top: 1.2rem; }
     .ctx-figure { margin: 0.4rem 0 0; padding: 1rem 1.1rem 0.9rem; border: 1px solid #e5e7eb; border-radius: 12px; background: #fcfcfb; }
     @media (max-width: 1040px) { .ctx-figure { overflow-x: auto; } }
-    /* The cards: what a part is and why you would change it, in words, with the figures under them. The table is the
-       same rows for someone who already knows what everything is and wants to scan; the cards are the default,
-       because a number cannot tell you what Artifact is (the owner's ask, 2026-10-29). */
     .ctx-figure figcaption { font-size: 0.88rem; color: #111; margin-bottom: 0.6rem; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 0.6rem; }
     .ctx-sub { font-size: 0.78rem; color: #6b7280; font-weight: 400; }
     .ctx-note { font-size: 0.8rem; color: #6b7280; line-height: 1.5; margin: 0.6rem 0 0; }
@@ -322,61 +298,18 @@
     .help-pop ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
     .help-pop li { margin: 0.25rem 0; }
     .help:hover .help-pop, .help:focus-within .help-pop { display: block; }
-    /* the Potential savings card at the top of every view */
     .ctx-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin: 0; }
-    #context-body .ctx-table thead th { position: sticky; top: var(--nav-h, 0px); background: #fcfcfb; z-index: 8; }
     .ctx-table th { text-align: left; font-weight: 600; color: #6b7280; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.35rem 0.5rem; border-bottom: 1px solid #e5e7eb; }
     .ctx-table td { padding: 0.42rem 0.5rem; border-bottom: 1px solid #f1f5f9; color: #111; white-space: nowrap; vertical-align: middle; }
     .ctx-table td.ctx-name { white-space: normal; min-width: 16rem; }
     .ctx-table .num, .ctx-table th.num { text-align: center; font-variant-numeric: tabular-nums; }
-    /* no tint by waste level: the thresholds (5% and 2% of what the kind cost) flag nearly every row, so colouring
-       them taught nothing the sort order had not already said. A row's weight is the Share column's bar. */
     .ctx-table tbody td { transition: background-color 0.15s ease; }
     .ctx-table tr.ctx-off td { color: #6b7280; }
-    /* the Report tables: a trending cell is coloured against the first week, a provider's subtotal is bold with its models indented */
-    /* the week's count line wraps (th.num is nowrap): the Cost view adds ", n priced" to it, and unwrapped it pushed the table past the figure (2026-10-25) */
-    .rep-table th small { display: block; font-weight: 400; text-transform: none; letter-spacing: 0; color: #9ca3af; white-space: normal; }
-    .rep-table th.num { vertical-align: top; }
-    .rep-table td.rep-good { background: #dcfce7; color: #14532d; }
-    .rep-table td.rep-mid { background: #fef9c3; color: #713f12; }
-    .rep-table td.rep-bad { background: #fee2e2; color: #7f1d1d; }
-    /* fixed columns (2026-10-26, the owner's ask): flipping Cost / Tokens, Per prompt / Total or Values / Share changes the
-       figures in the cells and nothing else; the name column is wider in the tables without bounds, so the weeks line up in all three */
-    .rep-table { table-layout: fixed; min-width: 50rem; }
-    .rep-table col.rep-name { width: 17rem; }
-    .rep-table col.rep-name.wide { width: 26.2rem; }
-    .rep-table col.rep-thr { width: 4.6rem; }
-    .rep-table th.rep-thr, .rep-table td.rep-thr { overflow: hidden; padding-left: 0.15rem; padding-right: 0.15rem; text-align: center; font-variant-numeric: tabular-nums; }
-    .rep-table td.rep-thr { color: #6b7280; font-size: 0.76rem; }
-    .rep-table tr.rep-sub td { font-weight: 600; background: #f8f8f7; }
-    .rep-table tr.rep-total td { font-weight: 700; border-top: 2px solid #111; border-bottom: 0; }
-    .rep-indent { display: inline-block; padding-left: 1.4rem; }
-    .rep-fold { background: none; border: 0; padding: 0; font: inherit; color: #6b7280; cursor: pointer; width: 1rem; }
-    .rep-fold:hover { color: #111; }
-    .rep-sub { padding-left: 1.4rem; color: #4b5563; }
-    .rep-subrow td { font-size: 0.93em; }
     .rep-pager { display: flex; align-items: center; gap: 0.6rem; }
     .rep-pager .btn { padding: 0.26rem 0.65rem; font-size: 0.76rem; }
     .tr-num { font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
     .tr-num .muted { font-size: 0.8rem; font-weight: 400; }
-    /* Find Savings rows (2026-11-09, the owner's ask: row by row, tight): the › opens the part's description and text */
-    .ctx-x { background: none; border: 0; padding: 0 0.4rem 0 0; margin: 0; font: inherit; font-size: 1.05rem; line-height: 1; color: #9ca3af; cursor: pointer; display: inline-block; transition: transform 0.15s ease; vertical-align: -1px; }
-    .ctx-x:hover { color: #111; }
-    .ctx-x.open { transform: rotate(90deg); }
-    .ctx-rows td { padding: 0.28rem 0.5rem; }
-    .ctx-rows td.ctx-name { min-width: 12rem; max-width: 24rem; }
-    .ctx-rows td.ctx-type { white-space: normal; color: #4b5563; font-size: 0.78rem; }
-    .ctx-rows tr.hl-red td { background: #fef2f2; }
-    .ctx-rows tr.hl-yellow td { background: #fefce8; }
-    .ctx-rows th.ctx-acthead { text-align: right; }
-    .ctx-exline { margin: 0 0 0.5rem; font-size: 0.84rem; line-height: 1.5; color: #1f2937; }
-    .ctx-rows .ctx-detail .md-body { max-height: 18rem; overflow: auto; font-size: 0.82rem; }
     .ctx-unit { font-size: 0.68rem; color: #9ca3af; margin-left: 0.1rem; }
-    .rev-list { margin: 0; padding: 0; list-style: none; }
-    .rev-list li { padding: 0.6rem 0; border-bottom: 1px solid #f1f5f9; font-size: 0.86rem; line-height: 1.5; }
-    .rev-list li:last-child { border-bottom: 0; }
-    .rev-list .rev-do { margin: 0.15rem 0; }
-    .rev-warn { background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 0.55rem 0.75rem; font-size: 0.86rem; line-height: 1.5; }
     .ctx-kind { display: block; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; margin-top: 0.1rem; }
     /* what the thing a decision changed does, in one line under its kind (Recent activity; part-describe.js) */
     .ctx-about { display: block; font-size: 0.76rem; color: #6b7280; margin-top: 0.1rem; }
@@ -412,21 +345,8 @@
     .ctx-pill.failed { background: #fee2e2; color: #991b1b; }
     .ctx-prlink { font-weight: 400; color: #1e40af; margin-left: 0.35rem; font-size: 0.82rem; }
     .ctx-act { display: flex; align-items: center; justify-content: flex-end; gap: 0.4rem; }
-    .ctx-act .sel { padding: 0.22rem 1.4rem 0.22rem 0.5rem; font-size: 0.76rem; max-width: 12rem; }
     .ctx-act .btn { padding: 0.26rem 0.65rem; font-size: 0.76rem; }
     .btn.ctx-revtoggle { padding: 0.12rem 0.55rem; font-size: 0.74rem; margin-left: 0.4rem; vertical-align: middle; }
-    .ctx-act .why { color: #9ca3af; cursor: help; }
-    .ctx-detail td { white-space: normal; background: #fff; padding: 0.5rem 0.8rem 0.8rem 2.1rem; }
-    /* the detail cell spans every column: at width 0 its text (a code block, a long line) counts for nothing in the auto layout, so opening it moves no column */
-    .ctx-detail td > div { width: 0; min-width: 100%; }
-    .ctx-detail .why { font-size: 0.76rem; color: #6b7280; margin-top: 0.4rem; }
-    .md-body { font-size: 0.86rem; line-height: 1.5; color: #222; }
-    .md-body p { margin: 0.35rem 0; }
-    .md-body ul { margin: 0.35rem 0; padding-left: 1.2rem; }
-    .md-body code { font-size: 0.8rem; background: #f4f4f5; padding: 0 0.25rem; border-radius: 3px; }
-    .md-pre { font-size: 0.75rem; background: #f8f8f8; padding: 0.5rem 0.6rem; border-radius: 4px; overflow-x: auto; white-space: pre; }
-    .md-h { font-weight: 600; margin: 0.2rem 0 0.4rem; }
-    .md-h1, .md-h2 { font-size: 1.02rem; } .md-h3 { font-size: 0.94rem; } .md-h4 { font-size: 0.88rem; }
     /* the view tabs stay under the nav while a long table scrolls; the nav's height is measured into --nav-h */
     .vtabs { display: flex; gap: 0.4rem; margin: 1.8rem 0 0.2rem; border-bottom: 1px solid #e5e7eb; overflow-x: auto; position: sticky; top: var(--nav-h, 0px); z-index: 9; background: #fff; }
     .vtabs button { background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px; padding: 0.55rem 1.1rem 0.6rem; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 0.15rem; color: #6b7280; font: inherit; white-space: nowrap; }
@@ -440,16 +360,6 @@
     @media (max-width: 760px) { .ctx-table td, .ctx-table th { white-space: normal; } .ctx-table td.ctx-name { min-width: 0; } }
     .ctx-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem 2rem; flex-wrap: wrap; margin-bottom: 1rem; }
     .ctx-top .controls { margin-top: 0; }
-    /* Find Savings: the title, the measured-at line and the filters on one line at the top, the table right under them
-       (the owner's ask, 2026-11-09: the view even tighter, the filters up in line with the title) */
-    main:has(> #tab-save:not([hidden])) { padding-top: 1rem; }
-    #tab-save .ctx-top { align-items: center; gap: 0.5rem 1.5rem; margin-bottom: 0; }
-    #tab-save .ctx-head { display: flex; align-items: baseline; gap: 0.75rem; min-width: 0; }
-    #tab-save h1 { font-size: 1.35rem; }
-    #tab-save #c-asof { min-height: 0; font-size: 0.8rem; min-width: 0; }
-    #tab-save #context-body.section { margin-top: 0.6rem; }
-    #tab-save .ctx-figure { margin-top: 0; padding: 0.6rem 0.8rem 0.6rem; }
-    #tab-save .ctx-figure figcaption { margin-bottom: 0.35rem; }
     .btn { border: 1px solid #000; background: #000; color: #fff; padding: 0.45rem 0.95rem; font-size: 0.82rem; font-weight: 500; border-radius: 6px; cursor: pointer; transition: all 0.15s ease; line-height: 1.25; }
     .btn:hover { background: #222; }
     .btn.ghost { background: #fff; color: #111; border-color: #d4d4d8; }
@@ -464,7 +374,7 @@
     .hint code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: rgba(255,255,255,0.14); padding: 0.1rem 0.35rem; border-radius: 4px; }
     .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #d4d4d8; border-top-color: #111; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -2px; margin-right: 0.4rem; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    /* the Save tab's spinner: the logo's three dots, the emphasis moving from one dot to the next */
+    /* a tab's spinner while it first reads: the logo's three dots, the emphasis moving from one dot to the next */
     .logo-spin { display: inline-block; width: 28px; height: 28px; vertical-align: -9px; margin-right: 0.6rem; overflow: visible; }
     .logo-spin circle { fill: #000; fill-opacity: 0.22; transform-box: fill-box; transform-origin: center; animation: dot-emphasis 1.35s ease-in-out infinite; }
     .logo-spin circle:nth-child(2) { animation-delay: 0.45s; }
@@ -486,11 +396,6 @@
     .btn-close { background: transparent; border: none; font-size: 1.35rem; color: #666; cursor: pointer; line-height: 1; padding: 0.2rem 0.4rem; border-radius: 4px; }
     .btn-close:hover { color: #000; background: #f5f5f5; }
     .modal-body { padding: 0 1.5rem 1.5rem; overflow-y: auto; }
-    .modal-card.modal-small { max-width: 540px; }
-    .modal-small .modal-body { padding-top: 1rem; font-size: 0.92rem; line-height: 1.55; }
-    .modal-small .modal-body p { margin: 0 0 0.7rem; }
-    .modal-foot { display: flex; gap: 0.6rem; padding: 0 1.5rem 1.3rem; flex-wrap: wrap; align-items: center; }
-    .modal-foot .why { flex-basis: 100%; }
     .faq-item { padding: 1.25rem 0; border-top: 1px solid #f0f0f0; }
     .faq-item:first-child { border-top: none; }
     .faq-item h3 { font-size: 1rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.35; margin-bottom: 0.6rem; }
@@ -516,8 +421,6 @@
     <div class="brand"><span class="wordmark" id="brand-home" role="link" tabindex="0" style="cursor:pointer" title="Chat with thinker">thinker</span><span class="brand-sub">local</span></div>
     <div class="nav-right">
       <button class="nav-link" data-tab="chat" title="Talk to thinker, with what it did lately beside the conversation">Chat</button>
-      <button class="nav-link" data-tab="save">Find Savings</button>
-      <button class="nav-link" data-tab="report">View Report</button>
       <button class="nav-link" data-tab="factory" title="The sessions as a pipeline: what each stage cost, the loops detected, the first-pass yield">Factory</button>
       <span class="nav-sep" aria-hidden="true"></span>
       <button class="nav-link" data-tab="activity" title="Every decision taken here, and what still needs you">Recent activity<span class="badge" id="act-badge" hidden></span></button>
@@ -548,30 +451,9 @@
       </div>
     </section>
 
-    <!-- Save: where the agents' context goes in one repository, what each part is worth, and the cuts (context-view.js, as `thinker context`) -->
-    <section id="tab-save" hidden>
-      <div class="ctx-top"><div class="ctx-head"><h1>Find Savings</h1><span class="muted" id="c-asof"></span></div>
-      <div class="controls">
-        <select class="sel" id="c-repo" aria-label="Repository"></select>
-        <div class="seg" id="c-days-seg"><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button></div>
-      </div></div>
-      <div id="context-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the transcripts…</div></div>
-    </section>
-
-    <!-- Report: what a prompt (one call to the model) costs here week by week, by part, by model and by token type, the cache's numbers (report.js, as `thinker report`) -->
-    <section id="tab-report" hidden>
-      <div class="ctx-top"><div><h1>View Report</h1></div>
-      <div class="controls">
-        <select class="sel" id="r-repo" aria-label="Repository"></select>
-        <div class="seg" id="r-mode"><button data-mode="avg">Per prompt</button><button data-mode="sum" class="on">Total</button></div>
-        <div class="seg" id="r-view"><button data-view="values" class="on">Values</button><button data-view="share">Share</button></div>
-      </div></div>
-      <div id="report-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the report…</div></div>
-    </section>
-
     <!-- Factory: the sessions read as a pipeline (Prompts, Think, Explore, Build, Verify, Review, Merge) with what each stage cost, the
          loops detected in them, and the first-pass yield of the merged pull requests (factory.js, as `thinker factory`); it
-         reads the Report kept for the page, so the two tabs never disagree -->
+         reads the report kept for the page (report-snapshot.js), the one `thinker report` prints -->
     <section id="tab-factory" hidden>
       <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
         <symbol id="fxi-loop" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></symbol>
@@ -591,9 +473,9 @@
       <div id="factory-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the factory…</div></div>
     </section>
 
-    <!-- Recent activity: every decision taken on Find Savings (or `thinker context --approve`), newest first, with what came of it and
-         what still needs the person: a compression running in the background or failed, a pull request to merge (context-suggest.js:changeHistory,
-         as `thinker context --history`) -->
+    <!-- Recent activity: every decision taken (by thinker itself, in a session, or with `thinker context --approve`), newest first, with what
+         came of it and what still needs the person: a compression running in the background or failed, a pull request to merge
+         (context-suggest.js:changeHistory, as `thinker context --history`) -->
     <section id="tab-activity" hidden>
       <div class="ctx-top"><div><h1>Recent activity</h1>
       <p class="lede">Savings from actions and merged pull requests, and what still needs you</p></div>
@@ -611,13 +493,6 @@
   <div class="toast" id="toast"></div>
   <div class="hint" id="hint" role="status">Open this dashboard with <code>thinker ui</code></div>
   <button class="faq-fab" id="faq-fab" type="button" aria-haspopup="dialog">FAQ</button>
-  <div class="modal-overlay" id="confirm-overlay">
-    <div class="modal-card modal-small" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
-      <div class="modal-header"><div><div class="modal-title" id="confirm-title"></div></div><button class="btn-close" id="confirm-close" type="button" aria-label="Close">&times;</button></div>
-      <div class="modal-body" id="confirm-body"></div>
-      <div class="modal-foot"><button class="btn" id="confirm-ok" type="button">Confirm</button><button class="btn ghost" id="confirm-cancel" type="button">Cancel</button></div>
-    </div>
-  </div>
   <div class="modal-overlay" id="faq-overlay">
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="faq-title">
       <div class="modal-header">
@@ -653,14 +528,14 @@
 
         <div class="faq-item">
           <h3>Can Thinker cut what my agents load into every session?</h3>
-          <p>It shows you what to cut, and you decide. The Find Savings view here and <code>thinker context</code> list every section of your instruction files, every skill and every tool with what it costs a prompt and how many sessions it bore on. A section you pick can be removed or compressed by a model: Apply starts it in the background and opens a pull request with the change, which Recent activity follows.</p>
+          <p>Yes. <code>thinker context</code> lists every section of your instruction files, every skill and every tool with what it costs a prompt and how many sessions it bore on. Thinker acts on the clearest of them itself, and Recent activity says what it did and what that saved: a section it compresses or removes is a pull request, so nothing in your team's file changes until you merge it. Tell it in the chat to do more, less or nothing.</p>
         </div>
 
         <div class="faq-item">
           <h3>How can I tell if Thinker is helping my agents?</h3>
           <ul>
-            <li><b>The savings are measured.</b> The status line, the cards and <code>thinker savings</code> say what the clearing saved today and over the whole log, at list prices; View Report here shows it week by week beside what a session costs.</li>
-            <li><b>The Find Savings view here</b>, and <code>thinker context</code>, show where your agents' context goes: what each instruction section, skill and tool costs a prompt and how often sessions acted on it, so what you cut is measured on your own sessions.</li>
+            <li><b>The savings are measured.</b> The status line, the cards and <code>thinker savings</code> say what the clearing saved today and over the whole log, at list prices; <code>thinker report</code> shows it week by week beside what a session costs.</li>
+            <li><b><code>thinker context</code></b> shows where your agents' context goes: what each instruction section, skill and tool costs a prompt and how often sessions acted on it, so what you cut is measured on your own sessions.</li>
             <li><b>The profile has a holdout.</b> 15% of sessions see no profile, chosen by a hash of the session id, and every observation learned from a session carries which side it was on. <code>thinker profile holdout</code> compares corrections and redirects per session on each side; fewer than twenty sessions a side is too few to read.</li>
           </ul>
         </div>
@@ -682,23 +557,18 @@ const H = () => new URLSearchParams(location.hash.slice(1));
 // 2026-10-25: `thinker ui` opens there on every tab) or `here`, this checkout, which each tab resolves to the
 // current repository's id once the list is read (`thinker ui --here`; cache.js:uiCommand).
 const hashRepo = () => { const r = H().get('repo'); return r === 'here' ? '' : r || 'all'; };
-// and which tab, normalized as show() does (an old name, an unknown one and no tab at all are Save), so `repo=`
-// reaches the tab that opens
-const hashTab = () => { let t = H().get('tab'); if (t === 'changes') t = 'save'; if (t === 'cache') t = 'report'; if (t === 'save' && H().get('view') === 'history') t = 'activity'; return ['report', 'factory', 'activity', 'chat'].includes(t) ? t : t ? 'save' : 'chat'; };
-// the repositories with a cache (/api/repos); REPO is the one picked for Report, CREPO for Save
-let REPOS = [], REPO = ['report', 'factory'].includes(hashTab()) ? hashRepo() : 'all';
-// Which door sent the person (context-suggest.js:suggestionsUrl): `setup` the installer, which also gets a hint in
-// the corner saying how to come back to the page, then fades; `suggestion` the link in the weekly question thinker
-// had their agent ask. Either way All comes with that door's savings checked (preselectRows), once, so the decision
-// they were already shown is the one in front of them.
-const FROM = H().get('from');
-const FROM_SETUP = FROM === 'setup';
-let PRESELECT = FROM_SETUP || FROM === 'suggestion';
-if (FROM_SETUP) {
+// and which tab, normalized as show() does (the old History view is Recent activity; a tab the page no longer has,
+// an unknown one and no tab at all are the chat), so `repo=` reaches the tab that opens
+const hashTab = () => { const t = H().get('tab'); return ['save', 'changes'].includes(t) && H().get('view') === 'history' ? 'activity' : ['factory', 'activity', 'chat'].includes(t) ? t : 'chat'; };
+// the repositories with a cache (/api/repos); REPO is the one picked for the Factory
+let REPOS = [], REPO = hashTab() === 'factory' ? hashRepo() : 'all';
+// `from=setup`: the installer opened the page (cache.js:uiCommand --from-setup), so a hint in the corner says how
+// to come back to it, then fades
+if (H().get('from') === 'setup') {
   setTimeout(() => $('#hint').classList.add('show'), 600);
   setTimeout(() => $('#hint').classList.remove('show'), 8600);
 }
-let TAB = 'save';
+let TAB = 'chat';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // a negative count keeps its sign in front of the same short form (−26M, not -25669680)
 const fmt = n => n < 0 ? '−' + fmt(-n) : n >= 1e9 ? (n / 1e9).toFixed(n >= 1e10 ? 0 : 1) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'k' : String(Math.round(n || 0));
@@ -713,58 +583,27 @@ $('#faq-fab').onclick = openFaq;
 $('#faq-close').onclick = closeFaq;
 faqOverlay.onclick = e => { if (e.target === faqOverlay) closeFaq(); };
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && faqOverlay.classList.contains('active')) closeFaq(); });
-// A question before a change that is easy to misread (switching off Claude Code's own tools): what goes, where it is
-// written, and that it can be reversed. Resolves true when confirmed; Cancel, the cross, Escape or a click outside say no.
-function confirmDialog({ title, body, ok = 'Confirm' }) {
-  const ov = $('#confirm-overlay');
-  $('#confirm-title').textContent = title; $('#confirm-body').innerHTML = body; $('#confirm-ok').textContent = ok;
-  ov.classList.add('active'); $('#confirm-ok').focus();
-  return new Promise(resolve => {
-    const done = v => { ov.classList.remove('active'); ov.onclick = null; document.removeEventListener('keydown', onKey); resolve(v); };
-    const onKey = e => { if (e.key === 'Escape') done(false); };
-    $('#confirm-ok').onclick = () => done(true); $('#confirm-cancel').onclick = () => done(false); $('#confirm-close').onclick = () => done(false);
-    ov.onclick = e => { if (e.target === ov) done(false); }; document.addEventListener('keydown', onKey);
-  });
-}
 
 // tabs
 document.querySelectorAll('.nav-link[data-tab]').forEach(b => b.onclick = () => show(b.dataset.tab));
 $('#brand-home').onclick = () => show('chat');
 function show(tab) {
-  // the Context tab is Find Savings (`save`) and the Cache tab is View Report (`report`) since 2026-10-22, and Save's History view is
-  // the Recent activity page (`activity`) since 2026-10-24; an old link (context, changes, cache, view=history) and any tab the page
-  // does not know open the view that replaced it
-  if (tab === 'changes') tab = 'save';
-  if (tab === 'cache') tab = 'report';
-  if (tab === 'save' && H().get('view') === 'history') tab = 'activity';
-  if (!['report', 'factory', 'activity', 'chat'].includes(tab)) tab = 'save';
+  // Find Savings (`save`, once `changes`) and View Report (`report`, once `cache`) were removed on 2026-11-21: thinker
+  // makes those decisions itself and says what it did beside the chat. An old link to either, and any tab the page
+  // does not know, opens the chat; Save's old History view (view=history) is Recent activity, as since 2026-10-24.
+  if (['save', 'changes'].includes(tab) && H().get('view') === 'history') tab = 'activity';
+  if (!['factory', 'activity', 'chat'].includes(tab)) tab = 'chat';
   document.querySelectorAll('.nav-link[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  for (const k of ['chat', 'save', 'report', 'factory', 'activity']) $(`#tab-${k}`).hidden = tab !== k;
+  for (const k of ['chat', 'factory', 'activity']) $(`#tab-${k}`).hidden = tab !== k;
   TAB = tab;
   scanProgress(null);
   history.replaceState(null, '', `#tab=${tab}`);
-  if (tab === 'chat') loadHome(); else if (tab === 'save') loadContext(); else if (tab === 'report') loadReport(); else if (tab === 'factory') loadFactory(); else loadActivity();
+  if (tab === 'chat') loadHome(); else if (tab === 'factory') loadFactory(); else loadActivity();
 }
 function segOn(sel, on) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b === on)); }
-function card(kicker, num, label, rows, gain) {
-  return `<div class="card"><div class="kicker">${kicker}</div><div class="metric-num${gain ? ' gain' : ''}">${num}</div>${label ? `<div class="metric-label">${label}</div>` : ''}${rows && rows.length ? `<ul class="metric-rows">${rows.map(([a, b]) => `<li><span>${esc(a)}</span><span>${esc(b)}</span></li>`).join('')}</ul>` : ''}</div>`;
-}
 
-// ---- Save: where the context goes in one repository (context-view.js:contextView, as `thinker context`) ----
-// `thinker ui` asks for every repository at once (hashRepo, All); a session's summary links to All with its
-// repository (context-suggest.js:suggestionsUrl), and `thinker ui --here` to this checkout alone
-let CREPO = hashTab() === 'save' ? hashRepo() : 'all', cdays = 30;
-document.querySelectorAll('#c-days-seg button').forEach(b => b.onclick = () => { cdays = Number(b.dataset.days); segOn('#c-days-seg', b); loadContext(); });
-$('#c-repo').onchange = e => { CREPO = e.target.value; e.target.blur(); loadContext(); };
-// the logo's three dots as the Save tab's spinner (.logo-spin): the same marks as the favicon
+// the logo's three dots as a tab's spinner (.logo-spin): the same marks as the favicon
 const LOGO_SPIN = '<svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>';
-// The table on screen stays while the figures are read again (2026-10-25): when the same repository and window are already
-// shown (after an Apply, when a job finishes, on a tab switch back) the body is rebuilt in place once the answer is in, the
-// scroll and the open rows kept (swapBody), and the header says `updating…` meanwhile. Until then every refresh went through
-// the spinner, and the page flashed on every action and every poll. The spinner is for the first read, and a change of
-// repository or window, where the table shown is not the one asked for. A load overtaken by a later one renders nothing.
-// Poll lightweight revisions; fetch tables only when a checkpoint is ready.
-// A new tab/repository/window invalidates the old loop, including in-flight replies.
 // The strip under the header while session data is read: the sessions read of those found, the share done, what is left,
 // and a bar. It overlays the page (absolute, off the nav's lower edge), so nothing below moves when it comes and goes. The worker counts a session as it is read (scan-worker.js:progressOf), so the figures move through a
 // batch and not only at its checkpoints; the total is unknown (`Finding session data…`, an indeterminate bar) until every
@@ -810,407 +649,29 @@ async function progressiveView(url, receive, current, selected = () => false) {
   }
 }
 
-$('#scan-retry').onclick = () => { if (TAB === 'save') loadContext(); else if (TAB === 'report') loadReport(); else if (TAB === 'factory') loadFactory(); else loadActivity(); };
-let CTX_FOR = null, CLOAD = 0;
-async function loadContext() {
-  clearTimeout(CPOLL);
-  scanProgress({ refreshing: true });
-  const el = $('#context-body'), seq = ++CLOAD, inPlace = Boolean(CTX) && CTX_FOR === `${CREPO}|${cdays}`;
-  if (inPlace) { const a = $('#c-asof'); if (a && !/updating/.test(a.textContent)) a.textContent = `${a.textContent.replace(/\s*$/, '')}${a.textContent.trim() ? ', ' : ''}updating…`; }
-  else el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the transcripts…</div>`;
-  try {
-    if (!REPOS.length) await fetchRepos();
-    if (seq !== CLOAD || TAB !== 'save') return;
-    if (!CREPO || (CREPO !== 'all' && !REPOS.some(r => r.id === CREPO))) CREPO = REPO !== 'all' && REPOS.some(r => r.id === REPO) ? REPO : REPOS.find(r => r.current)?.id || REPOS[0]?.id || '';
-    $('#c-repo').innerHTML = `<option value="all"${CREPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === CREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
-    if (CREPO === 'all' && !inPlace) el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading every repository's transcripts (the first time takes a while)…</div>`;
-    if (!CREPO) { scanProgress(null); el.innerHTML = `<div class="empty">No repository with a cache on this machine yet.</div>`; return; }
-    const want = `${CREPO}|${cdays}`;
-    const current = () => seq === CLOAD && want === `${CREPO}|${cdays}` && TAB === 'save';
-    api(`/api/activity?repo=${encodeURIComponent(CREPO)}&progressive=1&measure=0`).then(d => { if (current()) CHIST = d; }).catch(() => {});
-    await progressiveView(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`, v => {
-      CTX_FOR = want; CDREW = Date.now(); renderContext(v); contextAsOf({ ...v, refreshing: false });
-    }, current);
-  } catch (e) { if (seq === CLOAD && TAB === 'save') scanProgress({ progress: { error: e.message } }); if (inPlace && seq === CLOAD) { toast(`Could not read the context: ${e.message}`, true); contextAsOf({ ...CTX, refreshing: false }); } else if (seq === CLOAD) el.innerHTML = `<div class="empty">Could not read the context: ${esc(e.message)}</div>`; }
-}
-// A table rebuilt while the person reads it keeps their place: the scroll position, the rows opened with › (by the
-// row's key, not its index, since the rows may have moved), and the body's height until the new content has laid out, so
-// the page neither jumps nor flashes. Every render of the three pages goes through it.
+$('#scan-retry').onclick = () => { if (TAB === 'factory') loadFactory(); else loadActivity(); };
+// A table rebuilt while the person reads it keeps their place: the scroll position, and the body's height until the new
+// content has laid out, so the page neither jumps nor flashes (2026-10-25: until then every refresh went through the
+// spinner). Every render goes through it; the spinner is for the first read and a change of repository.
 function swapBody(el, html) {
-  const y = scrollY, open = [...el.querySelectorAll('.ctx-detail[data-dk]:not([hidden])')].map(d => d.dataset.dk);
-  const acts = new Map([...el.querySelectorAll('select[data-act][data-dk]')].map(x => [x.dataset.dk, x.value]));
+  const y = scrollY;
   el.style.minHeight = `${el.offsetHeight}px`;
   el.innerHTML = html;
-  for (const k of open) {
-    const d = el.querySelector(`.ctx-detail[data-dk="${CSS.escape(k)}"]`), b = el.querySelector(`.ctx-x[data-dk="${CSS.escape(k)}"]`);
-    if (d) d.hidden = false;
-    if (b) { b.setAttribute('aria-expanded', 'true'); b.classList.add('open'); }
-  }
-  // the action picked in a row's dropdown holds too
-  for (const [k, v] of acts) { const x = el.querySelector(`select[data-act][data-dk="${CSS.escape(k)}"]`); if (x && [...x.options].some(o => o.value === v)) x.value = v; }
   scrollTo(0, y);
   requestAnimationFrame(() => requestAnimationFrame(() => { el.style.minHeight = ''; }));
 }
-// The report is kept and made again in the background (context-snapshot.js): the page says when it was measured
-// and, while a newer one is being made, checks back and shows it (a row's dropdown and its open › hold across the redraw).
-// All repositories reads the oldest of the fourteen kept reports, so every single repository whose refresh lands moves
-// `asOf` on: redrawing at each one read the whole report and drew all five tables again, once per repository, while
-// the person was trying to read it (2026-10-29). So a newer set is taken when the refreshes have finished, and while
-// they are still landing at most every COALESCE_MS -- the line says `updating…` throughout either way.
-let CPOLL = null, CDREW = 0;
-const COALESCE_MS = 30_000;
 const sinceMeasured = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
-function contextAsOf(v) {
-  const el = $('#c-asof'); clearTimeout(CPOLL);
-  if (el) el.textContent = `measured ${sinceMeasured(v.asOf)}${v.refreshing ? ', updating…' : ''}`;
-  if (!v.refreshing) return;
-  const want = [CREPO, cdays], tries = (v.tries || 0) + 1;
-  if (tries > 24) { if (el) el.textContent = `measured ${sinceMeasured(v.asOf)}`; return; }
-  CPOLL = setTimeout(async () => {
-    if (CREPO !== want[0] || cdays !== want[1]) return;
-    // the stamp alone (when it was measured, whether a newer set is coming): the report itself is read only once
-    // `asOf` has moved, so waiting for a refresh costs a few hundred bytes a poll instead of the whole report
-    let n; try { n = await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}&stamp=1`); } catch { return; }
-    if (CREPO !== want[0] || cdays !== want[1]) return;
-    if (n.asOf > v.asOf && (!n.refreshing || Date.now() - CDREW > COALESCE_MS)) {
-      let full; try { full = await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`); } catch { return; }
-      if (CREPO !== want[0] || cdays !== want[1]) return;
-      CDREW = Date.now(); renderContext(full); contextAsOf(full);
-    }
-    else if (n.asOf > v.asOf) contextAsOf({ ...v, refreshing: n.refreshing, tries });
-    else contextAsOf({ ...v, refreshing: n.refreshing, tries });
-  }, 5000);
-}
-// an old link naming a view (view=all|instructions|custom|builtin|suggested) opens the one table; view=history opens Recent activity (show)
-let CTX = null;
-// the decisions (/api/activity), read with the report: the pull request pending on a section, or the job under way or failed on it
-// `null` until the first report is in: the activity poll draws Save again when a decision has moved, and an empty
-// starting history differed from every real one, so the very first poll always re-read the whole report a second
-// time while the first read was still in flight (two 1.3 MB answers and two renders on every visit, to 2026-10-29)
-let CHIST = null;
-// a merged pull request this checkout has not pulled yet (`unpulled`, context-suggest.js:changeHistory) is one too: its
-// section is still in the file here, and its row is left out rather than coming back as a suggestion
-const decisionOn = (repo, key) => (CHIST?.history || []).find(e => (e.pending || e.running || e.failed || e.unpulled) && (!repo || e.repo === repo) && (e.keys || [e.key]).includes(key)) || null;
-const dlabel = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-// a small markdown reader for the team's own file: headings, lists, code, tables as text, inline code, bold, links' text
-function md(text) {
-  const inline = t => esc(t).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
-  const out = []; let list = null, para = [], fence = null, table = null;
-  const flush = () => { if (para.length) out.push(`<p>${inline(para.join(' '))}</p>`); para = []; if (list) out.push(`<ul>${list.map(i => `<li>${inline(i)}</li>`).join('')}</ul>`); list = null; if (table) out.push(`<pre class="md-pre">${esc(table.join('\n'))}</pre>`); table = null; };
-  for (const line of String(text).split('\n')) {
-    if (fence) { if (/^\s*```/.test(line)) { out.push(`<pre class="md-pre">${esc(fence.join('\n'))}</pre>`); fence = null; } else fence.push(line); continue; }
-    if (/^\s*```/.test(line)) { flush(); fence = []; continue; }
-    const h = line.match(/^(#{1,4}) (.+)/);
-    if (h) { flush(); out.push(`<div class="md-h md-h${h[1].length}">${inline(h[2])}</div>`); continue; }
-    if (/^\s*\|/.test(line)) { if (!table) { flush(); table = []; } table.push(line); continue; }
-    const li = line.match(/^\s*(?:[-*]|\d+\.) (.+)/);
-    if (li) { if (para.length || table) { const l = list; list = null; flush(); list = l; } (list ||= []).push(li[1]); continue; }
-    if (!line.trim()) { flush(); continue; }
-    if (list && /^\s{2,}\S/.test(line)) { list[list.length - 1] += ' ' + line.trim(); continue; }
-    if (list || table) flush();
-    para.push(line.trim());
-  }
-  if (fence) out.push(`<pre class="md-pre">${esc(fence.join('\n'))}</pre>`);
-  flush();
-  return out.join('');
-}
-// a skill file's description (from its front matter) and its body
-const skillShort = text => {
-  const fm = String(text).match(/^---\n([\s\S]*?)\n---\n?/), desc = fm ? (fm[1].match(/^description:\s*["']?([\s\S]*?)["']?\s*(?:\n\w+:|$)/m) || [])[1] : null;
-  const body = fm ? String(text).slice(fm[0].length) : String(text);
-  return { desc: desc ? desc.replace(/\s+/g, ' ').trim() : '', body: body.trim() };
-};
-// the action picked in a row's dropdown (key → act), kept across renders
-const PREACT = new Map();
-// The page the installer opens (from=setup) puts the suggested savings first, each row's dropdown on the suggested
-// action: the rows the installer's terminal picker lists (context-machine.js:suggestedPicks, sent as `suggested` with
-// the report), so both doors offer the same picks. Nothing is applied until the person clicks Apply on a row.
-//
-// From the weekly question's link (from=suggestion) the rows put first are the lines that question numbered
-// (context-suggest.js:offeredPicks, sent as `offered`), not these: this page's own ranking is recomputed on arrival,
-// so it would lead with rows the person was never asked about. A link older than the answer window brings no list, and
-// the suggestions stand in for it.
-function preselectRows(rows, suggested) {
-  for (const s of suggested) {
-    const r = rows.find(r => r.key === s.key && (!s.repo || !r.repo || r.repo === s.repo) && r.options.some(([a]) => a === s.act));
-    if (r) { PREACT.set(pickKey(r), s.act); PRETOP.add(pickKey(r)); }
-  }
-}
-// One ordering, most wasted first (what it cost in the calls of the sessions that did not use it; the owner's call,
-// 2026-10-29), then most costly. Except that the rows a door suggested come first (the owner's ask, 2026-11-05): the
-// table is paged and ranked by waste, which the question's lines are not, so a line it numbered could sit on a page
-// nobody had opened. Frozen when the door's list is resolved (preselectRows), so nothing moves under the hand; among
-// themselves and below them the order is the ordinary one.
-const PRETOP = new Set();
-const windowCost = r => r.window || 0, windowWaste = r => r.wasted == null ? -1 : (r.wastedWindow || 0);
-const plainTitle = t => String(t || '').replace(/\s*\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim() || String(t || '');
-// Wasted in dollars (the owner's ask, 2026-11-09): the wasted tokens at what an input token cost these sessions at list prices (context-view.js:inputRate)
-const rateOf = v => v?.rate?.perToken ?? (v?.rate?.input ? v.rate.usd / v.rate.input : null);
-const wasteUsd = (r, rate) => rate == null || r.wasted == null ? null : windowWaste(r) * rate;
-// the row's colour (the owner's rule, 2026-11-09; context-view.js:flagOf is the same line): used in under 10% of its calls,
-// red at 5,000 tokens a call or more, yellow under that, nothing under 500 tokens
-const FLAG = { used: 0.1, red: 5000, none: 500 };
-const flagOf = r => r.off || r.acted == null || r.acted >= FLAG.used || !(r.tokens >= FLAG.none) ? null : r.tokens >= FLAG.red ? 'red' : 'yellow';
-const cmpRows = (a, b) => windowWaste(b) - windowWaste(a) || windowCost(b) - windowCost(a);
-const sortRows = rows => [...rows].sort(PRETOP.size ? (a, b) => (PRETOP.has(pickKey(b)) ? 1 : 0) - (PRETOP.has(pickKey(a)) ? 1 : 0) || cmpRows(a, b) : cmpRows);
 // a button says what it is doing while it works: compressing a section is a model call of several seconds
 const busy = (btn, text) => { btn.disabled = true; btn.dataset.label = btn.textContent; btn.innerHTML = `<span class="spinner"></span>${text}`; };
 const idle = btn => { btn.disabled = false; btn.textContent = btn.dataset.label || btn.textContent; };
-const KIND = { mcp: 'MCP server', connector: 'connector', plugin: 'plugin', tool: 'built-in tool', desktop: 'desktop app' };
-const CLIENT = { devin: 'Devin', codex: 'Codex', cursor: 'Cursor', claude: 'Claude Code', gemini: 'Gemini CLI' };
-// the actions a row takes, as context-suggest.js:allChanges gives them (the server resolves the row by its key): a section
-// compressed or removed; a skill or tool switched off, or back on when thinker switched it off
-// a built-in tool is not switched off: a tool reference is created (context-suggest.js:ACTS.ref); same action, said as what it does
-const switchOpts = s => s.off ? [['on', 'Turn back on']] : s.label ? [['off', s.group === 'builtin' ? 'Create tool reference' : 'Switch off']] : [];
-// What picking this action will do, in three words for the row and a sentence for the review before Apply. A person
-// who has never thought about an agent's context should be able to read either and know what they are about to change.
-const ACT_EFFECT = {
-  'section:compress': ['opens a pull request', 'A model rewrites the section to about a third of its length and opens a pull request; nothing changes until you merge it.'],
-  'section:remove': ['opens a pull request', 'The section is taken out of the file in a pull request; nothing changes until you merge it.'],
-  'skill:off': ['reversible', 'New sessions in this repository stop loading it; you can still run it by typing /name.'],
-  'skill:on': ['reversible', 'New sessions in this repository load it again.'],
-  'tool:off': ['reversible', 'New sessions across all repositories stop loading it, so the agent cannot call it.'],
-  'builtin:off': ['still usable', "The tool can still be used: its definition moves out of the prompt into a file the agent reads before its first call, in new sessions across all repositories."],
-  'tool:on': ['reversible', 'New sessions in this repository load it again.'],
-};
-const effectKey = (r, act) => `${r.kind === 'tool' && r.view === 'builtin' && act === 'off' ? 'builtin' : r.kind}:${act}`;
-const effectOf = (r, act) => ACT_EFFECT[effectKey(r, act)] || ['', ''];
-// the action a row is on: what the door pre-picked or the person last picked, else the first it offers
-const actNow = r => PREACT.get(pickKey(r)) || (r.options[0] || [])[0];
-const dayOf = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-// One row per part of the context, in one shape: what it is, what it costs a call and over the window, the share of
-// calls that used it, its waste, the text the › opens, and its actions.
-function contextRows(v) {
-  const iv = v.instructions || {}, rows = [], repoOf = s => s.repo || (v.all ? null : CREPO);
-  (iv.sections || []).forEach((s, i) => rows.push({
-    view: 'instructions', kind: 'section', kindLabel: 'instruction section', key: `section:${s.file}:${s.id}`, id: s.id, repo: s.repo || CREPO, order: i,
-    // a section changed inside the window (compressed, rewritten, added) is a new section from then: its row says when,
-    // its use and its cost over the window are the sessions since (instruction-value.js:instructionValue `recent`)
-    // the title without anything in parentheses, and the type cell without the change date (the owner's ask, 2026-11-09): the date stays in the used-share hover and the opened row
-    name: plainTitle(s.title), sub: [s.repoName, (s.fileKind && s.fileKind !== 'root') || (iv.files || []).length > 1 ? s.file : null, s.parent].filter(Boolean).join(' · '),
-    about: s.about || '', explain: s.explain || null, explainKey: s.explainKey || '', detail: md(s.text), tokens: s.tokens, perPrompt: s.perPrompt, window: s.window, wastedWindow: s.wastedWindow, prompts: s.prompts, sessions: s.sessionsSince ?? iv.sessions ?? 0, acted: s.usedShare,
-    actedBy: s.usedShare == null ? (s.triggered ? 'too few sessions since it changed' : 'it names no file, command or code to look for') : `its files, commands or code came up in ${fmt(s.appliedPrompts || 0)} of ${fmt(s.promptsSince ?? s.prompts ?? 0)} prompts (${s.applied} of ${s.sessions} sessions)`,
-    actedBy: (s.usedShare == null ? (s.recent ? `too few sessions since it changed on ${dayOf(s.changedAt)} to say (${s.sessions} of five)` : 'too few sessions to say') : s.usedBy === 'judge' ? 'judged sessions whose agent followed it' : 'sessions that touched its files, commands or code (until five are judged by the model)') + (s.recent && s.usedShare != null ? `, over the ${s.sessions} sessions since it changed on ${dayOf(s.changedAt)}` : ''),
-    wasted: s.wasted, waste: s.waste, off: false, pill: null,
-    options: [['compress', 'Compress'], ['remove', 'Remove']], disabled: '',
-  }));
-  // a section whose change is under way (a job in the background) or a pull request not yet merged: said so in its pill, with
-  // the link, and not to be picked again until the job is done and the pull request merged (the next report has the new
-  // section) or closed (the section is suggested again). One whose change failed keeps its waste pill and can be picked
-  // again: the failure is Recent activity's to say (2026-10-25, the owner's ask; until then the pill read "compression failed"). A merged
-  // pull request this checkout has not pulled (`unpulled`): the section is still in the file here, but it is decided, so
-  // its row is not shown at all (the owner's call, 2026-10-25); Recent activity says to pull and tints the decision until
-  // the checkout has the merge. A row with a decision on it (`decided`) keeps its figures and loses its action.
-  for (const r of rows) {
-    const d = decisionOn(r.repo, r.key); if (!d) continue;
-    if (d.unpulled) r.hidden = true;
-    else if (d.running) { r.pill = ['busy', `<span class="spinner"></span>${d.job.action === 'compress' ? 'Compressing…' : 'Removing…'}`]; r.rawPill = true; r.options = []; r.disabled = 'a change is under way for it: see Recent activity'; r.decided = true; }
-    else if (d.failed) continue;
-    else { r.pr = d.pr; r.pill = ['pr', `PR #${d.pr.number} pending`]; r.options = []; r.disabled = `pull request #${d.pr.number} is open for it`; r.decided = true; }
-  }
-  for (let i = rows.length - 1; i >= 0; i--) if (rows[i].hidden) rows.splice(i, 1);
-  for (const s of v.skills || []) {
-    const k = skillShort(s.text), o = s.outcome;
-    rows.push({
-      view: 'custom', kind: 'skill', kindLabel: 'skill', key: `${s.client}:${s.key}`, repo: repoOf(s), repoIds: s.repoIds, name: s.name, sub: [CLIENT[s.client] || s.client, s.repos > 1 ? `${s.repos} repositories` : ''].filter(Boolean).join(' · '),
-      detail: (k.desc ? `<p class="muted">${esc(k.desc)}</p>` : '') + md(k.body) + (o?.read || o?.missed ? `<p class="muted">Sampled outcome check: rules kept in ${o.read - Math.min(o.read, o.brokenAfterRead)} of ${o.read} sessions that read it; missed (broken without reading it) ${o.missed || 0} times.</p>` : ''),
-      about: s.about || k.desc || '', explain: s.explain || null, explainKey: s.explainKey || '', tokens: s.tokens, perPrompt: s.perPrompt, window: s.window, wastedWindow: s.wastedWindow, prompts: s.prompts, sessions: s.loaded || 0, acted: s.usedShare, actedBy: `invoked in ${fmt(s.usedPrompts || 0)} of ${fmt(s.prompts || 0)} prompts (${s.used} of ${s.loaded} sessions)`,
-      wasted: s.off ? null : s.wasted, waste: s.waste, off: Boolean(s.off), options: switchOpts(s), disabled: s.off || s.label ? '' : 'no setting switches this one off',
-    });
-  }
-  for (const s of v.tools || []) rows.push({
-    view: s.group === 'builtin' ? 'builtin' : 'custom', kind: 'tool', kindLabel: KIND[s.kind] || s.kind || 'tool', key: `${s.client}:${s.key}`, repo: repoOf(s), repoIds: s.repoIds, name: s.name,
-    // Claude Code's own tools in bold (not the desktop app's entries, which nothing switches off): switching one off is a
-    // bigger step than a skill, and the Apply asks first
-    bold: s.kind === 'tool', sub: [CLIENT[s.client] || s.client, s.repos > 1 ? `${s.repos} repositories` : ''].filter(Boolean).join(' · '),
-    detail: s.text ? `<pre class="md-pre" style="white-space:pre-wrap">${esc(s.text)}</pre>` : '<p class="muted">No description recorded.</p>',
-    about: s.about || '', explain: s.explain || null, explainKey: s.explainKey || '', tokens: s.tokens, perPrompt: s.perPrompt, window: s.window, wastedWindow: s.wastedWindow, prompts: s.prompts, sessions: s.loaded || 0, acted: s.usedShare, actedBy: `called in ${fmt(s.usedPrompts || 0)} of ${fmt(s.prompts || 0)} prompts (${s.used} of ${s.loaded} sessions)`,
-    wasted: s.off ? null : s.wasted, waste: s.waste, off: Boolean(s.off), options: switchOpts(s), disabled: s.off || s.label ? '' : 'no setting switches this one off',
-  });
-  // A tool's output is no longer a row here (2026-11-04, the owner's call): the clearing takes out the results the
-  // agent is done with, on by default and asked about nowhere, and per-tool compression (diet.js) only shrank what was
-  // still live -- a choice to make, with the smaller half of the saving behind it. What outputs cost is still measured
-  // and still on the Report, under Cost by context; `thinker context --output-compression <tools>` still sets the diet
-  // for an experiment arm. Rows for the parts a person really does decide on: sections, skills, tools.
-  return rows;
-}
-const pickKey = r => `${r.repo || ''}\t${r.key}`;
-// The one table (2026-11-09, the owner's ask: row by row, nothing above it that is not a row): a part a row with its
-// title, its type, what it adds to each call that carries it, the share of those calls that used it, what it wasted over
-// the window, and its action -- a dropdown and Apply in the row, no checking rows and no Apply over the table. The view
-// tabs (All, Instruction files, Custom tools, Built-in tools), the Potential savings cards, the cards view and the
-// explanatory paragraph went with it: half the page was not actionable. One rule behind the figures, in the headers'
-// hovers, under forty words each (the owner's ask, 2026-10-25: if the explanation needs more, the calculation is wrong):
-// a part sits in the prompt, so it costs its size in every model call that carries it.
-const HEADS = days => [
-  ['Part', ''], ['Type', ''],
-  ['Per call', 'What it adds to every call that carries it. Tokens read, not billed: the prompt cache serves them far cheaper after the first call.', 'num'],
-  ['Used', 'Of the calls that carried it, the share where the agent acted on it: called the tool, invoked the skill, touched what the section names. An estimate from the transcripts.', 'num'],
-  ['Wasted', `Per call × every call that carried it over ${days} days × the share of calls that did not need it, at what an input token cost these sessions at list prices. The most that cutting it could save.`, 'num'],
-  ['Action', '', 'ctx-acthead'],
-];
-const actedCell = r => r.acted == null ? '<span class="muted">–</span>' : `${Math.round(100 * r.acted)}%`;
-// the table is paged, ROWS_PAGE rows at a time; the row index is the sorted list's, so a pick holds while another page is shown
-const ROWS_PAGE = 50, TABLE_PAGE = 20;
-let RPAGE = 0, VROWS = [];
+// a table is paged, TABLE_PAGE rows at a time
+const TABLE_PAGE = 20;
 const pagerOf = (key, n, page, pageSize) => n > pageSize ? `<div class="ctx-note rep-pager"><span>${page * pageSize + 1}–${Math.min(n, (page + 1) * pageSize)} of ${n}</span><button class="btn ghost" data-vpage="${key}:${page - 1}"${page ? '' : ' disabled'}>Previous</button><button class="btn ghost" data-vpage="${key}:${page + 1}"${(page + 1) * pageSize < n ? '' : ' disabled'}>Next</button></div>` : '';
-// what the › beside a part opens, first line: the model's sentence on what it is and what the change means where one has
-// been written (part-explain.js, `thinker explain`), else part-describe.js's line, with the spinner while one is being written
-const explainLine = r => r.explain?.text ? `<p class="ctx-exline">${esc(r.explain.text)}</p>`
-  : `<p class="ctx-exline${r.about ? '' : ' muted'}">${esc(r.about || 'No description recorded.')}${r.explainKey && EXPLAIN_ASKED.has(r.explainKey) ? ' <span class="spinner"></span><span class="muted">writing what this is…</span>' : ''}</p>`;
-function renderRows(rows, { caption, rate = null }) {
-  rows = VROWS = sortRows(rows);
-  const days = CTX?.days || cdays;
-  const pages = Math.max(1, Math.ceil(rows.length / ROWS_PAGE)), page = Math.min(pages - 1, RPAGE), from = page * ROWS_PAGE;
-  const body = rows.slice(from, from + ROWS_PAGE).map((r, k) => {
-    const i = from + k, dk = esc(pickKey(r)), act = actNow(r);
-    // a pill says what has happened to the row (switched off, a change under way, a pull request pending); beside it the
-    // dropdown and Apply where the row still has an action, a dash with the reason where it has none
-    const [pc, pt] = r.pill || (r.off ? ['off', 'off'] : []);
-    const pill = !pt ? '' : r.pr?.url ? `<a class="ctx-pill ${pc}" href="${esc(r.pr.url)}" target="_blank" rel="noopener">${esc(pt)}</a>` : `<span class="ctx-pill ${pc}">${r.rawPill ? pt : esc(pt)}</span>`;
-    const action = r.options.length ? `<select class="sel" data-act="${i}" data-dk="${dk}" aria-label="Action">${r.options.map(([a, t]) => `<option value="${a}"${act === a ? ' selected' : ''}>${t}</option>`).join('')}</select><button class="btn" data-go="${i}" title="${esc(effectOf(r, act)[1])}">Apply</button>`
-      : pt ? '' : `<span class="why" title="${esc(r.disabled)}">—</span>`;
-    return `<tr class="${r.off ? 'ctx-off' : flagOf(r) ? `hl-${flagOf(r)}` : ''}" data-row="${i}">
-      <td class="ctx-name"><button class="ctx-x" data-more="${i}" data-dk="${dk}" aria-expanded="false" aria-label="Open ${esc(r.name)}">›</button>${r.bold ? `<b>${esc(r.name)}</b>` : esc(r.name)}</td>
-      <td class="ctx-type">${esc(r.kindLabel)}${r.sub ? ` <span class="muted">· ${esc(r.sub)}</span>` : ''}</td>
-      <td class="num">${fmt(r.tokens)}</td>
-      <td class="num">${actedCell(r)}</td>
-      <td class="num"${r.wasted != null ? ` title="${fmt(windowWaste(r))} tokens${rate == null ? ', no list price for these sessions\' models' : ''}"` : ''}>${r.wasted == null ? '<span class="muted">–</span>' : rate == null ? '<span class="muted">–</span>' : money(wasteUsd(r, rate))}</td>
-      <td class="ctx-actcell"><div class="ctx-act">${pill}${action}</div></td></tr>
-      <tr class="ctx-detail" data-detail="${i}" data-dk="${dk}" hidden><td colspan="6"><div class="ctx-ex" data-ek="${esc(r.explainKey || '')}">${explainLine(r)}</div><div class="md-body">${r.detail}</div><div class="why">${fmt(r.tokens)} tokens in every call that carries it, ${fmt(windowCost(r))} over ${days} days · used: ${esc(r.actedBy)}${r.wasted != null ? ` · wasted: ${fmt(windowWaste(r))} over ${days} days${rate != null ? ` (${money(wasteUsd(r, rate))} at list prices)` : ''}` : ''}</div></td></tr>`;
-  }).join('');
-  return `<figure class="ctx-figure"><figcaption><span class="ctx-sub">${caption}</span></figcaption>
-    ${rows.length ? `<table class="ctx-table ctx-rows"><thead><tr>${HEADS(days).map(([h, t, c]) => `<th${c ? ` class="${c}"` : ''}${t ? ` title="${esc(t)}"` : ''}>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>${pagerOf('rows', rows.length, page, ROWS_PAGE)}` : '<div class="empty">Nothing recorded here yet.</div>'}</figure>`;
-}
-
-// The sentence on what a part is and why you would change it is written by a model (`thinker explain`, part-explain.js),
-// once a part for the machine, for the parts someone opens: asked for when the › is clicked, never for the hundreds
-// nobody will open, and patched into the open row when it arrives. The page never polls the whole report for it (1.3 MB
-// and every table redrawn every four seconds, to 2026-10-29); it asks for the keys it is waiting on, a few hundred bytes.
-const EXPLAIN_ASKED = new Set();
-let EXPLAIN_TIMER = null, EXPLAIN_TRIES = 0;
-function explainRow(r) {
-  if (!r?.explainKey || r.explain || CTX?.partial || EXPLAIN_ASKED.has(r.explainKey)) return;
-  EXPLAIN_ASKED.add(r.explainKey);
-  api(`/api/explain?repo=${encodeURIComponent(CREPO)}&days=${cdays}`, { keys: [r.explainKey] }).catch(() => EXPLAIN_ASKED.delete(r.explainKey));
-  document.querySelectorAll(`.ctx-ex[data-ek="${CSS.escape(r.explainKey)}"]`).forEach(el => { el.innerHTML = explainLine(r); });
-  EXPLAIN_TRIES = 0; explainLater();
-}
-const explainWanted = () => VROWS.filter(r => r.explainKey && !r.explain && EXPLAIN_ASKED.has(r.explainKey));
-function explainLater() {
-  if (EXPLAIN_TIMER || EXPLAIN_TRIES > 90) return;
-  EXPLAIN_TIMER = setTimeout(async () => {
-    EXPLAIN_TIMER = null; EXPLAIN_TRIES++;
-    const want = explainWanted().map(r => r.explainKey);
-    if (!want.length) return;
-    let got = null;
-    try { got = await api(`/api/explain?repo=${encodeURIComponent(CREPO)}&days=${cdays}&keys=${encodeURIComponent(want.join(','))}`); } catch {}
-    if (got?.explains && Object.keys(got.explains).length) putExplains(got.explains);
-    if (explainWanted().length) explainLater();
-  }, 4000);
-}
-// What came back goes onto the report the page holds (so a later render keeps it), onto the rows, and into the open
-// row showing that part -- the row's own numbers, dropdown and open › are left exactly as they are.
-function putExplains(got) {
-  for (const xs of [CTX?.instructions?.sections, CTX?.skills, CTX?.tools]) {
-    for (const x of xs || []) if (got[x.explainKey]) x.explain = got[x.explainKey];
-  }
-  for (const r of VROWS) {
-    if (!got[r.explainKey]) continue;
-    r.explain = got[r.explainKey];
-    document.querySelectorAll(`.ctx-ex[data-ek="${CSS.escape(r.explainKey)}"]`).forEach(el => { el.innerHTML = explainLine(r); });
-  }
-}
-// what the table does: the ›, the dropdown, Apply, the pager
-function wireRows(root) {
-  const sorted = VROWS;
-  root.querySelectorAll('[data-more]').forEach(b => b.onclick = () => { const d = root.querySelector(`[data-detail="${b.dataset.more}"]`), open = d.hidden; d.hidden = !open; b.setAttribute('aria-expanded', String(open)); b.classList.toggle('open', open); if (open) explainRow(sorted[Number(b.dataset.more)]); });
-  // the Apply's hover follows the option chosen, so the consequence is never a surprise
-  root.querySelectorAll('[data-act]').forEach(sel => sel.onchange = () => { const i = Number(sel.dataset.act); PREACT.set(pickKey(sorted[i]), sel.value); const go = root.querySelector(`[data-go="${i}"]`); if (go) go.title = effectOf(sorted[i], sel.value)[1]; });
-  root.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { const i = Number(b.dataset.go); applyRows([{ r: sorted[i], act: root.querySelector(`[data-act="${i}"]`)?.value }], b); });
-  root.querySelectorAll('[data-vpage]').forEach(b => b.onclick = () => { RPAGE = Math.max(0, Number(b.dataset.vpage.split(':')[1])); renderContext(CTX); });
-}
-// A row's action: a skill or tool is changed at once (/api/changes/approve, context-suggest.js:approveChanges, each
-// recorded in Recent activity with its undo); a section's change is started in the background (/api/changes/start,
-// context-suggest.js:startSectionJob: `thinker instructions --compress|--remove <ids> --pr` detached, recorded at once)
-// and the page says so once and goes on. The owner's ask of 2026-10-24: a model call of some seconds is nothing to hold
-// the person's attention with in a modal; Recent activity shows the change under way, then the pull request to merge, or
-// a failure with Retry. One row an Apply since 2026-11-09; `items` is still a list, since the review reads them the same.
-async function applyRows(items, btn) {
-  items = items.filter(x => x.act);
-  const secs = items.filter(x => x.r.kind === 'section'), rest = items.filter(x => x.r.kind !== 'section');
-  if (!secs.length && !rest.length) return toast('Nothing to apply', true);
-  // Every Apply is read back first: one entry a change, saying what the part is, what the action will do to it, how
-  // often the agent actually used it, and what cutting it saves. Before this only switching off Claude Code's own tools
-  // asked, and everything else was applied on one click by a person who may never have been told what the row was.
-  const builtins = rest.filter(x => x.r.view === 'builtin' && x.act === 'off');
-  const rdays = CTX?.days || cdays;
-  const entry = ({ r, act }) => {
-    const label = (r.options.find(([a]) => a === act) || [])[1] || act, full = effectOf(r, act)[1];
-    const calls = fmt(r.prompts || 0);
-    const used = r.acted == null ? 'How often your agent used this was not measured.'
-      : r.acted === 0 ? `Your agent never acted on it in the ${calls} calls that carried it.`
-        : `Your agent acted on it in ${Math.round(100 * r.acted)}% of the ${calls} calls that carried it.`;
-    const save = windowWaste(r) > 0 ? ` Cutting it saves up to ${rateOf(CTX) == null ? `${fmt(windowWaste(r))} tokens` : money(wasteUsd(r, rateOf(CTX)))} over ${rdays} days.` : '';
-    return `<li><div class="rev-what"><b>${esc(r.name)}</b> <span class="muted">${esc([r.kindLabel, r.about].filter(Boolean).join(' — '))}</span></div><div class="rev-do"><b>${esc(label)}:</b> ${esc(full || 'see the row for what this does')}</div><div class="muted">${esc(used + save)}</div></li>`;
-  };
-  if (!await confirmDialog({
-    title: `Apply ${items.length === 1 ? 'this change' : `these ${items.length} changes`}?`, ok: items.length === 1 ? 'Apply it' : `Apply ${items.length}`,
-    body: `<ul class="rev-list">${items.map(entry).join('')}</ul>${builtins.length ? `<p class="rev-warn">${builtins.length === 1 ? 'One of these is' : `${builtins.length} of these are`} Claude Code's own tool${builtins.length === 1 ? '' : 's'}: a tool reference is created and the tool can still be used, its definition read from a file before the first call.</p>` : ''}`,
-  })) return;
-  if (btn) busy(btn, 'Applying…');
-  try {
-    const said = []; let failed = false;
-    if (rest.length) {
-      // Tools use one machine-wide switch. Skills keep their repository scope.
-      const byRepo = new Map();
-      for (const { r, act } of rest) for (const repo of (r.kind === 'tool' ? [r.repo || r.repoIds?.[0] || (CREPO !== 'all' ? CREPO : CTX?.repos?.[0]?.repo)] : r.repo ? [r.repo] : r.repoIds?.length ? r.repoIds : (CTX?.repos || []).map(x => x.repo)).filter(Boolean)) { if (!byRepo.has(repo)) byRepo.set(repo, { keys: [], acts: {} }); const g = byRepo.get(repo); g.keys.push(r.key); g.acts[r.key] = act; }
-      // one repository failing (a checkout gone since the report) is said in its line; the others are still made
-      for (const [repo, g] of byRepo) { try { said.push((await api('/api/changes/approve', { repo, ...g, days: cdays })).said); } catch (err) { failed = true; said.push(`${REPOS.find(x => x.id === repo)?.name || repo}: ${err.message}`); } }
-    }
-    // the sections, one request per repository: the server starts one job per action among them
-    if (secs.length) {
-      const byRepo = new Map();
-      for (const { r, act } of secs) { if (!byRepo.has(r.repo)) byRepo.set(r.repo, { keys: [], acts: {} }); const g = byRepo.get(r.repo); g.keys.push(r.key); g.acts[r.key] = act; }
-      for (const [repo, g] of byRepo) { try { said.push((await api('/api/changes/start', { repo, ...g, days: cdays })).said); } catch (err) { said.push(`${REPOS.find(x => x.id === repo)?.name || repo}: ${err.message}`); } }
-    }
-    toast(said.join(' ') || 'Done', false, secs.length ? 6000 : undefined);
-    // the rows show what was done at once: the setting the server wrote on a skill or tool (patchContext), and a
-    // section's job under way from the decisions (a quick read); the report itself is read again behind it (loadContext, in
-    // place), a second or more after an action, since the action made the kept copy stale
-    if (!failed) patchContext(rest);
-    if (secs.length) { try { CHIST = await api(`/api/activity?repo=${encodeURIComponent(CREPO)}&progressive=1&measure=0`); } catch {} }
-    if (CTX) renderContext(CTX);
-    loadContext(); pollActivity();
-  } catch (err) { toast(err.message, true); if (btn) idle(btn); }
-}
-// what an Apply changed, written into the report on screen as the next report will show it: a skill or tool off (or back
-// on); the report read again after it says the same from the files
-function patchContext(items) {
-  if (!CTX) return;
-  const bySource = (arr, key) => (arr || []).find(s => `${s.client}:${s.key}` === key);
-  for (const { r, act } of items) {
-    if (r.kind === 'skill' || r.kind === 'tool') { const s = bySource(r.kind === 'skill' ? CTX.skills : CTX.tools, r.key); if (s && (act === 'off' || act === 'on')) s.off = act === 'off'; }
-  }
-}
-function renderContext(v) {
-  const el = $('#context-body');
-  CTX = v;
-  const all = contextRows(v);
-  // opened by the installer or the weekly question: that door's suggested savings come first, each on its suggested action, once
-  if (PRESELECT && !v.partial && all.length) { PRESELECT = false; preselectRows(all, (FROM === 'suggestion' && v.offered?.length ? v.offered : v.suggested) || []); }
-  // the one caption line: the sessions, the calls, what every part cost over the window and how much of it was wasted
-  const live = all.filter(r => !r.off), n = v.sessions || 0;
-  const rate = rateOf(v), cost = live.reduce((a, r) => a + windowCost(r), 0), waste = live.reduce((a, r) => a + Math.max(0, windowWaste(r)), 0);
-  const caption = `${n} session${n === 1 ? '' : 's'}${v.prompts ? `, ${fmt(v.prompts)} calls` : ''} over ${v.days} days · ${rate == null ? `${fmt(cost)} input tokens on these parts, ${fmt(waste)} of it wasted` : `${money(cost * rate)} on these parts at list prices, ${money(waste * rate)} of it wasted`}`;
-  swapBody(el, renderRows(all, { caption, rate }));
-  wireRows(el);
-}
 
 // ---- The decisions (context-suggest.js, as `thinker context --history|--revert|--retry`) ----
-// Every decision made from a row (or `thinker context --approve|--dismiss`), newest first, in one table: what, when, what it
-// was worth, what came of it, and the action it still takes: Retry for a change that failed, Close PR for a pull request
-// pending, Revert where thinker kept enough to take it back. Recent activity shows every decision kept, the Report the window's.
+// Every decision made (by thinker itself, in a session, or with `thinker context --approve|--dismiss`), newest first, in one
+// table: what, when, what it was worth, what came of it, and the action it still takes: Retry for a change that failed,
+// Close PR for a pull request pending, Revert where thinker kept enough to take it back.
 // the kind line of an entry is `what` (part-describe.js: a built-in tool apart from a custom one, an output by its tool), with
 // `about`, one line of what the thing does, under it; CH_KIND is the fallback for an entry neither reached
 const CH_KIND = { section: 'Instruction section', skill: 'Skill', tool: 'Tool', output: 'Tool output' };
@@ -1223,7 +684,7 @@ const doneOf = e => e.running ? ['busy', `<span class="spinner"></span>${e.job.a
   : e.revertPr ? ['off', 'Revert PR opened'] : e.pr ? (e.pr.state === 'merged' ? (e.unpulled ? ['wait', 'Merged · pull to apply'] : ['ok', 'Merged']) : e.pr.state === 'closed' ? ['high', 'Rejected'] : ['pr', 'PR pending']) : e.revertedAt ? ['off', 'Reverted'] : e.decision === 'dismissed' ? ['off', 'Dismissed']
   : ['ok', (e.act === 'off' && e.what === 'Built-in tool' ? CH_DONE.ref : CH_DONE[e.act]) || (/^switch/i.test(e.action || '') ? CH_DONE.off : /^remove/i.test(e.action || '') ? CH_DONE.remove : /compress/i.test(e.action || '') ? CH_DONE.compress : 'Applied')];
 // what a decision still needs of the person, in a few words (the card at the top of Recent activity)
-const needOf = e => e.running ? null : e.failed ? `retry it, or pick the section again: ${e.job.error}` : e.pending ? `merge or close pull request #${e.pr.number}` : null;
+const needOf = e => e.running ? null : e.failed ? `retry it: ${e.job.error}` : e.pending ? `merge or close pull request #${e.pr.number}` : null;
 const HISTORY_PAGE = TABLE_PAGE, HPAGE = {};
 // `promptAvg` (report.js:promptAverage): what a prompt costs on average here, shown on the caption line in the cell over the
 // Saved column, the size the savings are read against (2026-10-24: a header row of its own took a line; the caption is that row). No text under the table (2026-10-24, the owner's ask): the cells' hovers explain.
@@ -1296,8 +757,8 @@ document.querySelectorAll('#a-view button').forEach(b => b.onclick = () => {
   loadActivity();
 });
 $('#a-repo').onchange = e => { AREPO = e.target.value; e.target.blur(); loadActivity(); };
-// as loadContext: the table stays and is rebuilt in place when the same repository is already shown (after a Revert or
-// Retry, when a job finishes, on a tab switch back); the spinner is for the first read and a change of repository
+// the table stays and is rebuilt in place when the same repository is already shown (after a Revert or Retry, when a
+// job finishes, on a tab switch back); the spinner is for the first read and a change of repository
 let ACT_FOR = null, ALOAD = 0;
 // reverted decisions are hidden unless the caption's toggle shows them (remembered in this browser, as `thinker context
 // --history` hides them without --reverted)
@@ -1325,7 +786,7 @@ async function loadActivity() {
     }
   } catch (e) { if (seq !== ALOAD) return; if (inPlace) toast(`Could not read the activity: ${e.message}`, true); else el.innerHTML = `<div class="empty">Could not read the activity: ${esc(e.message)}</div>`; }
 }
-// while the report the savings are read from is being made again (`measuring`), check back and show it (as reportAsOf does)
+// while the report the savings are read from is being made again (`measuring`), check back and show it
 let AMPOLL = null;
 function activityCheckBack(d) {
   clearTimeout(AMPOLL); if (!d.measuring) return;
@@ -1353,12 +814,12 @@ function renderActivity(d) {
   // decisions waiting on it tinted yellow below (act-wait) until the checkout has the merge
   const waiting = hs.filter(e => e.unpulled), byRepo = new Map();
   for (const e of waiting) { const k = `${many ? e.repoName || e.repo : ''}\t${e.pullFrom || 'main'}`; byRepo.set(k, (byRepo.get(k) || 0) + 1); }
-  const pullCard = waiting.length ? `<div class="attn wait"><div class="kicker">Pull to apply</div><div class="why">${[...byRepo].map(([k, n]) => { const [r, br] = k.split('\t'); return `${n} merged change${n === 1 ? '' : 's'}${r ? ` in ${esc(r)}` : ''} take${n === 1 ? 's' : ''} effect here once you pull <code>${esc(br)}</code> (<code>git pull origin ${esc(br)}</code>): this checkout does not have the merge yet, so the sections still show in its files. They are tinted below and no longer offered on Find Savings.`; }).join('<br>')}</div></div>` : '';
-  swapBody(el, card + pullCard + historyFigure(hs, { many, caption: 'Decisions', sub: many ? 'every repository' : '', empty: reverted ? 'Every decision here was reverted.' : 'No decisions yet. What you apply on Find Savings is listed here, with what came of it.', key: 'activity', promptAvg: d.promptAvg || null, measuring: !!d.measuring, reverted, showReverted: SHOW_REVERTED }));
+  const pullCard = waiting.length ? `<div class="attn wait"><div class="kicker">Pull to apply</div><div class="why">${[...byRepo].map(([k, n]) => { const [r, br] = k.split('\t'); return `${n} merged change${n === 1 ? '' : 's'}${r ? ` in ${esc(r)}` : ''} take${n === 1 ? 's' : ''} effect here once you pull <code>${esc(br)}</code> (<code>git pull origin ${esc(br)}</code>): this checkout does not have the merge yet, so the sections still show in its files. They are tinted below.`; }).join('<br>')}</div></div>` : '';
+  swapBody(el, card + pullCard + historyFigure(hs, { many, caption: 'Decisions', sub: many ? 'every repository' : '', empty: reverted ? 'Every decision here was reverted.' : 'No decisions yet. A change thinker makes, or one you approve with <code>thinker context --approve</code>, is listed here with what came of it.', key: 'activity', promptAvg: d.promptAvg || null, measuring: !!d.measuring, reverted, showReverted: SHOW_REVERTED }));
   wireHistory(el.querySelector('[data-history]'), hs, loadActivity, () => renderActivity(d));
   badge(d);
 }
-// PR savings reads the same kept report as View Report, with its own repository and expansion state.
+// PR savings reads the kept report `thinker report` prints, with its own repository and expansion state.
 const prShare = x => x == null ? '<span class="muted">–</span>' : `${(100 * x).toFixed(x < 0.01 ? 2 : 1)}%`;
 function renderActivityPrs(v) {
   APR = v;
@@ -1396,12 +857,10 @@ async function pollActivity() {
   let d = null; try { d = await api('/api/activity?repo=all&progressive=1&measure=0'); } catch {}
   if (d) {
     badge(d);
-    // what the open page shows follows: Recent activity is drawn again, and a Save row's pill, when a change finished
-    // the state of each decision of the repository shown (under way, pending, failed): when one moved, the page is drawn
-    // again in place (loadActivity, loadContext), so a Save row's pill goes from Compressing… to PR pending where it stands
+    // what the open page shows follows: when the state of a decision of the repository shown moved (under way, pending,
+    // failed), Recent activity is drawn again in place (loadActivity)
     const sig = (hs, repo) => JSON.stringify((hs || []).filter(e => repo === 'all' || e.scope === 'machine' || e.repo === repo).map(e => [e.id, Boolean(e.running), Boolean(e.pending), Boolean(e.failed), e.attention]));
     if (TAB === 'activity' && AVIEW === 'actions' && ACT && sig(ACT.history, AREPO) !== sig(d.history, AREPO)) loadActivity();
-    if (TAB === 'save' && CHIST && sig(CHIST.history, CREPO) !== sig(d.history, CREPO)) loadContext();
   }
   APOLL = setTimeout(pollActivity, d?.running ? ACT_FAST_MS : ACT_POLL_MS);
 }
@@ -1538,16 +997,8 @@ async function fetchRepos() {
   const r = await api('/api/repos');
   REPOS = r.repos;
 }
-// ---- Report (report.js:reportView, as `thinker report`): the average a prompt (one call to the model) cost each week, by token type, by part and by model ----
-let RPT = null, RMODE = 'sum', RVIEW = 'values', RMORE = false, RFOLD = new Set(['other-input']); // the rest of the input folded until opened (2026-10-25)
-// Values / Share is the command's --share (report.js:renderReport): every row but the whole-session total as its share of that
-// total in the week, so the relative contributions and their trend can be read; the total rows keep their values
-document.querySelectorAll('#r-view button').forEach(b => b.onclick = () => { RVIEW = b.dataset.view; segOn('#r-view', b); if (RPT) renderReport(RPT); });
-document.querySelectorAll('#r-mode button').forEach(b => b.onclick = () => { RMODE = b.dataset.mode; segOn('#r-mode', b); if (RPT) renderReport(RPT); });
-$('#r-repo').onchange = e => { REPO = e.target.value; e.target.blur(); loadReport(); };
-// a Report cell's colour is report.js:COST_THRESHOLDS, read from the view (`costThresholds`): the command marks the same cells ✓ · ✗
-// ---- Factory (factory.js, as `thinker factory`): read from the same kept report as the Report tab, so a figure on one
-// tab can never contradict the other. The canvas lays the detected loops out itself: shorter routes take the inner lanes,
+// ---- Factory (factory.js, as `thinker factory`): read from the kept report `thinker report` prints, so a figure here
+// can never contradict the command. The canvas lays the detected loops out itself: shorter routes take the inner lanes,
 // sides alternate, a lane holds only loops whose spans and labels do not overlap, and loops sharing a stage edge spread
 // onto separate ports. A loop kind keeps one colour whatever its rank, so a filter never repaints the survivors.
 let FX = null, FX_FOR = null, FLOAD = 0, FX_SEL = null, FX_METRIC = 'stage', FX_ANIM = false, FX_DIFF = '';
@@ -1822,189 +1273,9 @@ function fxSelect(kind, id, stages, loops, dollars) {
 }
 // a dollar figure as prices.js:formatDollars makes it
 const money = d => d == null ? '–' : (d < 0 ? '−' : '') + '$' + (Math.abs(d) >= 10000 ? (Math.abs(d) / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : Math.abs(d) >= 100 ? String(Math.round(Math.abs(d))) : Math.abs(d) >= 10 ? Math.abs(d).toFixed(1) : Math.abs(d) >= 0.01 || d === 0 ? Math.abs(d).toFixed(2) : Math.abs(d).toFixed(3));
-// as loadContext: the tables stay and are rebuilt in place when the same repository is already shown (a tab switch back);
-// the spinner is for the first read and a change of repository
-let RPT_FOR = null, RLOAD = 0;
-async function loadReport() {
-  scanProgress({ refreshing: true });
-  const el = $('#report-body'), seq = ++RLOAD, inPlace = Boolean(RPT) && RPT_FOR === REPO;
-  if (!inPlace) el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the report…</div>`;
-  clearTimeout(RPOLL);
-  try {
-    if (!REPOS.length) await fetchRepos();
-    if (seq !== RLOAD || TAB !== 'report') return;
-    if (REPO !== 'all' && !REPOS.some(r => r.id === REPO)) REPO = REPOS.find(r => r.current)?.id || 'all';
-    $('#r-repo').innerHTML = `<option value="all"${REPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === REPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
-    const want = REPO;
-    await progressiveView(`/api/report?repo=${encodeURIComponent(REPO)}&weeks=6`, v => {
-      if (v.empty) { el.innerHTML = '<div class="empty">No repository with a cache on this machine yet.</div>'; return; }
-      RPT_FOR = want; renderReport(v);
-    }, () => seq === RLOAD && want === REPO && TAB === 'report');
-  } catch (e) { if (seq !== RLOAD || TAB !== 'report') return; scanProgress({ progress: { error: e.message } }); if (inPlace) toast(`Could not read the report: ${e.message}`, true); else el.innerHTML = `<div class="empty">Could not read the report: ${esc(e.message)}</div>`; }
-}
-// The report is kept and made again in the background (report-snapshot.js), like the Save page's: while a newer one is
-// being made the page checks back and shows it. It says nothing of when it was measured, and nothing under its tables
-// (the owner's ask, 2026-10-24: the Report is its tables).
-let RPOLL = null;
-function reportAsOf(v) {
-  clearTimeout(RPOLL);
-  if (!v.refreshing) return;
-  const want = REPO, tries = (v.tries || 0) + 1;
-  if (tries > 24) return;
-  RPOLL = setTimeout(async () => {
-    if (REPO !== want || TAB !== 'report') return;
-    let n; try { n = await api(`/api/report?repo=${encodeURIComponent(REPO)}&weeks=6`); } catch { return; }
-    if (REPO !== want || TAB !== 'report' || n.empty) return;
-    if (n.asOf > v.asOf) { renderReport(n); reportAsOf(n); }
-    else reportAsOf({ ...v, refreshing: n.refreshing, tries });
-  }, 5000);
-}
-// Merged pull requests the band lists before the fold opens the rest.
+// Merged pull requests PR savings lists before the fold opens the rest.
 const PR_ROWS = 12;
-// Values come from report.js, including the denominator when some PRs lack counters.
-function prStatsTable(v) {
-  // In dollars, as the whole Report is since 2026-11-08 (the owner's call; report.js prints the same): a pull request's tokens add
-  // fresh input, cache reads, cache writes and output as if they were one thing. Saved is the clearing's netted figure,
-  // Cost is every session's calls at list prices by token type (delivery.js), over the PRs whose every session is priced.
-  const weeks = v.prWeekly;
-  const heading = '<figcaption><b>Pull request stats</b><span class="ctx-sub">Week over week · by merge date · dollars at list prices</span></figcaption>';
-  if (!weeks?.length) return `<figure class="ctx-figure">${heading}<p class="savings-note">${v.refreshing ? 'Updating PR stats…' : 'No PR stats available yet.'}</p></figure>`;
-  const metrics = [
-    { key: 'merged', name: 'Number of PRs', title: w => `${w.merged} merged with work recorded here` },
-    { key: 'savedUsdPerPr', name: 'Saved per PR · average', title: w => `${money(w.savedUsd || 0)} over ${w.priced || 0} of ${w.merged} PRs with a priced model: what the clearing saved at the cache-read rate, or the cache-write rate on a request that wrote its whole context again. The cache writes after a clear are in the cost` },
-    { key: 'spendPerPr', name: 'Cost per PR · average', title: w => `${money(w.spend || 0)} over ${w.spent || 0} of ${w.merged} PRs whose every session is priced: their model calls at list prices by token type, cache writes after a clear included` },
-  ];
-  const rows = metrics.map(({ key, name, title }) => `<tr><td class="ctx-name">${name}</td>${weeks.map(w => {
-    const n = w[key];
-    return `<td class="num" title="${esc(title(w))}">${n == null ? '–' : key === 'merged' ? n : money(n)}</td>`;
-  }).join('')}</tr>`).join('');
-  return `<figure class="ctx-figure pr-stats">${heading}
-    <table class="ctx-table rep-table savings-table"><colgroup><col class="rep-name wide">${weeks.map(() => '<col>').join('')}</colgroup><thead><tr><th>Metric</th>${weeks.map((w, i) => `<th class="num">Week of ${dlabel(w.t)}${i === weeks.length - 1 ? ' *' : ''}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
-    <p class="savings-note">Merged PRs with work recorded here, in dollars at list prices. Saved: the clearing's saving net of the cache writes after a clear, averaged over the PRs with a priced model. Cost: what their sessions' model calls cost, averaged over the PRs whose every session is priced. * Current week so far. – No measurements.${weeks.every(w => !w.merged) ? ' No merged PRs with recorded work in this period.' : ''}</p></figure>`;
-}
-
-// The session profile's own measure, as `thinker report` prints it (report.js:profileLines; one computation in
-// profile-metric.js, `thinker profile holdout` at length): with the profile against without, how often the person had
-// to repeat themselves and what a prompt costs, a verdict in words with a date where there is not enough data yet, and
-// what the profile holds and how often its lines were acted on (the owner's framing, 2026-11-08). PROFILE_VERDICTS and
-// the two sentences are report.js's copies, held together by test/cli-ui-sync.test.js.
-const PROFILE_VERDICTS = {
-  'too-early': 'Not enough data yet',
-  inconclusive: 'No difference yet',
-  fewer: 'Saves you repeating yourself',
-  more: 'More repeats with the profile: read `thinker profile lines --why`',
-  cheaper: 'Cheaper with the profile',
-  costlier: 'Costlier with the profile',
-};
-const share = r => r == null ? '–' : `${(100 * r).toFixed(1)}% of prompts`;
-function profileWhen(p) {
-  const w = p.pace?.weeksToGo;
-  return w == null ? '' : w < 1 ? ': about a week at your pace' : `: about ${Math.round(w)} weeks at your pace`;
-}
-const bandShare = (l, band) => !l?.judged ? '–' : `${Math.round(100 * l[band] / l.judged)}% of lines`;
-const BANDS = [['rarely', 'Lines rarely used', 'bore on a fifth or fewer of the sessions they were shown to'], ['sometimes', 'Lines sometimes used', 'bore on between a fifth and four fifths of the sessions they were shown to'], ['frequently', 'Lines frequently used', 'bore on four fifths or more of the sessions they were shown to']];
-function profileLinesSentence(p) {
-  const l = p.lines;
-  if (!l || !l.learned) return 'No lines learned yet.';
-  const judged = !l.shown ? 'none judged in a session yet' : `judged over ${l.sessions} session${l.sessions === 1 ? '' : 's'} shown the profile: ${l.applied} of the ${l.shown} times a line was shown it bore on the work${l.applied ? `, acted on in ${l.followed} of those` : ''}${l.neverApplied ? `; ${l.neverApplied} line${l.neverApplied === 1 ? ' has' : 's have'} never borne on a session` : ''}${l.retired ? `; ${l.retired} retired after bearing on none of ${l.retireShown} sessions` : ''}`;
-  return `${l.learned} line${l.learned === 1 ? '' : 's'} learned from ${l.fromSessions} session${l.fromSessions === 1 ? '' : 's'}, ${judged}.`;
-}
-function profileFigure(v) {
-  const p = v.profile;
-  const half = p ? Math.round(100 * p.holdoutRate) : 0;
-  const heading = `<figcaption><b>Profile</b><span class="ctx-sub">What the agent is told about you at the start of a session, and whether it helps${p ? ` · ${p.days} days; ${100 - half}% of sessions see it, ${half}% do not${p.repos > 1 ? `; ${p.repos} repositories pooled` : ''}` : ''}</span></figcaption>`;
-  if (!p) return `<figure class="ctx-figure profile-figure">${heading}<p class="savings-note">No profile observations in this repository yet.</p></figure>`;
-  const unit = x => x == null ? '<span class="muted">–</span>' : money(x);
-  const r = p.recurrence, c = p.cost;
-  const cell = (x, title) => `<td class="num" title="${esc(title)}">${x}</td>`;
-  const repeat = (x, name) => cell(share(x.servedRate), `${name}: ${x.measured} prompts in ${x.sessions} sessions could say; a repeat is the person saying again what an earlier session already told the agent`);
-  const price = (x, name) => cell(unit(x.cost), `${name}: dollars at list prices a prompt, a ratio of sums within each model, over ${x.priced} priced session${x.priced === 1 ? '' : 's'}`);
-  const rows = `<tr><td class="ctx-name">How often you had to repeat yourself</td>${repeat(p.shown, 'With the profile')}${repeat(p.holdout, 'Without')}</tr>` +
-    `<tr><td class="ctx-name">What a prompt costs</td>${price(p.shown, 'With the profile')}${price(p.holdout, 'Without')}</tr>` +
-    BANDS.map(([band, name, what]) => `<tr><td class="ctx-name">${name}</td>${cell(bandShare(p.lines, band), `${p.lines?.[band] || 0} of the ${p.lines?.judged || 0} lines judged so far ${what}; judged by the model that reads a session at its end, over ${p.lines?.sessions || 0} session${p.lines?.sessions === 1 ? '' : 's'} shown the profile; thinker profile lines --why names them`)}<td class="num muted" title="Held-out sessions see no lines"></td></tr>`).join('');
-  const lines = [
-    `${PROFILE_VERDICTS[r.verdict] || r.verdict}${r.verdict === 'too-early' ? profileWhen(p) : ''}.`,
-    `${c.verdict ? PROFILE_VERDICTS[c.verdict] || c.verdict : 'Cost is compared per repository'}.`,
-    profileLinesSentence(p),
-  ];
-  return `<figure class="ctx-figure profile-figure">${heading}
-    <table class="ctx-table rep-table"><colgroup><col class="rep-name wide"><col><col></colgroup><thead><tr><th></th><th class="num">With the profile</th><th class="num">Without</th></tr></thead><tbody>${rows}</tbody></table>
-    <p class="savings-note">${lines.map(esc).join('<br>')}</p></figure>`;
-}
-
-function renderReport(v) {
-  RPT = v;
-  const sum = RMODE === 'sum', share = RVIEW === 'share', el = $('#report-body');
-  // Dollars at list prices and nothing else (the owner, 2026-11-08: "only costs"; the Tokens toggle went that day, since a
-  // token count adds fresh input, cache reads, cache writes and output as if they were one thing). The token figures stay
-  // in the view and `thinker report --json`.
-  // a cell: the week's cost over the priced sessions' prompts, or that cost itself (Total); null where the week has none
-  const avg = (c, w) => { const col = v.columns[w]; return sum ? c.cost : col.pricedPrompts ? c.cost / col.pricedPrompts : null; };
-  // what a cell shows: its value, or under Share its value over the whole session's (the base), the total rows their value
-  const base = share ? v.sessionTotals : null;
-  const val = (cells, w, b) => { const a = avg(cells[w], w); if (!a || !b) return a; const t = avg(b[w], w); return t ? a / t : null; };
-  const sharePct = x => { const p = 100 * x; return p >= 10 ? `${Math.round(p)}%` : p >= 1 ? `${p.toFixed(1)}%` : p >= 0.01 ? `${p.toFixed(2)}%` : '<0.01%'; };
-  const fv = (x, b) => x == null ? '<span class="muted">–</span>' : b ? sharePct(x) : money(x);
-  // Every row of the parts table is coloured by its cost a priced prompt against its bounds (report.js:COST_THRESHOLDS, the
-  // view's `costThresholds`; the command marks the same ✓ · ✗): green at or under Good, red at or over Bad, yellow between
-  // (flat colours, the owner's ask of 2026-10-24), the same whatever the cell shows (a week's total, a share). The two
-  // bounds sit beside the row, narrow (rep-thr). The model and token-type tables are never coloured.
-  const thr = v.costThresholds || {}, kCost = n => `${Number(n.toFixed(3))}`;
-  const verdictOf = (key, cells, w) => { const t = key && thr[key], col = v.columns[w], x = t && col.pricedPrompts ? cells[w].cost / col.pricedPrompts : 0; return !x ? '' : x <= t.good ? 'rep-good' : x >= t.bad ? 'rep-bad' : 'rep-mid'; };
-  const tcell = (cells, w, title, b, key) => { const a = val(cells, w, b), at = title ? ` title="${esc(title)}"` : '', vd = a ? verdictOf(key, cells, w) : ''; return `<td class="num${vd ? ` ${vd}` : ''}"${at}>${a ? fv(a, b) : ''}</td>`; };
-  const thrCells = key => { const t = key && thr[key]; return `<td class="rep-thr">${t ? `≤ ${kCost(t.good)}` : '–'}</td><td class="rep-thr">${t ? `≥ ${kCost(t.bad)}` : '–'}</td>`; };
-  // a row: `total` keeps its values under Share (the whole-session rows); every other row is shown over the base; `key` names
-  // the row for its colour and bounds; `thresholds` puts the two bound cells in (the parts table's rows)
-  const row = (name, cells, { cls = '', sub = '', titles, data = '', total = false, key = null, thresholds = false } = {}) => { const b = total ? null : base; return `<tr class="${cls}"${data}><td class="ctx-name">${name}${sub ? `<span class="ctx-kind">${sub}</span>` : ''}</td>${thresholds ? thrCells(key) : ''}${cells.map((c, w) => tcell(cells, w, titles ? titles(c, w) : '', b, key)).join('')}</tr>`; };
-  const thrHead = `<th class="rep-thr" title="Dollars a priced prompt, at list prices, at or under which the row is green">Good</th><th class="rep-thr" title="Dollars a priced prompt, at list prices, at or over which the row is red; yellow between the two">Bad</th>`;
-  // the column widths are set (colgroup, .rep-table's fixed layout), so a toggle changes the figures and never the table's size
-  const colgroup = thresholds => `<colgroup><col class="rep-name${thresholds ? '' : ' wide'}">${thresholds ? '<col class="rep-thr"><col class="rep-thr">' : ''}${v.columns.map(() => '<col>').join('')}</colgroup>`;
-  const head = (nameHead, thresholds = false) => `${colgroup(thresholds)}<thead><tr><th>${nameHead}</th>${thresholds ? thrHead : ''}${v.columns.map(c => `<th class="num">Week of ${dlabel(c.t)}<small>${fmt(c.prompts || 0)} prompt${c.prompts === 1 ? '' : 's'}, ${c.sessions} session${c.sessions === 1 ? '' : 's'}${c.priced !== c.sessions ? `<span>, ${c.priced} priced</span>` : ''}</small></th>`).join('')}</tr></thead>`;
-  const sessions = v.columns.reduce((a, c) => a + c.sessions, 0), prompts = v.columns.reduce((a, c) => a + (c.prompts || 0), 0), unmeasured = v.columns.reduce((a, c) => a + c.unmeasured, 0);
-  const sub = `${fmt(prompts)} prompts in ${sessions} session${sessions === 1 ? '' : 's'} over ${v.weeks} weeks${unmeasured ? `, ${unmeasured} more whose agent reported no usage (Cursor) left out` : ''}${v.all ? ` · ${v.repos.length} repositories` : ''}`;
-  // the estimated parts are counted in the model's own tokens (report.js:CALIBRATION), the caption says by how much
-  const calNote = Object.entries(v.calibration || {}).map(([k, f]) => `${k} ×${f}`).join(', ');
-  // the three tables add up to the same whole session (report.js: tokenTypes, parts with others, models); a kept report from
-  // before the token types has none (report-snapshot.js remakes it in the background)
-  const types = v.tokenTypes || [], others = v.others || [];
-  const tokenTypes = `<figure class="ctx-figure"><figcaption><b>By token type</b> <span class="ctx-sub">${sub}</span></figcaption>
-    <table class="ctx-table rep-table">${head('Token type')}<tbody>${types.map(p => row(esc(p.name), p.cells)).join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
-  // the rest of the input as one row, "Other input", folded by default: its kinds (the system prompt, the agent's tool
-  // calls, the thinking kept, the prompts and replies, the harness's notes, the unattributed rest) open under it on the
-  // chevron, indented, and the output row after (the owner's ask, 2026-10-25: not all of it needs attention at once)
-  const rest = others.filter(p => p.key !== 'output'), output = others.find(p => p.key === 'output'), otherFolded = RFOLD.has('other-input');
-  const otherRows = [
-    row(`<button class="rep-fold" data-fold="other-input" aria-expanded="${!otherFolded}" title="${otherFolded ? 'Show' : 'Hide'} what the rest of the input is">${otherFolded ? '▸' : '▾'}</button> Other input`, v.otherInput || [], { key: 'otherInput', thresholds: true }),
-    ...(otherFolded ? [] : rest.map(p => row(`<span class="rep-sub">${esc(p.name)}</span>`, p.cells, { cls: 'rep-subrow', key: p.key, thresholds: true }))),
-    ...(output ? [row(esc(output.name), output.cells, { key: 'output', thresholds: true })] : []),
-  ];
-  // what the harness wrote down as a note and never sent is in no cell: the sentence under the table is the view's own
-  // (report.js:notesUnsentLine), the same words `thinker report` prints, so the two doors never drift
-  const parts = `<figure class="ctx-figure"><figcaption><b>Cost by context</b> <span class="ctx-sub">${sum ? 'Weekly totals' : 'Per prompt'} · ${share ? 'share of recorded usage' : 'at list prices'}</span></figcaption>
-    <table class="ctx-table rep-table">${head('Part', true)}<tbody>${[...v.parts.map(p => row(esc(p.name), p.cells, { key: p.key, thresholds: true })), ...otherRows].join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true, key: 'total', thresholds: true })}</tbody></table>${v.notesUnsent ? `<p class="savings-note">${esc(v.notesUnsent.line)}</p>` : ''}</figure>`;
-  const fold = p => RFOLD.has(p), modelsOf = p => v.models.filter(m => m.provider === p);
-  const mtitle = m => (c, w) => `${fmt(c.prompts || 0)} prompts in ${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.prompts ? `, ${c.pricedPrompts ? money(c.cost / c.pricedPrompts) : '–'} per prompt of its own` : ''}`;
-  const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the ${sum ? 'week' : 'average prompt'}, its provider's subtotal above its models</span></figcaption>
-    <table class="ctx-table rep-table">${head('Provider · model')}<tbody>${v.providers.map(p => row(`<button class="rep-fold" data-fold="${esc(p.name)}" aria-expanded="${!fold(p.name)}">${fold(p.name) ? '▸' : '▾'}</button> ${esc(p.name)}`, p.cells, { cls: 'rep-sub', sub: `${modelsOf(p.name).length} model${modelsOf(p.name).length === 1 ? '' : 's'}` }) + (fold(p.name) ? '' : modelsOf(p.name).map(m => row(`<span class="rep-indent">${esc(m.model)}</span>`, m.cells, { cls: m.priced ? '' : 'ctx-off', sub: m.priced ? '' : 'no list price', titles: mtitle(m) })).join(''))).join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
-  // a dot a series, in the order they were added; a new series with no colour of its own takes the last
-  const DOTS = { compression: '#6366f1', delegation: '#07866c', repeat: '#b45309' };
-  const series = (v.savings || []).slice().sort((a, b) => Number(b.key === 'compression') - Number(a.key === 'compression')).map(s => ({ ...s, color: DOTS[s.key] || '#07866c', values: s.cells.map((c, w) => {
-    if (!c.pricedEvents) return null;
-    const col = v.columns[w], total = v.sessionTotals[w];
-    const denominator = share ? total?.cost : sum ? 1 : col.pricedPrompts;
-    return denominator ? c.cost / denominator : null;
-  }) }));
-  const number = n => share ? `${Number((n * 100).toFixed(2))}%` : money(n);
-  const unpricedSavings = series.some(s => s.cells.some(c => c.unpricedTokens));
-  const effectiveness = `<figure class="ctx-figure savings-figure"><figcaption><b>Compression effectiveness</b><span class="ctx-sub">Weekly ${share ? 'savings as a share of recorded usage' : `value at list prices${sum ? '' : ' per prompt'}`}</span></figcaption>
-    <table class="ctx-table rep-table savings-table">${colgroup(false)}<thead><tr><th>Savings</th>${v.columns.map((c, w) => `<th class="num">${dlabel(c.t)}${w === v.columns.length - 1 ? " *" : ""}</th>`).join('')}</tr></thead><tbody>${series.map(s => `<tr><td><span class="savings-dot" style="background:${s.color}"></span>${esc(s.name)} <span class="ctx-sub">${'gross'}</span></td>${s.values.map(n => `<td class="num">${n == null ? '–' : esc(number(n))}</td>`).join('')}</tr>`).join('')}</tbody></table>
-    <p class="savings-note">Compression: avoided cache reads, before cache rewrite costs; Codex token counts are estimated. ${unpricedSavings ? 'Unpriced models are excluded. ' : ''}* Current week so far. Gaps mean no measurements.</p></figure>`;
-  swapBody(el, prStatsTable(v) + parts + effectiveness + profileFigure(v) + `<button class="btn metrics-toggle" id="more-metrics" aria-expanded="${RMORE}" aria-controls="extra-metrics">${RMORE ? 'See fewer metrics' : 'See more metrics'} <span aria-hidden="true">${RMORE ? '▴' : '▾'}</span></button><div id="extra-metrics"${RMORE ? '' : ' hidden'}>${models}${tokenTypes}</div>`);
-  $('#more-metrics').onclick = () => { RMORE = !RMORE; renderReport(v); $('#more-metrics').focus(); };
-  el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });
-}
-// first view: the tab the URL names, else Save (where the agents' context goes is the front door, since
-// 2026-10-21)
+// first view: the tab the URL names, else the chat
 // the view tabs stick under the nav: its height is measured into --nav-h, not assumed
 const navHeight = () => document.documentElement.style.setProperty('--nav-h', `${document.querySelector('nav').getBoundingClientRect().height}px`);
 // and the column headers stick under the view tabs, so a long table never leaves its numbers unlabelled: the tabs'

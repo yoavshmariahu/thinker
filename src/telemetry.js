@@ -435,7 +435,7 @@ export function decisionOutcome(e) {
   return 'applied';
 }
 
-// Every decision taken on Find Savings, over every repository the machine's log names, each with what it
+// Every context decision taken (context-suggest.js:changeHistory), over every repository the machine's log names, each with what it
 // measured as saved (report-snapshot.js:historyEffects, read over the report kept in the repository: no
 // transcript is read and no model is called here). A repository whose config says `telemetry: false` is left
 // out, as in holdoutMetrics. Worktrees of one repository share a cache and a report, and a decision reached
@@ -493,7 +493,7 @@ export function spendMetrics(store, { all = true, now = Date.now() } = {}) {
     approvals: 0, approvedChanges: 0, approvedTokens: 0, approvalsReviewed: 0, approvalsAsPr: 0,
     dismissals: 0, dismissedChanges: 0, reverts: 0, revertedPrs: 0,
     // the funnel's two ends by the door they came through (context-suggest.js:VIA): `session` is a weekly suggestion
-    // approved in the conversation it was passed on in, `page` a decision taken on Find Savings (the dashboard),
+    // approved in the conversation it was passed on in, `page` a decision taken on the page's Find Savings tab (removed 2026-11-21, so only older decisions carry it),
     // `setup` the install's multi-select, `command` someone typing it. A machine before 0.2.11 logged no door, so its
     // decisions count under `command`; the counts here are of changes, not of events.
     approvedBy: {}, dismissedBy: {},
@@ -684,7 +684,7 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
     // calls no proxy of ours can carry (compactionMetrics). The daily dashboard counts them beside the proxy's cuts.
     compactions: compactionMetrics(store, { all }),
 
-    // what was suggested, offered and decided on Find Savings, 30 days, and what each decision measured as
+    // what was suggested, offered and decided on the context, 30 days, and what each decision measured as
     // saved over the report kept in its repository (spendMetrics). The Token spend dashboard reads both.
     actions: tokenSpend.actions,
     savings: tokenSpend.savings,

@@ -73,7 +73,8 @@ test('the installer\'s report reads the most active repositories, keeps each rep
   assert.match(lines[0], /from 2 sessions of the last 30 days/);
   assert.match(lines[0], /1 more repository not read/);
   assert.ok(lines.some(l => /1\. AGENTS\.md section "API views" \(.*\): ~.* tokens a prompt .*needed in 0% of prompts/.test(l)), lines.join('\n'));
-  assert.match(lines[lines.length - 1], /thinker ui \(Context, All repositories\)/);
+  assert.match(lines[lines.length - 1], /^Review and apply in each repository: thinker context --approve <numbers>\./);
+  assert.doesNotMatch(lines.join('\n'), /thinker ui|in the browser/, 'no page shows these rows since 2026-11-21');
   // both repositories within a larger limit, the busier first; one without an instruction file reads fine
   const both = machineContext(store, { home, limit: MACHINE_REPOS, thinkerHome: th });
   assert.deepEqual(both.repos.map(x => x.checkout), [a, b]);
@@ -137,7 +138,7 @@ test('machineChanges: a section never applied is removed in its repository, a to
   assert.equal(sec.act, 'remove', 'needed in 0% of prompts by its triggers: removed');
   assert.deepEqual(sec.targets.map(x => x.checkout), [a], 'in its own repository only');
   assert.equal(sec.targets[0].change.chosen, 'remove'); assert.equal(sec.targets[0].change.key, `section:AGENTS.md:${sec.id}`);
-  // the page the installer opens pre-checks the same rows with the same actions (suggestedPicks, sent with /api/context)
+  // the same rows with the same actions as keys (suggestedPicks: what the page the installer opened pre-checked, until 2026-11-21)
   const sp = suggestedPicks(r.view);
   assert.equal(sp.length, recs.items.length);
   assert.deepEqual(sp.find(s => s.kind === 'section'), { kind: 'section', key: `section:AGENTS.md:${sec.id}`, repo: r.views[0].repo, act: 'remove' });

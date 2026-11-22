@@ -1,14 +1,14 @@
 # Usage, savings and learning
 
 What thinker costs, what it saves, and how it learns from your sessions. Where the agents'
-context goes, and what to cut, is the [Find Savings page](context.md). Back to the [README](../README.md).
+context goes, and what is cut, is in [context cuts](context.md). Back to the [README](../README.md).
 
 ## Usage and savings
 
 `thinker usage` summarizes the machine's log: the requests the hooks saw, the sessions, which agents made them, and
 what learning spent in reported model tokens, for one repository or every repository on the machine (clones and
 worktrees sharing an origin count as one). What thinker saves is the context clearing's, and it is measured: the
-Report page (`thinker ui`, `thinker report`) shows it week by week beside what a session costs, and `thinker savings`
+Report (`thinker report`) shows it week by week beside what a session costs, and `thinker savings`
 says the figure the status line and the cards carry, today and over the whole log, at list prices.
 
 The profile has a measurement of its own. 15% of sessions see no profile (chosen by a hash of the session id;

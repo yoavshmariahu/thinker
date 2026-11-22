@@ -73,7 +73,7 @@ export async function runSetup({
   } catch (e) { out(`  ${c.yellow('○')} Ranking model not fetched: ${String(e.message).split('\n')[0].slice(0, 120)}`); }
 
   // Where the agents' context goes in this repository, from its sessions so far: the report the installer runs
-  // over the machine (context-machine.js), here for the one repository, kept for the page. Nothing to build and
+  // over the machine (context-machine.js), here for the one repository, kept (context-snapshot.js). Nothing to build and
   // no model call; nothing is printed where no session ran yet. On a terminal it is the installer's question
   // How much the person wants in an answer, asked once per machine and then never inferred (setup/length-ask.js).
   // Ahead of the context report because it is one keystroke and the report is the long part of setup.
@@ -82,8 +82,7 @@ export async function runSetup({
     await askAnswerLength({ store, out });
   } catch (e) { out(`  ${c.yellow('○')} Answer length not asked: ${String(e.message).split('\n')[0].slice(0, 120)}`); }
 
-  // (setup/context-ask.js): the page in the browser, or the suggestions here as a list to pick from and apply.
-  let contextAsked = null;
+  // (setup/context-ask.js): the suggestions here as a list to pick from and apply.
   try {
     const { contextView } = await import('./context-view.js');
     const { recommendations } = await import('./context-machine.js');
@@ -96,7 +95,7 @@ export async function runSetup({
       out('');
       const name = path.basename(repo), one = { repo, name, checkout: repo };
       const r = { days: 30, repos: [{ id: repo, name, checkout: repo, sessions: view.sessions }], views: [{ ...one, view }], view };
-      contextAsked = await askMachineReport({ r, recs: recommendations(view), store, out, browser: Boolean(dashboard), open: () => openDashboardFn({ repo, cliPath }) });
+      await askMachineReport({ r, recs: recommendations(view), store, out });
     }
   } catch (e) { out(`  ${c.yellow('○')} Context report not made: ${String(e.message).split('\n')[0].slice(0, 120)}`); }
 
@@ -120,14 +119,14 @@ export async function runSetup({
   ];
   done.push('');
   if (connected.length) done.push(c.bold('Restart your agent: start a new session in this repository'), c.bold('so its hooks and tools load.'), '');
-  done.push(`Savings and the report in your browser: ${c.cyan('thinker ui')}`);
+  done.push(`Talk to thinker and see what it did for you: ${c.cyan('thinker ui')}`);
   if (learn) done.push(c.dim('Ongoing learning reads your sessions with your agent, when they end.'));
   // telemetry carries counts only (telemetry.js:buildTelemetryPayload); no profile text leaves the machine
   done.push(c.dim('The profile stays on this machine in .thinker/local/, which git ignores;'), c.dim('nothing needs committing and Thinker uploads none.'));
   out('\n' + finishBox(done, { ok: !needsAttention }) + '\n');
-  // the page at the end, as before, unless the person was asked above and chose (the browser opened it already, the
-  // terminal was their answer)
-  if (dashboard && firstSetup && !contextAsked?.mode?.match(/^(browser|terminal)$/) && openDashboardFn({ repo, cliPath })) out(`  ${c.dim(`Opening the local page in your browser; open it again any time with ${c.cyan('thinker ui')}.`)}\n`);
+  // the page at the end of a first setup: it opens on the chat with thinker (the question above no longer offers the
+  // browser, since the Find Savings page it opened was removed on 2026-11-21)
+  if (dashboard && firstSetup && openDashboardFn({ repo, cliPath })) out(`  ${c.dim(`Opening the local page in your browser; open it again any time with ${c.cyan('thinker ui')}.`)}\n`);
 
   return { connections };
 }

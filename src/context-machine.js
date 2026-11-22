@@ -126,7 +126,7 @@ export function renderMachineReport(r, recs, { actions = true } = {}) {
 export function renderMachineSummary({ days, repos, skipped = [], more = 0, view }) {
   const lines = [];
   if (!view) {
-    lines.push(`No agent sessions on this machine in the last ${days} days to read; the Context report fills in as you work (thinker ui).`);
+    lines.push(`No agent sessions on this machine in the last ${days} days to read; the Context report fills in as you work (thinker context).`);
     for (const s of skipped) lines.push(`  ${s.name}: could not be read (${s.error})`);
     return lines;
   }
@@ -149,7 +149,7 @@ export function renderMachineCuts({ view }, recs, { actions = true } = {}) {
     const shown = recs.items.reduce((a, x) => a + x.wasted, 0);
     lines.push(`  about ~${formatTokens(shown)} tokens a prompt in these ${recs.items.length}${recs.flagged > recs.items.length ? `, ~${formatTokens(recs.potential)} over all ${recs.flagged} flagged` : ''}.`);
   }
-  if (actions) lines.push(`Review and apply in the browser: thinker ui (Context${view.all ? ', All repositories' : ''}). By hand: thinker instructions --remove|--compress <section>${view.all ? ' in the repository' : ''}; thinker harness --off "<skill or tool>".`);
+  if (actions) lines.push(`Review and apply${view.all ? ' in each repository' : ''}: thinker context --approve <numbers>. By hand: thinker instructions --remove|--compress <section>${view.all ? ' in the repository' : ''}; thinker harness --off "<skill or tool>".`);
   return lines;
 }
 
