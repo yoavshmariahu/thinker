@@ -79,7 +79,8 @@ export const formatCostThreshold = d => `$${Number(d.toFixed(3))}`;
 // then what the conversation itself costs, read from the transcript (transcripts.js:parseClaude `carried`): the system
 // prompt, the agent's own tool calls (the edits and commands it wrote, read again by every call after), its thinking
 // kept in the context, the prompts with their reminders and the agent's text, Claude Code's own notes between turns
-// (environment updates, reminders, tool schemas loaded on demand, listings); `other` is what is left of the measured
+// (environment updates, reminders, tool schemas loaded on demand, listings; sized by what the agent sent and not by
+// the row its transcript kept, transcripts.js:noteTokens, and what that leaves out is named under the table); `other` is what is left of the measured
 // input (estimation slack, mostly the four characters a token the text parts are counted at); `output` is what the
 // model wrote. The instruction files are the larger of the transcript's payload (the root file with the person's global
 // file and memory, where the transcript carries it from the first call) and the Save page's estimate of the root file.
@@ -155,6 +156,9 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   // without a measured input they cannot sit in the three tables that add up to one whole (2026-10-25)
   const estCols = cols.map(() => ({ sessions: 0, prompts: 0 })), byEst = Object.fromEntries(PARTS.map(([k]) => [k, cols.map(cell)]));
   const models = new Map(), unpriced = new Set();
+  // What the harness recorded as a note and never sent (transcripts.js:noteTokens): kept out of every figure and
+  // named under the parts table, since a reader who knew the old one needs to be told why it fell
+  let unsentTokens = 0, unsentPrompts = 0; const unsentHooks = new Map();
   // the window's input cost over its input tokens, priced sessions only (inputRate)
   let pricedInput = 0, pricedInputCost = 0;
   // one row a measured session (sessionRows): its input, the four parts as estimated, and the things it cost (above), so
@@ -176,6 +180,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     // the parts as estimated, scaled to the measured input where they overshoot it; what is left is the conversation
     // the estimated parts in the model's tokens (calibrationOf); the thinking kept is reported exactly and not scaled
     const p = parts.get(r.session) || {}, c = u.carried || {}, est = { instructions: Math.max(c.instructions || 0, p.instructions || 0) * cal, system: (c.system || 0) * cal, custom: (p.custom || 0) * cal, builtin: (p.builtin || 0) * cal, outputs: (p.outputs || 0) * cal, agentCalls: (c.agentCalls || 0) * cal, thinking: c.thinking || 0, prompts: ((c.prompts || 0) + (c.agentText || 0)) * cal, notes: (c.notes || 0) * cal };
+    if (c.unsent) { unsentTokens += c.unsent * cal; unsentPrompts += prompts; if (c.unsentBy) unsentHooks.set(c.unsentBy, (unsentHooks.get(c.unsentBy) || 0) + c.unsent); }
     const sum = Object.values(est).reduce((a, b) => a + b, 0), scale = sum > input && sum > 0 ? input / sum : 1;
     const inCost = cost == null ? null : (cost - (price ? output * price.output / 1e6 : 0)) / Math.max(1, input);
     if (inCost != null) { pricedInput += input; pricedInputCost += input * inCost; }
@@ -228,6 +233,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     rewrites: REWRITES.map(([key, name]) => ({ key, name, cells: byCause[key] })), rewriteTotals, estimated,
     calibration: calibrations(config),
     providers, models: modelRows, unpriced: [...unpriced],
+    notesUnsent: notesUnsent(unsentTokens, unsentPrompts, unsentHooks),
     outputRows: outRows,
     factory,
   };
@@ -495,6 +501,8 @@ export function mergeReports(list) {
     breakdown: BREAKDOWN.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.breakdown || []).find(p => p.key === key)?.cells || [])) })),
     totals: sumCells(views.map(v => v.totals)), sessionTotals: sumCells(views.map(v => v.sessionTotals)),
     providers, models: modelRows, unpriced: [...new Set(views.flatMap(v => v.unpriced))],
+    notesUnsent: notesUnsent(views.reduce((a, v) => a + (v.notesUnsent?.tokens || 0), 0), views.reduce((a, v) => a + (v.notesUnsent?.prompts || 0), 0),
+      views.reduce((m, v) => (v.notesUnsent?.hook ? m.set(v.notesUnsent.hook, (m.get(v.notesUnsent.hook) || 0) + v.notesUnsent.tokens) : m), new Map())),
     actions: list.flatMap(x => x.view.actions.map(a => ({ ...a, repo: x.repo, repoName: x.name }))).sort((a, b) => b.at.localeCompare(a.at)),
     savings: mergeSavings(views, n),
     prs, prWeekly: weeklyPrStats(prs, first.columns, first.to),
@@ -548,6 +556,19 @@ const mean = (xs, { signed = false } = {}) => { const v = xs.filter(x => Number.
 // `total`: the week's sum over its sessions instead of the average per prompt (the page's Total toggle)
 // `share` (the page's Share, 2026-10-24, the owner's ask): every row but the whole-session total as its share of that total in
 // the week, a percentage, so the relative contributions and their trend can be read; the total rows keep their values.
+// What the harness wrote down as a note and never sent, over the window: the tokens, the prompts that carried them,
+// and the hook that wrote the most of it. Not a row of any table -- no model read it, so it has no cost -- but the
+// figure fell by it when the sizing was fixed (transcripts.js:noteTokens), and a person who knew the old figure is
+// owed the reason. Null where there is none. The page and the command say the same sentence from this one field.
+// The sentence is made here and carried on the view as `line`, so the page prints the words the command prints and
+// neither door writes its own (test/cli-ui-sync.test.js).
+export const notesUnsentLine = u => `Harness notes leave out ${u.perPrompt.toLocaleString()} tokens a prompt that the hooks here wrote down and the agent never sent${u.hook ? ` (most of it ${u.hook})` : ''}: what a hook prints is context, the command that ran is not.`;
+export function notesUnsent(tokens, prompts, hooks) {
+  if (!(tokens > 0) || !(prompts > 0)) return null;
+  const u = { tokens: Math.round(tokens), prompts, perPrompt: Math.round(tokens / prompts), hook: [...hooks].sort((a, b) => b[1] - a[1])[0]?.[0] || null };
+  return { ...u, line: notesUnsentLine(u) };
+}
+
 // a share of the whole session as a percentage: whole above 10%, one decimal under it, two under 1%, and under 0.01% said so
 export function formatShare(x) { const p = 100 * x; return p >= 10 ? `${Math.round(p)}%` : p >= 1 ? `${p.toFixed(1)}%` : p >= 0.01 ? `${p.toFixed(2)}%` : '<0.01%'; }
 
@@ -589,6 +610,7 @@ export function renderReport(v, { total = false, share = false } = {}) {
   // the rewrites by cause and the estimated sessions stay in the view (--json) and off the print: not actionable (2026-10-25)
   L.push(`  ✓ · ✗: a row of the parts table at or under its good figure, between the two, at or over its bad figure, in dollars a priced prompt whatever the table shows; the models and the token types take no mark; a zero is left blank. A model row is its share of the ${total ? 'week' : 'average prompt'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
   if (v.unpriced.length) L.push(`  No list price for ${v.unpriced.join(', ')}: their sessions are left out of the cost average.`);
+  if (v.notesUnsent) L.push(`  ${v.notesUnsent.line}`);
   L.push('', 'Compression effectiveness', ' '.repeat(32) + weeks);
   for (const s of v.savings || []) L.push(`  ${s.name.padEnd(30)}${s.cells.map((c, w) => fmtv(savingsValue(c, v.columns[w], v.sessionTotals[w], { total, share }), share).padStart(W)).join('')}`);
   L.push('  Compression: gross avoided cache reads; cache rewrites not deducted. Missing observations: –.');

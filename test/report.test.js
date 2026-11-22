@@ -557,3 +557,42 @@ test('a model family is not one price: Fable 5.2, Fable 5 and Sonnet 5.5 at thei
   // a Fable nobody has priced yet still falls to the family's row, as before
   assert.equal(listPrice('claude-fable-6').input, 10);
 });
+
+// A harness note costs what the agent sent (transcripts.js:noteTokens, 2026-11-21, the owner's ask). The question was
+// what "Harness notes" is, with the row reading 95k tokens a prompt on this machine; 89% of it was a terminal's hook
+// writing its own command text into the transcript on every tool call, having printed nothing, which no model ever
+// read. The row now holds what was sent, the overshoot no longer scales the other parts down with it, and both doors
+// say under the table what was left out and which hook wrote it -- a figure that falls by an order of magnitude is
+// owed a reason.
+test('what a hook wrote down and never sent is in no cell, and both doors say so under the table', t => {
+  const { store, dir } = fixture(t);
+  const wrapper = `if [ -z "${'${HOME-}'}" ]; then ${'printf \'{}\\n\'; '.repeat(900)}fi`;
+  const usage = { ...OPUS };
+  const rows = [
+    { type: 'attachment', attachment: { type: 'prompt_snapshot', systemPrompt: ['You are an agent.'] } },
+    { type: 'user', message: { role: 'user', content: 'tidy a' } },
+    { type: 'attachment', attachment: { type: 'hook_success', hookName: 'PostToolBatch', hookEvent: 'PostToolBatch', content: '', stdout: '{}\n', stderr: '', exitCode: 0, command: wrapper } },
+    { type: 'assistant', message: { id: 'n1', role: 'assistant', model: 'claude-opus-5-5', usage, content: [{ type: 'text', text: 'done' }] } },
+  ];
+  const file = path.join(dir, 'n1.jsonl');
+  fs.writeFileSync(file, rows.map(r => JSON.stringify(r)).join('\n') + '\n');
+  const mtime = weekStart(NOW) + DAY; fs.utimesSync(file, new Date(mtime), new Date(mtime));
+  const v = reportView(store, { now: NOW, sessions: [{ client: 'claude', file, session: 'n1', mtime }] });
+  const last = 5;
+  assert.equal(v.breakdown.find(p => p.key === 'notes').cells[last].tokens, 0, 'a hook that printed nothing costs nothing');
+  assert.ok(v.notesUnsent.perPrompt > 3_000, `what it wrote down is counted apart: ${v.notesUnsent?.perPrompt}`);
+  assert.equal(v.notesUnsent.hook, 'PostToolBatch');
+  assert.equal(v.notesUnsent.prompts, 1);
+  assert.match(v.notesUnsent.line, /^Harness notes leave out [\d,]+ tokens a prompt that the hooks here wrote down and the agent never sent \(most of it PostToolBatch\)/);
+  // the command prints the view's own sentence, and the page the same one (test/cli-ui-sync.test.js)
+  assert.ok(renderReport(v).join('\n').includes(v.notesUnsent.line), 'the command says it under the tables');
+  // merged over the repositories it is one figure, the hook that wrote the most of it named
+  const merged = mergeReports([{ repo: 'a', name: 'a', view: v }, { repo: 'b', name: 'b', view: v }]);
+  assert.equal(merged.notesUnsent.tokens, 2 * v.notesUnsent.tokens);
+  assert.equal(merged.notesUnsent.perPrompt, v.notesUnsent.perPrompt, 'a ratio of sums, as every figure here');
+  assert.equal(merged.notesUnsent.hook, 'PostToolBatch');
+  // and a machine whose hooks print what they mean to print says nothing at all
+  const quiet = reportView(store, { now: NOW, sessions: [transcript(dir, 'q1', { model: 'claude-opus-5-5', usage: OPUS, mtime })] });
+  assert.equal(quiet.notesUnsent, null);
+  assert.ok(!renderReport(quiet).join('\n').includes('Harness notes leave out'));
+});

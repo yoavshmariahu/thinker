@@ -234,12 +234,22 @@ function parseMessages(rows, fromLine, since = 0) {
   // AGENTS.md or CLAUDE.md with the person's global file and memory, exact where the Save page estimates the root file
   // alone) once a call; and Claude Code's own notes (every other attachment: environment updates, reminders, the
   // schemas of tools loaded on demand, listings), each read again by the calls after it.
-  const carried = { prompts: 0, agentText: 0, agentCalls: 0, thinking: 0, notes: 0, system: 0, instructions: 0 }, run = { prompts: 0, agentText: 0, agentCalls: 0, thinking: 0, notes: 0 }, counted = new Set();
+  const carried = { prompts: 0, agentText: 0, agentCalls: 0, thinking: 0, notes: 0, unsent: 0, system: 0, instructions: 0 }, run = { prompts: 0, agentText: 0, agentCalls: 0, thinking: 0, notes: 0, unsent: 0 }, counted = new Set();
   let cwd = null, systemTokens = 0, instructionTokens = 0, afterCompaction = false, dropped = 0;
+  const unsentBy = new Map(); // hook -> the tokens of its notes that never left the machine, for naming the cause
   const calls = []; // one per model call that reports usage, for the cache rewrites (cacheRewrites)
   const est = v => Math.ceil(JSON.stringify(v ?? '').length / 4);
   // attachments the other parts already count: the system prompt, the instruction payload, the skill listing (harness.js)
   const COUNTED = new Set(['prompt_snapshot', 'instructions', 'skill_listing']);
+  // A harness note costs what the agent sent, not what its transcript recorded. Claude Code renders a hook's
+  // attachment from `content` alone -- the text the hook asked it to show -- while the row on disk also carries the
+  // command that ran, and a hook wired as an inline shell wrapper writes a few thousand characters of that on every
+  // tool call, having printed nothing. Sized whole, this machine's harness notes read 95k tokens a prompt where 11k
+  // had been sent, 89% of the figure one such hook over 27,726 calls (2026-11-21, the owner's ask); since the parts
+  // are scaled down where they overshoot the measured input, the phantom bytes took share from every other row too.
+  // Read from Claude Code 2.1.330 itself (its attachment render map: `["hook_success", ["content"]]`), not inferred.
+  // What is left out is kept as `unsent`, with the hook that wrote most of it, so the Report can say why.
+  const noteTokens = a => a.type === 'hook_success' ? (a.content ? est(a.content) : 0) : est(a);
   rows.forEach((j, i) => {
     if (!j) return;
     // a continued session's copied history (`since`, continuations below): its text is context the continuation's calls
@@ -247,7 +257,11 @@ function parseMessages(rows, fromLine, since = 0) {
     const copied = since > 0 && typeof j.timestamp === 'string' && (Date.parse(j.timestamp) || 0) <= since;
     if (j.type === 'attachment' && j.attachment?.type === 'prompt_snapshot') systemTokens = est(j.attachment.systemPrompt);
     else if (j.type === 'attachment' && j.attachment?.type === 'instructions') instructionTokens = est(j.attachment);
-    else if (j.type === 'attachment' && j.attachment && !COUNTED.has(j.attachment.type)) run.notes += est(j.attachment);
+    else if (j.type === 'attachment' && j.attachment && !COUNTED.has(j.attachment.type)) {
+      const a = j.attachment, sent = noteTokens(a), whole = est(a);
+      run.notes += sent;
+      if (whole > sent) { run.unsent += whole - sent; if (a.hookName) unsentBy.set(a.hookName, (unsentBy.get(a.hookName) || 0) + (whole - sent)); }
+    }
     if (j.type === 'system' && j.subtype === 'compact_boundary') { for (const k of Object.keys(run)) run[k] = 0; afterCompaction = true; }
     if (!copied && (j.type === 'assistant' || j.role === 'assistant')) models.add(j.message?.model ?? j.model);
     if (j.type === 'assistant' || j.role === 'assistant') {
@@ -311,6 +325,7 @@ function parseMessages(rows, fromLine, since = 0) {
   for (const usage of messageUsage.values()) stats.turn(usage);
   // `carried` beside the stats, not in them: the stop hook logs the stats on every session line (commands/hooks.js)
   // `calls`: every model call with its usage, in order, for the Factory's stage attribution (factory.js); a tool event's `call` indexes it
+  if (carried.unsent > 0) carried.unsentBy = [...unsentBy].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
   return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value, carried, compactions, rewrites: cacheRewrites(calls), calls, continued: since > 0 ? { at: since, dropped } : undefined };
 }
 

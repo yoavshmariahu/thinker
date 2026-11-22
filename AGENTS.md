@@ -875,6 +875,15 @@ The owner, in one day: thinker is an agent of its own. It "should take actions o
 - **Per session**: Model/usage from `transcripts.js:Stats`, `tool-outputs.js:sessionUsage`, state `.thinker/state/tool-outputs.json` (v8). Parts joined by session id: instruction files, custom tools, built-in tools. Each × session model calls. Tool outputs re-read by later calls. Transcript: system prompt per call; tool inputs, thinking, prompts, agent text, attachments. Thinking: `thinking_tokens`, else signature length ÷ 4.3. Instructions attachment is exact. Scaling: parts scaled down where sum exceeds measured input; remainder = "Other input". Output = model output. Total = session tokens.
 - **Profile** (2026-11-08): session profile's own measure. Recurrence rate (prompts repeated with profile vs without), cost per prompt, verdict on data sufficiency (pace: measured exchanges ÷ days against 200-a-side floor), profile holdings and per-line usage (rarely/sometimes/frequently as shares). Over 60 days, not weeks. All repositories pools counts; cost interval bootstrapped per repository, no pooling across repositories.
 - **Tool output is nobody's choice** (2026-11-04): clearing on by default; removes results agent finished with (88% of output cost). Diet never in Find Savings, weekly question, installer, ACTS, `partChanges`, or `part-explain.js`. Kept: measurement, diet as `thinker context --output-compression <tools> [--level high]`, `describePart({kind:'output'})`, `output` branch of `undoOf`.
+- **A harness note costs what the agent sent** (2026-11-21, the owner's ask: "what is Harness notes?"): sized by the
+  fields the host renders, not by the transcript's row (`transcripts.js:noteTokens`; read from Claude Code 2.1.330's
+  attachment render map, `hook_success` → `content` alone). A hook wired as an inline shell wrapper writes thousands of
+  characters of its own command on every tool call and prints nothing: the row read 95k tokens a prompt where 11k were
+  sent, 89% of it one such hook over 27,726 calls, and since the parts are scaled to the measured input the phantom
+  bytes took share from every other row. What is left out is kept apart (`unsent`, `unsentBy`), never charged, and
+  named under the parts table on both doors from one sentence on the view (`notesUnsentLine`, `notesUnsent.line`).
+  Session state v15 re-reads every record made before it. A hook's printed output was also counted twice (`content`
+  and the `stdout` it was parsed from), the profile thinker serves among it.
 
 **Find Savings: one table, a part a row (2026-11-09)**
 - Title, type, per call, used, wasted, action: dropdown + Apply in row. `›` beside title opens description and text.

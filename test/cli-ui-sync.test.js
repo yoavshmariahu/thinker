@@ -482,6 +482,14 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /\.rep-table \{ table-layout: fixed;/); assert.match(read('ui/page.html'), /\$\{colgroup\(thresholds\)\}<thead>/); assert.match(read('report.js'), /thresholds \? thr\(key\)/); assert.match(read('ui/page.html'), /col\.pricedPrompts \? cells\[w\]\.cost \/ col\.pricedPrompts : 0/);
   for (const k of ['otherInput', 'output']) { assert.match(read('ui/page.html'), new RegExp(`key: '${k}', thresholds: true`)); assert.match(read('report.js'), new RegExp(`key: '${k}', thresholds: true`)); }
   assert.match(read('ui/page.html'), /cls: 'rep-subrow', key: p\.key, thresholds: true/);
+  // What the hooks wrote down and the agent never sent is in no cell of the parts table (transcripts.js:noteTokens):
+  // the sentence under it is made once, in report.js, and carried on the view as `line`, so the page prints the words
+  // the command prints and neither door writes its own (2026-11-21).
+  assert.match(read('report.js'), /export const notesUnsentLine = u =>/);
+  assert.match(read('report.js'), /line: notesUnsentLine\(u\)/);
+  assert.match(read('report.js'), /v\.notesUnsent\) L\.push\(`  \$\{v\.notesUnsent\.line\}`\)/);
+  assert.match(read('ui/page.html'), /v\.notesUnsent \? `<p class="savings-note">\$\{esc\(v\.notesUnsent\.line\)\}<\/p>` : ''/);
+  assert.doesNotMatch(read('ui/page.html'), /Harness notes leave out/);
   assert.doesNotMatch(read('ui/page.html'), /SHADE_MIN|rep-up|rep-down/); assert.doesNotMatch(read('report.js'), /TREND_MIN|TREND_BIG|▲/);
   // the decisions table is one function on both pages, the Report's over its window alone
   assert.match(read('ui/page.html'), /historyFigure\(hs, \{ many, caption: 'Decisions'/);

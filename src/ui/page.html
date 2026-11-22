@@ -1978,8 +1978,10 @@ function renderReport(v) {
     ...(otherFolded ? [] : rest.map(p => row(`<span class="rep-sub">${esc(p.name)}</span>`, p.cells, { cls: 'rep-subrow', key: p.key, thresholds: true }))),
     ...(output ? [row(esc(output.name), output.cells, { key: 'output', thresholds: true })] : []),
   ];
+  // what the harness wrote down as a note and never sent is in no cell: the sentence under the table is the view's own
+  // (report.js:notesUnsentLine), the same words `thinker report` prints, so the two doors never drift
   const parts = `<figure class="ctx-figure"><figcaption><b>Cost by context</b> <span class="ctx-sub">${sum ? 'Weekly totals' : 'Per prompt'} · ${share ? 'share of recorded usage' : 'at list prices'}</span></figcaption>
-    <table class="ctx-table rep-table">${head('Part', true)}<tbody>${[...v.parts.map(p => row(esc(p.name), p.cells, { key: p.key, thresholds: true })), ...otherRows].join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true, key: 'total', thresholds: true })}</tbody></table></figure>`;
+    <table class="ctx-table rep-table">${head('Part', true)}<tbody>${[...v.parts.map(p => row(esc(p.name), p.cells, { key: p.key, thresholds: true })), ...otherRows].join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true, key: 'total', thresholds: true })}</tbody></table>${v.notesUnsent ? `<p class="savings-note">${esc(v.notesUnsent.line)}</p>` : ''}</figure>`;
   const fold = p => RFOLD.has(p), modelsOf = p => v.models.filter(m => m.provider === p);
   const mtitle = m => (c, w) => `${fmt(c.prompts || 0)} prompts in ${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.prompts ? `, ${c.pricedPrompts ? money(c.cost / c.pricedPrompts) : '–'} per prompt of its own` : ''}`;
   const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the ${sum ? 'week' : 'average prompt'}, its provider's subtotal above its models</span></figcaption>
