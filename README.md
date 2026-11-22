@@ -7,6 +7,8 @@ rarely uses, review what to cut, and let it learn how you work.
 - **Make the cuts.** Shorten instructions, switch off unused tools and compress long outputs. You review the changes.
 - **Start oriented.** Thinker learns from your sessions how you work in each repository, what you are in the middle of and what went wrong before, and puts that profile into every session's first prompt.
 
+Already installed? **[Open your dashboard](#open-your-dashboard)** · [Setup guide](docs/setup.md)
+
 ## Install
 
 ```bash
@@ -20,6 +22,25 @@ Works with Claude Code, Codex, Cursor, Gemini CLI, Devin CLI and [more](docs/age
 Requires Node 20+, git and a supported agent. Free and open source.
 
 [See how it works](https://thinker.sh/docs#overview) · [Setup guide](docs/setup.md)
+
+## Open your dashboard
+
+Run this in your terminal, from any directory:
+
+```bash
+thinker ui
+```
+
+Your local dashboard opens in your browser with **Find Savings**, **View Report**, and **Recent activity**
+across the repositories on this machine. No account is required.
+
+To open **View Report** directly:
+
+```bash
+thinker ui --tab report
+```
+
+`thinker report` prints a report in the terminal; use `thinker ui` for the browser dashboard.
 
 ## What works with which agent
 

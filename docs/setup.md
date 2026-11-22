@@ -2,6 +2,23 @@
 
 The details behind the install line in the [README](../README.md).
 
+## Open your dashboard
+
+Already installed? Run this in your terminal from any directory:
+
+```bash
+thinker ui
+```
+
+This opens your local dashboard in your browser. Choose **Find Savings**, **View Report**, or
+**Recent activity**. No account is required. To go straight to **View Report**, run:
+
+```bash
+thinker ui --tab report
+```
+
+`thinker report` prints in the terminal instead. [Dashboard details](#after-the-install) · [Install thinker](#install-and-start)
+
 ## Install and start
 
 ```bash
@@ -34,7 +51,7 @@ Over SSH or in CI, the browser is not offered; with no terminal, the report is p
 
 ## After the install
 
-There are two ways in, and neither is a command to remember.
+Open the [dashboard](#open-your-dashboard) whenever you want, or follow a weekly suggestion from your agent.
 
 **The weekly suggestion.** About once a week, once a repository has ten sessions to read, your agent opens
 its next reply with a short message from thinker: one line per change worth making (an instruction section to
