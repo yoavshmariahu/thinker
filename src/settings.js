@@ -51,7 +51,6 @@ export const GROUPS = [
     { id: 'upkeep.remove', parent: ['upkeep.prs', [true]], label: 'Remove sections outright', dflt: BEHAVIOR.remove, help: '' },
     { id: 'upkeep.tools', as: 'tile', parent: LOOKING, label: 'Tools and MCP servers', dflt: BEHAVIOR.tools, help: 'Switch off the ones nobody calls.' },
     { id: 'upkeep.skills', as: 'tile', parent: LOOKING, label: 'Skills', dflt: BEHAVIOR.skills, help: 'Switch off the ones nobody calls.' },
-    { id: 'upkeep.sweep', as: 'tile', parent: LOOKING, label: 'Merged worktrees', dflt: BEHAVIOR.sweep, help: 'Remove them and their branches once the work is merged.' },
     { id: 'upkeep.minPerDay', parent: LOOKING, section: 'How readily', label: 'A change must save at least', dflt: BEHAVIOR.minPerDay, options: [0.25, 0.5, 1, 2, 4, 8, 16, 32, 64], fmt: usd,
       help: 'Smaller savings are left alone.' },
     { id: 'upkeep.batchEveryDays', parent: AUTO, label: 'A pull request at most every', dflt: BEHAVIOR.batchEveryDays, options: [1, 3, 7, 14, 30], fmt: days,

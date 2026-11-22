@@ -1,4 +1,4 @@
-// Upkeep (upkeep.js, upkeep-sweep.js): what thinker does by itself between sessions -- what it finds, what it does
+// Upkeep (upkeep.js): what thinker does by itself between sessions -- what it finds, what it does
 // and how often, and what it says it did. Nothing is left for the person to do by hand. Git here is real, in scratch repositories; no model
 // and no network.
 import { test } from 'node:test';
@@ -14,8 +14,6 @@ const HOME = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-upke
 for (const [k, v] of Object.entries({ THINKER_LOG: 'local', THINKER_TELEMETRY: 'off', THINKER_HOME: HOME })) process.env[k] = v;
 
 const { Store } = await import('../src/store.js');
-const { appendDelivery } = await import('../src/delivery-journal.js');
-const { findMess, sweep, unsweep, listWorktrees } = await import('../src/upkeep-sweep.js');
 const { upkeepCheck, upkeepPending, upkeepDo, upkeepDismiss, upkeepUndo, upkeepView, upkeepFeed, upkeepDetail, upkeepDelegated, delegatedTotalSaid, mergeUpkeepViews, renderUpkeep, behaviorOf, setBehavior, steerBehavior, behaviorSaid, mayAct, batchOf, readUpkeep, impactSaid, BEHAVIOR, UPKEEP } = await import('../src/upkeep.js');
 const { delegationBySession } = await import('../src/report-savings.js');
 const { delegateConfig, DELEGATE_DEFAULTS } = await import('../src/delegate.js');
@@ -38,94 +36,6 @@ function repo(config = null) {
 }
 // the machine's settings and counts start empty for a test that reads them
 const freshHome = () => { fs.rmSync(path.join(HOME, 'config.json'), { force: true }); fs.rmSync(path.join(HOME, 'state'), { recursive: true, force: true }); };
-// nothing in a scratch repository is a day old: the rules are asked as of two days from now
-const LATER = () => Date.now() + 2 * DAY;
-const tree = (r, name) => { const p = path.join(r.dir, '.worktrees', name); r.git(['worktree', 'add', '-q', '-b', `agent/${name}`, p, 'main']); return p; };
-// merge a worktree's branch into main the way GitHub does when it keeps the commits
-const mergeIn = (r, branch) => r.git(['merge', '-q', '--no-ff', '-m', `merge ${branch}`, branch]);
-const pr = (r, number, branch, head, state = 'MERGED') => appendDelivery(r.store, { op: 'pr', pr: { number, branch, head, state, title: branch } });
-
-test('the sweep finds what is merged, by ancestry or by a merged pull request with this exact head, and nothing else', () => {
-  const r = repo();
-  const done = tree(r, 'done'); r.commit('done.txt', done); mergeIn(r, 'agent/done');
-  // a squash merge: the commits are on main under another hash, so only the pull request's head can say it merged
-  const squashed = tree(r, 'squashed'); const head = r.commit('squashed.txt', squashed); pr(r, 7, 'agent/squashed', head);
-  const open = tree(r, 'open'); r.commit('open.txt', open);
-  // a pull request merged, then one more commit on the branch: that commit is nowhere else
-  const moved = tree(r, 'moved'); const old = r.commit('moved.txt', moved); pr(r, 8, 'agent/moved', old); r.commit('moved-more.txt', moved);
-  r.git(['branch', 'left-over', 'main']); // a bare branch at main: nothing of its own
-  r.git(['branch', 'release/1.0', 'main']);
-  const m = findMess(r.store, { now: LATER(), cwds: [], sizeOf: () => 2048 });
-  assert.deepEqual(m.worktrees.map(w => [path.basename(w.path), w.why, w.kb]).sort(), [['done', 'on main', 2048], ['squashed', 'PR #7 merged', 2048]]);
-  assert.deepEqual(m.branches.map(b => [b.name, b.why]), [['left-over', 'on main']], 'the default branch and a release branch are never listed');
-  assert.deepEqual(m.kept.map(k => [path.basename(k.path), k.why]).sort(), [['moved', 'not merged'], ['open', 'not merged']]);
-});
-
-test('a worktree stays, with its reason, when anything in it could be lost or somebody is in it', () => {
-  const r = repo();
-  const names = ['dirty', 'secret', 'runs', 'modules', 'busy', 'here', 'fresh'];
-  const at = Object.fromEntries(names.map(n => [n, tree(r, n)]));
-  fs.writeFileSync(path.join(at.dirty, 'notes.txt'), 'not committed\n');
-  fs.writeFileSync(path.join(at.secret, '.env'), 'KEY=1\n');
-  fs.mkdirSync(path.join(at.runs, 'runs')); fs.writeFileSync(path.join(at.runs, 'runs', 'r1.json'), '{}');
-  fs.mkdirSync(path.join(at.modules, 'node_modules')); fs.writeFileSync(path.join(at.modules, 'node_modules', 'x.js'), '');
-  r.git(['worktree', 'add', '-q', '--detach', path.join(r.dir, '.worktrees', 'detached'), 'main']);
-  const m = findMess(r.store, { now: LATER(), cwds: [path.join(at.busy, 'src')], here: at.here, sizeOf: () => null });
-  const why = Object.fromEntries(m.kept.map(k => [path.basename(k.path), k.why]));
-  assert.equal(why.dirty, 'has uncommitted work');
-  assert.match(why.secret, /holds files git ignores \(\.env\)/);
-  assert.match(why.runs, /holds files git ignores \(runs\)/);
-  assert.equal(why.busy, 'a process is running in it');
-  assert.equal(why.here, 'you are in it');
-  assert.equal(why.detached, 'no branch (detached)');
-  // node_modules is written again by an install: a worktree holding only that loses nothing
-  assert.deepEqual(m.worktrees.map(w => path.basename(w.path)).sort(), ['fresh', 'modules']);
-  // made a moment ago, as of now: nothing changed in the last day is called abandoned
-  const now = findMess(r.store, { cwds: [], here: at.here, sizeOf: () => null });
-  assert.deepEqual(now.worktrees, []);
-  assert.equal(now.kept.find(k => path.basename(k.path) === 'fresh').why, 'changed in the last day');
-  // where the machine cannot say which directories are in use, nothing is known to be free
-  assert.equal(findMess(r.store, { now: LATER(), cwds: null, sizeOf: () => null }).worktrees.length, 0);
-});
-
-test('a sweep removes what was found, checks each again as it goes, and can be put back', () => {
-  const r = repo();
-  const done = tree(r, 'done'); r.commit('done.txt', done); mergeIn(r, 'agent/done');
-  const squashed = tree(r, 'squashed'); const head = r.commit('squashed.txt', squashed); pr(r, 7, 'agent/squashed', head);
-  const late = tree(r, 'late'); r.commit('late.txt', late); mergeIn(r, 'agent/late');
-  r.git(['branch', 'left-over', 'main']);
-  const opts = { now: LATER(), cwds: [] };
-  const mess = findMess(r.store, { ...opts, sizeOf: () => 1024 });
-  assert.equal(mess.worktrees.length, 3);
-  // between the check and the removal: somebody wrote a file in one of them
-  fs.writeFileSync(path.join(late, 'wip.txt'), 'new work\n');
-  const s = sweep(r.store, mess, opts);
-  assert.deepEqual(s.worktrees.map(w => path.basename(w.path)).sort(), ['done', 'squashed']);
-  assert.deepEqual(s.branches.map(b => b.name).sort(), ['agent/done', 'agent/squashed', 'left-over']);
-  assert.equal(s.kb, 2048);
-  assert.deepEqual(s.skipped.map(x => [path.basename(x.path), x.why]), [['late', 'changed since it was found']]);
-  assert.ok(fs.existsSync(late) && !fs.existsSync(done) && !fs.existsSync(squashed));
-  assert.deepEqual(listWorktrees(r.dir).map(w => w.branch).sort(), ['agent/late', 'main']);
-  // the squash-merged branch is on main under another hash: only its name and commit bring it back
-  const back = unsweep(r.store, { branches: s.branches, worktrees: s.worktrees });
-  assert.deepEqual(back.failed, []);
-  assert.equal(r.git(['rev-parse', 'agent/squashed']), head);
-  assert.ok(fs.existsSync(path.join(squashed, 'squashed.txt')));
-  // and putting back twice says so instead of forcing anything
-  assert.equal(unsweep(r.store, { branches: s.branches, worktrees: s.worktrees }).failed.length, 5);
-});
-
-test('a branch that moved after it was found is not deleted', () => {
-  const r = repo();
-  r.git(['branch', 'left-over', 'main']);
-  const opts = { now: LATER(), cwds: [] };
-  const mess = findMess(r.store, { ...opts, sizeOf: () => null });
-  assert.deepEqual(mess.branches.map(b => b.name), ['left-over']);
-  r.git(['checkout', '-q', 'left-over']); r.commit('more.txt'); r.git(['checkout', '-q', 'main']);
-  const s = sweep(r.store, mess, { ...opts, now: Date.now() + 4 * DAY });
-  assert.deepEqual(s.branches, []);
-  assert.ok(r.git(['rev-parse', 'left-over']));
-});
 
 test('how thinker behaves: it does its work itself unless told otherwise, the machine\'s settings under a repository\'s, and only what is known is kept', () => {
   freshHome();
@@ -134,10 +44,10 @@ test('how thinker behaves: it does its work itself unless told otherwise, the ma
   assert.deepEqual(b, BEHAVIOR);
   // the owner's answers, 2026-11-21: $1 a day is clear value, a batch once enough has piled up and at most weekly,
   // sections shortened or removed and tools switched, skills left alone
-  assert.deepEqual([b.level, b.sweep, b.prs, b.remove, b.tools, b.skills, b.minPerDay, b.batchPerDay, b.batchEveryDays, b.followUp, b.followUpDays], ['auto', true, true, true, true, false, 1, 5, 7, true, 7]);
-  assert.equal(behaviorSaid(b), 'Thinker acts on its own here: it removes merged worktrees and branches; shortens or removes instruction sections nobody needs in a pull request and switches off tools nobody calls, but only what saves $1.00 a day or more, together in one batch once that comes to $5.00 a day, at most every 7 days. 7 days after a change takes effect it checks it, and takes back what did not pay.');
+  assert.deepEqual([b.level, b.prs, b.remove, b.tools, b.skills, b.minPerDay, b.batchPerDay, b.batchEveryDays, b.followUp, b.followUpDays], ['auto', true, true, true, false, 1, 5, 7, true, 7]);
+  assert.equal(behaviorSaid(b), 'Thinker acts on its own here: it shortens or removes instruction sections nobody needs in a pull request and switches off tools nobody calls, but only what saves $1.00 a day or more, together in one batch once that comes to $5.00 a day, at most every 7 days. 7 days after a change takes effect it checks it, and takes back what did not pay.');
   assert.doesNotMatch(behaviorSaid({ ...b, followUp: false }), /takes back what did not pay/);
-  assert.match(behaviorSaid({ ...b, remove: false, tools: false, skills: true }), /it removes merged worktrees and branches; shortens instruction sections nobody needs in a pull request and switches off skills nobody calls, but only/);
+  assert.match(behaviorSaid({ ...b, remove: false, tools: false, skills: true }), /it shortens instruction sections nobody needs in a pull request and switches off skills nobody calls, but only/);
   // two of them are not the upkeep block's: the handoffs to cheaper agents (delegate.js) and how long an answer the
   // person asked their agents for (profile.js), each read and written where that part of thinker keeps it, and the
   // machine's alone however they are asked for
@@ -189,45 +99,40 @@ const withSections = (...more) => ({ ...sectionsOnly(), instructions: { sessions
 const piled = () => withSections(section('legacy', 'Legacy', 'high', 1_750_000, 0));
 const WAITS = 'the changes worth making come to $4.29 a day together so far, and a batch goes at $5.00';
 const spawned = () => { const calls = []; return { calls, spawn: (cmd, args) => { calls.push(args); return { pid: process.pid, on() {}, unref() {} }; } }; };
-// the functions a check is given in place of the machine: the report, whether a pull request can be opened, the sweep
-const given = (sp, { canPr = true, kb = 3 * 1024 * 1024, report = sectionsOnly } = {}) => ({ view: report, prAvailable: () => ({ ok: canPr }), spawn: sp.spawn, findMess: s => findMess(s, { now: LATER(), cwds: [], sizeOf: () => kb }), sweep: (s, m) => sweep(s, m, { now: LATER(), cwds: [] }) });
-const none = () => ({ worktrees: [], branches: [], kept: [] });
+// the functions a check is given in place of the machine: the report, whether a pull request can be opened
+const given = (sp, { canPr = true, report = sectionsOnly } = {}) => ({ view: report, prAvailable: () => ({ ok: canPr }), spawn: sp.spawn });
 
 test('told to wait for the person\'s word, a check does nothing: what is important is held, with why, for the chat to speak of', async () => {
   freshHome();
   const r = repo({ upkeep: { level: 'ask' } });
-  const done = tree(r, 'done'); r.commit('done.txt', done); mergeIn(r, 'agent/done');
-  r.git(['branch', 'left-over', 'main']);
   const sp = spawned();
   const check = await upkeepCheck(r.store, { fns: given(sp, { report: view }) });
-  assert.deepEqual(check.did, []); assert.equal(check.pending, 4); assert.equal(sp.calls.length, 0); assert.ok(fs.existsSync(done));
+  assert.deepEqual(check.did, []); assert.equal(check.pending, 3); assert.equal(sp.calls.length, 0);
   const { pending, notes, lastCheck } = upkeepPending(r.store);
   assert.ok(lastCheck); assert.deepEqual(notes, []);
   // the cheap section is under the bar: it is not held at all, it stays in `thinker context`
   assert.deepEqual(pending.map(i => [i.id, i.kind, i.title, i.why, Boolean(i.later)]), [
     ['change:section:AGENTS.md:releases', 'pr', 'AGENTS.md · Releases', 'you asked to be asked first', false],
     ['change:section:AGENTS.md:ports', 'pr', 'AGENTS.md · Ports', 'you asked to be asked first', false],
-    ['sweep', 'do', '1 merged worktree and 1 branch can go · 3.0 GB', 'you asked to be asked first', false],
     ['change:claude:builtin:Workflow', 'do', 'Workflow tool', 'you asked to be asked first', false],
   ]);
   assert.match(pending[0].detail, /^Needed in 2% of prompts; ~2k tokens in every model call\. About \$20\.0 went on it unused over the last 7 days, \$2\.86 a day\.$/);
   // neither door lists these as things to do: both say how much is held, and what was done
   const v = upkeepView(r.store);
-  assert.deepEqual([v.summary, v.later, v.held, v.level], ['4 held back until you say.', 0, 4, 'ask']);
+  assert.deepEqual([v.summary, v.later, v.held, v.level], ['3 held back until you say.', 0, 3, 'ask']);
   const text = renderUpkeep(v).join('\n');
-  assert.match(text, /^Recent activity · thinker last looked just now\n {2}4 held back until you say\. Thinker does nothing here until you tell it to\.\n\n {2}Nothing yet\./);
+  assert.match(text, /^Recent activity · thinker last looked just now\n {2}3 held back until you say\. Thinker does nothing here until you tell it to\.\n\n {2}Nothing yet\./);
   assert.doesNotMatch(text, /Needs you|thinker activity do|Releases/);
   // a kind switched off is held for that reason; the rest go ahead
   const q = repo({ upkeep: { prs: false } });
-  await upkeepCheck(q.store, { fns: { ...given(spawned()), findMess: none }, act: false });
+  await upkeepCheck(q.store, { fns: given(spawned()), act: false });
   assert.deepEqual(upkeepPending(q.store).pending.map(i => i.why), ['pull requests are switched off here', 'pull requests are switched off here']);
 });
 
-test('on the person\'s word (the chat\'s do, leave and undo): done at once whatever the limits, left for three months, and what is taken back stays back', async () => {
+test('on the person\'s word (the chat\'s do and leave): done at once whatever the limits, and left for three months', async () => {
   freshHome();
   const r = repo({ upkeep: { level: 'ask' } });
-  const done = tree(r, 'done'); r.commit('done.txt', done); mergeIn(r, 'agent/done');
-  const sp = spawned(), fns = given(sp, { kb: 600 * 1024, report: view });
+  const sp = spawned(), fns = given(sp, { report: view });
   await upkeepCheck(r.store, { fns });
   // the section: a job in the background that ends as a pull request, by the door `thinker`
   const a = await upkeepDo(r.store, 'change:section:AGENTS.md:releases', { fns });
@@ -235,36 +140,22 @@ test('on the person\'s word (the chat\'s do, leave and undo): done at once whate
   assert.deepEqual(sp.calls[0].slice(1, 5), ['instructions', '--compress', 'releases', '--pr'], 'a section only ever as a pull request');
   const h = changeHistory(r.store);
   assert.equal(h.length, 1); assert.equal(h[0].via, VIA.thinker); assert.equal(h[0].job.state, 'running');
-  assert.deepEqual(upkeepPending(r.store).pending.map(i => i.id), ['change:section:AGENTS.md:ports', 'sweep', 'change:claude:builtin:Workflow'], 'a decided change is no longer held');
+  assert.deepEqual(upkeepPending(r.store).pending.map(i => i.id), ['change:section:AGENTS.md:ports', 'change:claude:builtin:Workflow'], 'a decided change is no longer held');
   // ... and never by writing the file, even on the person's word, where no pull request can be opened
   assert.match((await upkeepDo(r.store, 'change:section:AGENTS.md:ports', { fns: { ...fns, prAvailable: () => ({ ok: false }) } })).error, /no pull request can be opened from here now/);
   assert.equal(sp.calls.length, 1);
-  // the sweep
-  const s = await upkeepDo(r.store, 'sweep', { fns });
-  assert.equal(s.said, 'Removed 1 merged worktree and 1 branch · 600 MB freed');
-  assert.ok(!fs.existsSync(done));
   // "never mind the tool": left alone in the history `thinker context` reads too, and by thinker for three months
   assert.equal(upkeepDismiss(r.store, 'change:claude:builtin:Workflow', { fns }).said, 'Workflow tool: left alone for the next 90 days');
   assert.equal(changeHistory(r.store).filter(e => e.decision === 'dismissed' && e.via === VIA.thinker).length, 1);
   await upkeepCheck(r.store, { fns, now: Date.now() + 30 * DAY });
   assert.ok(!upkeepPending(r.store, { now: Date.now() + 30 * DAY }).pending.some(i => i.id === 'change:claude:builtin:Workflow'), 'still left a month on, though `thinker context` offers it again after a week');
-  // the activity: a line an action, with what it came to: the disk a sweep freed; for a section still being made, what
-  // the Context report expected of it, said as such
-  const feed = upkeepFeed(r.store);
-  assert.deepEqual(feed.map(f => [f.text, f.impactSaid, f.by]).sort(), [['Removed 1 merged worktree and 1 branch', '600 MB freed', 'you'], ['Shortening AGENTS.md · Releases', 'about −30k tokens per prompt once merged', 'you']]);
-  // taking the sweep back: put back, and never swept again
-  const undo = feed.find(f => f.undo).undo;
-  assert.equal((await upkeepUndo(r.store, undo)).said, 'Put back 1 branch and 1 worktree');
-  assert.ok(fs.existsSync(path.join(done, 'done.txt')));
-  assert.equal((await upkeepUndo(r.store, undo)).error, 'already taken back');
-  const taken = upkeepFeed(r.store).find(f => f.kind === 'did');
-  assert.equal(taken.undone, true); assert.equal(taken.impactSaid, undefined, 'what was put back freed nothing');
-  await upkeepCheck(r.store, { fns, now: Date.now() + DAY });
-  assert.ok(!upkeepPending(r.store, { now: Date.now() + DAY }).pending.some(i => i.id === 'sweep'), 'what the person had put back is theirs to keep');
+  // the activity: a line an action, with what it came to: for a section still being made, what the Context report
+  // expected of it, said as such
+  assert.deepEqual(upkeepFeed(r.store).map(f => [f.text, f.impactSaid, f.by]), [['Shortening AGENTS.md · Releases', 'about −30k tokens per prompt once merged', 'you']]);
   assert.match((await upkeepDo(r.store, 'nope')).error, /nothing is waiting under nope/);
   // what leaves the machine about all this: counts by chore, and by whom (telemetry.js:spendMetrics)
   const { actions } = spendMetrics(r.store, { all: false });
-  assert.deepEqual(actions.upkeep, { checks: 3, checksWithFinds: 0, done: { context: 1, sweep: 1 }, doneOnItsOwn: 0, left: { context: 1 }, undone: 1, settings: {}, chats: 0, chatActions: 0 });
+  assert.deepEqual(actions.upkeep, { checks: 2, checksWithFinds: 0, done: { context: 1 }, doneOnItsOwn: 0, left: { context: 1 }, undone: 0, settings: {}, chats: 0, chatActions: 0 });
   assert.deepEqual(actions.dismissedBy, { thinker: 1 });
 });
 
@@ -287,7 +178,7 @@ test('a decision is taken back where its history is kept, its pull request close
   assert.deepEqual([after.text, after.undone, after.url, after.impactSaid], ['PR #12 closed without merging: AGENTS.md · Releases', true, 'https://github.com/o/r/pull/12', undefined]);
   // the section is flagged again by the Context report (its decision was reverted), and thinker leaves it be
   const sp = spawned();
-  const check = await upkeepCheck(r.store, { fns: { ...given(sp), findMess: none }, now: now + 10 * DAY });
+  const check = await upkeepCheck(r.store, { fns: given(sp), now: now + 10 * DAY });
   assert.deepEqual(check.did, []);
   assert.deepEqual(upkeepPending(r.store, { now: now + 10 * DAY }).pending.map(i => [i.id, i.why]), [['change:section:AGENTS.md:ports', 'the changes worth making come to $1.43 a day together so far, and a batch goes at $5.00']], 'what was taken back is not counted towards the next batch');
   assert.match((await upkeepUndo(r.store, 'h:nope')).error, /no such decision/);
@@ -296,20 +187,18 @@ test('a decision is taken back where its history is kept, its pull request close
 test('by itself: only what clearly pays, together as one batch and one pull request once enough has piled up, at most weekly, and a look does nothing', async () => {
   freshHome();
   const r = repo();
-  const done = tree(r, 'done'); r.commit('done.txt', done); mergeIn(r, 'agent/done');
   const sp = spawned(), fns = given(sp);
   const now = Date.now();
   // a look (all a visit to the page starts) finds and keeps, and does nothing
   const look = await upkeepCheck(r.store, { fns, act: false, now });
-  assert.deepEqual(look.did, []); assert.equal(sp.calls.length, 0); assert.ok(fs.existsSync(done));
-  assert.deepEqual(upkeepPending(r.store, { now }).pending.map(i => [i.id, i.why, i.later]), [['change:section:AGENTS.md:releases', WAITS, true], ['change:section:AGENTS.md:ports', WAITS, true], ['sweep', 'at its next check', true]]);
+  assert.deepEqual(look.did, []); assert.equal(sp.calls.length, 0);
+  assert.deepEqual(upkeepPending(r.store, { now }).pending.map(i => [i.id, i.why, i.later]), [['change:section:AGENTS.md:releases', WAITS, true], ['change:section:AGENTS.md:ports', WAITS, true]]);
   assert.deepEqual(upkeepPending(r.store, { now }).batch, { changes: 2, perDay: 30 / 7, ok: false, later: true, why: WAITS });
-  assert.equal(upkeepView(r.store, { now }).summary, '2 changes worth $4.29 a day waiting for the next batch, 1 more waiting its turn.');
-  // a check: the sweep goes on its own turn; the sections wait for more to pile up, and no pull request is opened
+  assert.equal(upkeepView(r.store, { now }).summary, '2 changes worth $4.29 a day waiting for the next batch.');
+  // a check: the sections wait for more to pile up, and no pull request is opened
   const check = await upkeepCheck(r.store, { fns, now });
-  assert.deepEqual(check.did.map(d => d.id), ['sweep']);
-  assert.equal(check.pending, 2); assert.equal(sp.calls.length, 0); assert.ok(!fs.existsSync(done));
-  assert.match(renderUpkeep(upkeepView(r.store, { now }), { now }).join('\n'), /Removed 1 merged worktree and 1 branch {2}3\.0 GB freed \(on its own\)/);
+  assert.deepEqual(check.did, []);
+  assert.equal(check.pending, 2); assert.equal(sp.calls.length, 0);
   // a third section crosses the bar and enough has piled up: everything worth making goes at once, as one job and
   // one pull request -- the section no prompt needed at all removed, the others shortened
   const batch = await upkeepCheck(r.store, { fns: { ...fns, view: piled }, now: now + DAY });
@@ -321,7 +210,7 @@ test('by itself: only what clearly pays, together as one batch and one pull requ
   assert.deepEqual(upkeepPending(r.store, { now: now + DAY }).pending, []);
   // ... and one line of the activity for all of it: what it is doing, and what was expected of it until it merges
   const lines = upkeepFeed(r.store, { now: now + DAY });
-  assert.deepEqual(lines.map(f => [f.text, f.impactSaid, f.by, f.steer]), [['Batch of 3: shortening 2 sections and removing 1', 'about −90k tokens per prompt once merged', 'thinker', 'changes'], ['Removed 1 merged worktree and 1 branch', '3.0 GB freed', 'thinker', 'sweep']]);
+  assert.deepEqual(lines.map(f => [f.text, f.impactSaid, f.by, f.steer]), [['Batch of 3: shortening 2 sections and removing 1', 'about −90k tokens per prompt once merged', 'thinker', 'changes']]);
   assert.equal(lines[0].id, `b:${h[0].batch}`); assert.deepEqual(lines[0].batch, { changes: 3, sections: 3, tools: 0 });
   // More piles up. While the first is still being made nothing is started; then the batch waits its week, and not
   // for the first one's pull request: with #5 still in review a week on, another is opened ("open another")
@@ -339,7 +228,7 @@ test('by itself: only what clearly pays, together as one batch and one pull requ
   // the line of the first batch now says where its pull request stands, and carries its link and the id that takes it back
   const first = upkeepFeed(r.store, { now: now + 9 * DAY }).find(f => f.id === `b:${h[0].batch}`);
   assert.deepEqual([first.text, first.url, first.pr, first.impactSaid, first.undo, first.kind], ['Batch of 3: PR #5 in review shortens 2 sections and removes 1', 'https://github.com/o/r/pull/5', { number: 5, state: 'open' }, 'about −90k tokens per prompt once merged', `b:${h[0].batch}`, 'pr']);
-  assert.deepEqual(mayAct(r.store, { important: false, action: {}, allow: 'sweep', kind: 'do', chore: 'sweep' }, BEHAVIOR), { ok: false }, 'what is not worth doing is never done');
+  assert.deepEqual(mayAct(r.store, { important: false, action: {}, allow: 'tools', kind: 'do', chore: 'context' }, BEHAVIOR), { ok: false }, 'what is not worth doing is never done');
 });
 
 test('what a batch may hold: sections shortened or removed and tools, never a skill unless told, and each kind as its setting says', async () => {
@@ -359,12 +248,12 @@ test('what a batch may hold: sections shortened or removed and tools, never a sk
   assert.deepEqual(mayAct(q.store, items[1], { ...BEHAVIOR, remove: false }, { now }), { ok: false, why: 'it may shorten a section here but not remove one' });
   assert.deepEqual(mayAct(q.store, items[0], BEHAVIOR, { now, batch: batchOf(q.store, BEHAVIOR, { now, items }) }), { ok: true });
   // the tool of the report goes with the sections where they pile up together ($2.86 + $1.43 + $1.50): held as one batch
-  await upkeepCheck(q.store, { fns: { ...given(spawned(), { report: view }), findMess: none }, act: false, now });
+  await upkeepCheck(q.store, { fns: given(spawned(), { report: view }), act: false, now });
   assert.deepEqual(upkeepPending(q.store, { now }).batch, { changes: 3, perDay: (4_000_000 + 2_000_000 + 2_100_000) * 5e-6 / 7, ok: true });
   assert.equal(upkeepView(q.store, { now }).summary, '3 changes worth $5.79 a day going out in the next batch.');
   // over all repositories the tool is one change (it is switched for the machine), worth what it wastes in each
   const q2 = repo();
-  await upkeepCheck(q2.store, { fns: { ...given(spawned(), { report: view }), findMess: none }, act: false, now });
+  await upkeepCheck(q2.store, { fns: given(spawned(), { report: view }), act: false, now });
   const both = mergeUpkeepViews([{ repo: 'a', name: 'o/a', view: upkeepView(q.store, { now }) }, { repo: 'b', name: 'o/b', view: upkeepView(q2.store, { now }) }]);
   assert.deepEqual([both.batch.changes, Math.round(both.batch.perDay * 100) / 100, both.summary], [5, 11.57, '5 changes worth $11.6 a day going out in the next batch.']);
   // a change kept by a check from before the bar was dollars has no figure: it is not held, and the next check prices it
@@ -374,7 +263,7 @@ test('what a batch may hold: sections shortened or removed and tools, never a sk
   assert.deepEqual([upkeepPending(old.store, { now }).pending, upkeepView(old.store, { now }).summary], [[], 'Up to date.']);
   // where a section was needed at all, or by too few sessions to say, it is shortened, never removed
   const few = repo(), sp = spawned();
-  await upkeepCheck(few.store, { fns: { ...given(sp, { report: () => ({ ...piled(), sessions: 4, instructions: { ...piled().instructions, sessions: 4 } }) }), findMess: none }, now });
+  await upkeepCheck(few.store, { fns: given(sp, { report: () => ({ ...piled(), sessions: 4, instructions: { ...piled().instructions, sessions: 4 } }) }), now });
   assert.deepEqual(sp.calls[0].slice(1, 5), ['instructions', '--compress', 'releases,ports,legacy', '--pr']);
 });
 
@@ -384,7 +273,7 @@ test('a pull request of thinker\'s own closed without merging is a no: its secti
   fs.mkdirSync(path.join(r.store.dir, 'state'), { recursive: true });
   const closed = (id, key, via) => ({ id, at, key, kind: 'section', title: `AGENTS.md · ${id}`, saving: 1200, act: 'compress', decision: 'pull request', via, pr: { number: 12, state: 'closed', at } });
   fs.writeFileSync(path.join(r.store.dir, 'state', 'context-suggest.json'), JSON.stringify({ history: [closed('p1', 'section:AGENTS.md:releases', 'thinker'), closed('p2', 'section:AGENTS.md:legacy', 'command')] }));
-  const sp = spawned(), fns = { ...given(sp, { report: piled }), findMess: none };
+  const sp = spawned(), fns = given(sp, { report: piled });
   // Releases was thinker's and was turned down; Legacy was the person's own pull request, which is theirs to try again
   assert.deepEqual((await upkeepCheck(r.store, { fns, now })).did, []);
   assert.deepEqual(upkeepPending(r.store, { now }).pending.map(i => i.id), ['change:section:AGENTS.md:ports', 'change:section:AGENTS.md:legacy']);
@@ -416,7 +305,7 @@ test('a week on, each change of a batch is checked once: what paid is kept, what
   const row = (d, sources) => ({ t: now - d * DAY, input: 1_000_000, prompts: 100, sources });
   const rows = [...[14, 13, 12, 11, 10].map(d => row(d, { 'claude:builtin:Workflow': 300_000, 'claude:builtin:Canva': 300_000 })), ...[5, 4, 3, 2, 1].map(d => row(d, { 'claude:builtin:Canva': 300_000 }))];
   const report = () => ({ ...sectionsOnly(), instructions: { sessions: 40, sections: [] }, tools: [{ name: 'Agent', kind: 'tool', group: 'builtin', client: 'claude', key: 'builtin:Agent', label: 'Agent tool', off: true, usedShare: 0.14, tokens: 100 }, { name: 'Workflow', kind: 'tool', group: 'builtin', client: 'claude', key: 'builtin:Workflow', label: 'Workflow tool', off: true, usedShare: 0.01, tokens: 100 }] });
-  const calls = [], fns = { view: report, findMess: none, prAvailable: () => ({ ok: true }), report: () => ({ rows }),
+  const calls = [], fns = { view: report, prAvailable: () => ({ ok: true }), report: () => ({ rows }),
     revert: async (store, id) => { calls.push(['revert', id]); return id === 't3' ? { error: 'the settings file changed since' } : { said: 'turned back on' }; },
     restore: async (store, id, o) => { calls.push(['restore', id, o.why]); return { said: 'opened', pr: { number: 31, url: 'https://github.com/o/r/pull/31' } }; } };
   // inside the week nothing is looked at
@@ -468,24 +357,17 @@ test('a week on, each change of a batch is checked once: what paid is kept, what
   freshHome();
 });
 
-test('by itself: no pull request, no section; a small sweep waits; and its own failure is tried again', async () => {
+test('by itself: no pull request, no section; and its own failure is tried again', async () => {
   freshHome();
   const now = Date.now();
   // where no pull request can be opened a section is not thinker's to change at all: not done, not held
   const c = repo(), sp2 = spawned();
-  assert.deepEqual((await upkeepCheck(c.store, { fns: { ...given(sp2, { canPr: false, report: piled }), findMess: none }, now: now + 3 * DAY })).did, []);
+  assert.deepEqual((await upkeepCheck(c.store, { fns: given(sp2, { canPr: false, report: piled }), now: now + 3 * DAY })).did, []);
   assert.equal(sp2.calls.length, 0); assert.deepEqual(upkeepPending(c.store, { now: now + 3 * DAY }).pending, []);
-  // a single stray branch is not worth acting on; told that it is, thinker removes it
-  const e = repo(); e.git(['branch', 'left-over', 'main']);
-  const small = { ...given(spawned(), { kb: 10 }), view: () => null };
-  assert.deepEqual((await upkeepCheck(e.store, { fns: small, now })).did, []);
-  assert.deepEqual(upkeepPending(e.store, { now }).pending, []);
-  setBehavior(e.store, 'sweepMin', 1, { scope: 'repo' });
-  assert.deepEqual((await upkeepCheck(e.store, { fns: small, now })).did.map(x => x.said), ['Removed 1 merged branch']);
   // a batch of its own that failed is tried again a day later, three times in all, with nobody asked: the same
   // sections by the same actions
   const f = repo(), sp3 = spawned(), fail = () => { const file = path.join(f.store.dir, 'state', 'context-suggest.json'), st = JSON.parse(fs.readFileSync(file, 'utf8')); for (const x of st.history) x.job = { ...x.job, state: 'failed', error: 'the model timed out', finishedAt: new Date(now + 20 * DAY).toISOString() }; fs.writeFileSync(file, JSON.stringify(st)); };
-  const once = { ...given(sp3, { report: piled }), findMess: none };
+  const once = given(sp3, { report: piled });
   await upkeepCheck(f.store, { fns: once, now: now + 20 * DAY });
   assert.equal(sp3.calls.length, 1); fail();
   assert.deepEqual((await upkeepCheck(f.store, { fns: once, now: now + 20 * DAY + 3600_000 })).did, [], 'not within the day');
@@ -509,7 +391,7 @@ test('a rule sessions keep breaking is worth knowing, counted over the verdicts 
     s4: judged(4, { worktrees: { verdict: 'followed', evidence: 'git worktree add' }, tests: { verdict: 'violated', evidence: 'no test run' } }),
     old: judged(UPKEEP.ruleDays + 5, broke('long ago')), gone: judged(1, { 'left-the-file': { verdict: 'violated', evidence: 'x' } }),
   } }));
-  await upkeepCheck(r.store, { fns: { view: () => null, findMess: none } });
+  await upkeepCheck(r.store, { fns: { view: () => null } });
   const { notes, pending } = upkeepPending(r.store);
   assert.deepEqual(pending, []);
   assert.equal(notes.length, 1, 'broken once is not a pattern');
@@ -555,10 +437,10 @@ test('the activity is a line an action with what it came to, never thinker\'s ow
   // nothing priced here: tokens alone, never a guessed dollar; no report kept: what was expected
   assert.equal(lines({ rows: [before, after], rate: null })[2][1], '−3k tokens per prompt');
   assert.equal(lines({ rows: [], rate: 5e-6 })[2][1], 'about −2.5k tokens per prompt');
-  assert.deepEqual([impactSaid({ kb: 2 * 1024 * 1024 }), impactSaid({ perPrompt: 10_000, perDay: 45, measured: true }), impactSaid({ perPrompt: -2000, perDay: -1.1, measured: true }), impactSaid(null), impactSaid({ perPrompt: 0 })],
-    ['2.0 GB freed', '−10k tokens per prompt · $45.0/day', '+2k tokens per prompt · $1.10/day more', '', '']);
+  assert.deepEqual([impactSaid({ perPrompt: 10_000, perDay: 45, measured: true }), impactSaid({ perPrompt: -2000, perDay: -1.1, measured: true }), impactSaid(null), impactSaid({ perPrompt: 0 })],
+    ['−10k tokens per prompt · $45.0/day', '+2k tokens per prompt · $1.10/day more', '', '']);
   const base = { level: 'auto', behavior: BEHAVIOR, behaviorSaid: 'x', later: 0, pending: [], notes: [] };
-  const a = { ...base, lastCheck: t(0, 8), pending: [{ id: 'sweep', kind: 'do', chore: 'sweep', later: true, found: t(1), title: 'a' }], feed: [{ at: t(1), text: 'x' }] };
+  const a = { ...base, lastCheck: t(0, 8), pending: [{ id: 'wait:j1', kind: 'do', chore: 'waiting', later: true, found: t(1), title: 'a' }], feed: [{ at: t(1), text: 'x' }] };
   const b = { ...base, lastCheck: t(2), pending: [{ id: 'change:section:AGENTS.md:x', kind: 'pr', chore: 'context', found: t(3), title: 'c' }], notes: [{ id: 'rule:x', kind: 'note', chore: 'rules', found: t(0), title: 'b' }], feed: [{ at: t(0), text: 'y' }] };
   const all = mergeUpkeepViews([{ repo: 'one', name: 'One', view: a }, { repo: 'two', name: 'Two', view: b }]);
   assert.deepEqual(all.pending.map(i => [i.title, i.repoName]), [['c', 'Two'], ['a', 'One']], 'a pull request first');
@@ -574,7 +456,7 @@ test('the activity is a line an action with what it came to, never thinker\'s ow
   // ... and its saving the dollars of both a day, the tokens a prompt averaged over their prompts
   const said = (perPrompt, perDay, promptsPerDay) => ({ at: t(1), kind: 'change', text: 'Switched off x MCP server', shared: 'abc', impact: { perPrompt, perDay, promptsPerDay, measured: true } });
   const m = mergeUpkeepViews([
-    { repo: 'one', name: 'One', view: { ...a, pending: [tool(100, 'small.'), { id: 'sweep', kind: 'do', chore: 'sweep', rank: 0, found: t(1), title: 'a' }], feed: [said(1000, 0.5, 100)] } },
+    { repo: 'one', name: 'One', view: { ...a, pending: [tool(100, 'small.'), { id: 'wait:j1', kind: 'do', chore: 'waiting', rank: 0, found: t(1), title: 'a' }], feed: [said(1000, 0.5, 100)] } },
     { repo: 'two', name: 'Two', view: { ...b, pending: [tool(900, 'big.')], feed: [said(4000, 6, 300)] } },
   ]);
   assert.deepEqual(m.pending.map(i => [i.title, i.repoName, i.repo, i.detail]), [['a', 'One', 'one', undefined], ['Agent tool', '2 repositories', 'two', 'big.']], 'acted on from the repository that showed it');
@@ -650,9 +532,7 @@ test('"more like this" and "less like this": one kind of thing moved one step, f
   assert.equal(steerBehavior(r.store, 'changes', 'more').said, 'a change must now save $0.50 a day before thinker makes it on this machine (it was $1.00)');
   assert.equal(steerBehavior(null, 'tools', 'more').said, 'a change must now save $0.25 a day before thinker makes it on this machine (it was $0.50)');
   assert.match(steerBehavior(null, 'changes', 'more').error, /the bar is already as low as thinker will go \(\$0\.25 a day\)/);
-  // sweeps by their size; a kind that was switched off comes back on "more", and "less" of it is nothing to do
-  assert.equal(steerBehavior(null, 'sweep', 'less').said, 'merged worktrees and branches are now removed from 6 things or 1000 MB on this machine (it was 3 or 500 MB)');
-  assert.equal(steerBehavior(null, 'sweep', 'more').said, 'merged worktrees and branches are now removed from 3 things or 500 MB on this machine (it was 6 or 1000 MB)');
+  // a kind that was switched off comes back on "more", and "less" of it is nothing to do
   setBehavior(r.store, 'tools', false);
   assert.match(steerBehavior(null, 'tools', 'less').error, /thinker already does none of that on this machine/);
   assert.equal(steerBehavior(null, 'tools', 'more').said, 'thinker does that again on this machine');
@@ -745,15 +625,6 @@ test('what is known about one line, for somebody asking about it: what it was, w
   assert.equal(pr[1], '  Its size: 2k tokens before the change, 0 after. It is read again by every model call of every session that loads the file.');
   assert.equal(pr[3], '  Not measured yet: it is not in effect until its pull request merges. The figure given is what was expected when it was picked.');
   assert.match(pr[5], /^Its pull request: #12, in review since [A-Z][a-z]+ \d+, https:\/\/github\.com\/o\/r\/pull\/12\. It is the team's to review and merge; the change is not in effect until then\.$/);
-  // something done here: what was removed, why it was safe, what it freed, how it comes back
-  const done = tree(r, 'done'); r.commit('done.txt', done); mergeIn(r, 'agent/done');
-  setBehavior(r.store, 'level', 'ask', { scope: 'repo' });
-  const fns = { view: () => null, findMess: s => findMess(s, { now: LATER(), cwds: [], sizeOf: () => 2 * 1024 * 1024 }), sweep: (s, m) => sweep(s, m, { now: LATER(), cwds: [] }) };
-  await upkeepCheck(r.store, { fns, now });
-  const did = await upkeepDo(r.store, 'sweep', { fns, now });
-  const swept = upkeepDetail(r.store, `d:${did.done}`, { now });
-  assert.match(swept[0], /^Removed 1 merged worktree and 1 branch, on [A-Z][a-z]+ \d+, on the person's word in the chat\.$/);
-  assert.deepEqual(swept.slice(1), ['  A worktree: done, on the branch agent/done.', 'Why: each one\'s work was already on the default branch, by its history or by a merged pull request with that exact commit, it had no uncommitted or untracked files, nobody was working in it, and it had not changed in a day.', 'What it freed: 2.0 GB of disk.', `It can be put back: each branch at its commit, and the worktrees on them (undo id ${did.done}).`]);
   // a session's delegated work: what was handed over and to whom, why, and how the saving is reckoned
   const config = { prices: { lead: { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5, cacheWrite1h: 20 }, cheap: { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25, cacheWrite1h: 2 } } };
   fs.writeFileSync(path.join(r.store.dir, 'config.json'), JSON.stringify({ version: 1, upkeep: { level: 'ask' }, ...config }));
@@ -784,12 +655,45 @@ test('maintenance runs the check, says once what thinker did by itself, and `upk
   assert.match(renderMaintain({ upkeepDid: 1, upkeepPending: 2, errors: 0 }), /1 thing done on its own, 2 waiting their turn/);
   // what it did is said at the end of the next turn, once
   const q = repo();
-  const did = await maintain(q.store, q.dir, { fns: { ...fns, upkeep: async () => ({ did: [{ id: 'sweep', kind: 'do', said: 'Removed 3 merged worktrees · 1.2 GB freed' }, { id: 'batch', kind: 'batch', said: 'Sent a batch of 3 changes worth about $5.54 a day: a pull request that shortens 2 sections and removes 1' }], pending: 0, errors: [] }) } });
+  const did = await maintain(q.store, q.dir, { fns: { ...fns, upkeep: async () => ({ did: [{ id: 'wait:j1', kind: 'do', said: 'Retried shortening AGENTS.md · Releases' }, { id: 'batch', kind: 'batch', said: 'Sent a batch of 3 changes worth about $5.54 a day: a pull request that shortens 2 sections and removes 1' }], pending: 0, errors: [] }) } });
   assert.equal(did.upkeepDid, 2);
-  assert.equal(maintenanceNotice(q.store), '🧠 thinker: removed 3 merged worktrees · 1.2 GB freed; sent a batch of 3 changes worth about $5.54 a day: a pull request that shortens 2 sections and removes 1 (Recent activity has its link)');
+  assert.equal(maintenanceNotice(q.store), '🧠 thinker: retried shortening AGENTS.md · Releases; sent a batch of 3 changes worth about $5.54 a day: a pull request that shortens 2 sections and removes 1 (Recent activity has its link)');
   assert.equal(maintenanceNotice(q.store), '');
   const off = repo({ upkeep: false });
   assert.deepEqual(await upkeepCheck(off.store), { skipped: 'off' });
   const v = upkeepView(off.store);
   assert.equal(v.level, 'off'); assert.equal(v.summary, 'Thinker is not looking after this repository.');
+});
+
+test('thinker no longer removes worktrees or branches: no chore, no setting, no kind to steer; a sweep made before is a line still, and its undo says how to bring a branch back', async () => {
+  freshHome();
+  // an old config's keys are read as nothing, and none can be set
+  const r = repo({ upkeep: { sweep: true, sweepMin: 1, sweepMinMb: 1, sweepEveryDays: 1 } });
+  assert.deepEqual(behaviorOf(r.store).set.repo, {});
+  assert.ok(!Object.keys(BEHAVIOR).some(k => /sweep/i.test(k)));
+  assert.match(setBehavior(r.store, 'sweep', 'on').error, /there is no setting called sweep/);
+  assert.match(steerBehavior(null, 'sweep', 'more').error, /there is no kind of thing called sweep/);
+  // a merged worktree and a merged branch are left exactly where they are by a check that may act
+  const wt = path.join(r.dir, '.worktrees', 'done');
+  r.git(['worktree', 'add', '-q', '-b', 'agent/done', wt, 'main']); r.commit('done.txt', wt); r.git(['merge', '-q', '--no-ff', '-m', 'merge', 'agent/done']);
+  r.git(['branch', 'left-over', 'main']);
+  const now = Date.now() + 3 * DAY;
+  const check = await upkeepCheck(r.store, { fns: { view: () => null }, now });
+  assert.deepEqual([check.did, check.pending], [[], 0]);
+  assert.ok(fs.existsSync(path.join(wt, 'done.txt'))); assert.match(r.git(['branch', '--list']), /agent\/done[\s\S]*left-over/);
+  assert.deepEqual(upkeepPending(r.store, { now }).pending, []);
+  // what a sweep did before this build: kept in the state, an item it had found and a record with the commits it took
+  const sha = r.git(['rev-parse', 'main']);
+  const file = path.join(r.store.dir, 'state', 'upkeep.json'), st = JSON.parse(fs.readFileSync(file, 'utf8'));
+  st.items = [{ id: 'sweep', chore: 'sweep', kind: 'do', allow: 'sweep', important: true, title: '1 merged branch can go', action: { label: 'Remove them' }, data: { worktrees: [], branches: [{ name: 'left-over', sha }] } }];
+  st.done = [{ id: 'old1', at: new Date(now - DAY).toISOString(), item: 'sweep', chore: 'sweep', kind: 'do', title: '2 merged branches can go', said: 'Removed 2 merged branches', by: 'thinker', impact: { kb: 2048 }, undo: { kind: 'sweep', branches: [{ name: 'agent/one', sha }, { name: 'agent/two', sha }], worktrees: [] } }];
+  fs.writeFileSync(file, JSON.stringify(st));
+  assert.deepEqual(upkeepPending(r.store, { now }).pending, [], 'what an older check found to remove is not held any more');
+  assert.match((await upkeepDo(r.store, 'sweep', { now })).error, /nothing is waiting under sweep/);
+  const [line] = upkeepFeed(r.store, { log: [], now });
+  assert.deepEqual([line.text, line.impactSaid, line.by], ['Removed 2 merged branches', '', 'thinker']);
+  const back = `thinker no longer removes worktrees or branches, and does not put them back: git branch agent/one ${sha}; git branch agent/two ${sha} brings each back`;
+  assert.equal((await upkeepUndo(r.store, 'old1', { now })).error, back);
+  assert.deepEqual(upkeepDetail(r.store, 'd:old1', { now }).slice(1), [`T${back.slice(1)}.`]);
+  assert.equal(r.git(['branch', '--list', 'agent/one']), '', 'and nothing is created by asking');
 });

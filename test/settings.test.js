@@ -38,7 +38,7 @@ test('a fresh machine shows every setting at the default the code that reads it 
   assert.deepEqual(v.groups.map(g => g.id), ['automation', 'delegation', 'learning', 'telling', 'privacy']);
   assert.equal(shown(v).length, GROUPS.flatMap(g => g.items).length, 'nothing is off, so nothing is hidden');
   const b = behaviorOf(null, { home }), d = delegateConfig({ home, env: {} });
-  for (const k of ['level', 'prs', 'remove', 'tools', 'skills', 'sweep', 'minPerDay', 'batchEveryDays', 'followUp']) assert.equal(r[`upkeep.${k}`].value, b[k], `upkeep.${k}`);
+  for (const k of ['level', 'prs', 'remove', 'tools', 'skills', 'minPerDay', 'batchEveryDays', 'followUp']) assert.equal(r[`upkeep.${k}`].value, b[k], `upkeep.${k}`);
   for (const k of ['enabled', 'reads', 'suites', 'threshold', 'model', 'exploreModel', 'repeats']) assert.equal(r[`delegate.${k}`].value, d[k], `delegate.${k}`);
   assert.equal(r['maintain.dailyTokens'].value, 2_000_000);
   assert.equal(r['errors'].value, false, 'error reports are sent only on a yes');
