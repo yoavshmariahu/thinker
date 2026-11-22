@@ -64,32 +64,42 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Queued jobs get `session-work.js:MAX_ATTEMPTS` (5 tries), then dropped with `maintain.js:reportGaveUp`.
 - Tests cover desktop path (`appFn`, missing CLI login).
 
-**Cutting is OFF, and the proxy stays (2026-11-19, the owner's call; `proxy.js:PROXY_DEFAULTS.cut`, held by
-`test/cut-off.test.js`):** nothing below this is in force on an unconfigured machine. Read this before tuning a
-guard: the guards are not what is being reconsidered.
-- **Why.** The cutting was worth $7.01 and $4.03 in the weeks to 2026-11-15 and 2026-11-22 against $1,164 and
-  $393 of spend (the Report's weekly savings table), under 1%, where delegation was $16.60 and $13.52. The two
-  weeks before read $239 and $298, so the series disagrees with itself by fifty times, and the holdout cannot
-  say which is true: 2 sessions cleared against 18 held out past the trigger, a ±54% band around a difference
-  of a percent or two (`thinker factory --diff compression`). A policy whose own ledger cannot be read is not a
-  policy that can be tuned. The strategy is being rethought from the measurement up.
-- **One switch, read in one place.** `cfg.cut === false` is the first branch of `cutting.js:decide`, so all three
-  doors and the desktop door refuse together (`reason: 'off'`), no breakpoint is seeded and no set is remembered.
-  Off is not held out: a held-out session is one the policy still decides about.
-- **Still measured.** A row carries the `candidate` the request would have given up, so the log goes on saying
-  what a cut was worth while none is made -- the only free evidence the next strategy can be built on.
-- **What the proxy is for now:** carrying and logging every request (`op: proxy`, the cache reads and writes
-  every dollar figure on this machine is built from), `proxy-retry.js`, routing and pricing other providers'
-  models, the gateways and Bedrock, and the delegation's savings read off the calls it sees.
+**Cutting is ON for every install, with no session held out (2026-11-22, the owner's call: "for all users please",
+then "actually 0 holdout. cutting doesn't even get tirggered very often"; `proxy.js:PROXY_DEFAULTS.cut`,
+`proxy-service.js:SERVICE_HOLDOUT` 0, held by `test/cut-off.test.js`):**
+- **It was off from 2026-11-19 to 2026-11-22, and why is worth keeping.** Read the day it was turned off, the
+  cutting was worth $7.01 and $4.03 in the weeks to 2026-11-15 and 2026-11-22 against $1,164 and $393 of spend
+  (the Report's weekly savings table), under 1%, where the two weeks before read $239 and $298: the series
+  disagreed with itself by fifty times, and the holdout could not say which was true (2 sessions cleared against
+  18 held out past the trigger, ±54% around a difference of a percent or two). A policy whose own ledger could
+  not be read could not be tuned.
+- **What changed is the count, not the policy.** The accountant (above) put the same machine's fortnight at
+  $128.84 cleared gross, $14.30 of it given back in cache writes the cuts caused and $0.25 in re-reads, one sum
+  every door reads; fourteen sessions were cut and $98 of it was one of them. The saving is a few very long
+  sessions, which one repository's weekly row hides.
+- **Why no holdout.** A cut is rare, so a holdout takes its share of exactly the few sessions the saving is made
+  of and still fills too slowly to read (a quarter left 2 cleared against 18 held out in six weeks). What says
+  whether a cut costs more than it saves instead: every cut's own cache write and every re-read of a cleared file
+  are counted and taken off (`accountant.js`), and each install sends its rework by stage and by loop stamped
+  with the policy it ran (`telemetry.js` `factory`), so the weeks before the switch read against the weeks after.
+  That is a correlation, not a comparison; `proxy: { holdout }` in the machine config puts a comparison back, and
+  the Factory's compression diff then reads it.
+- **One switch, read in one place.** `cfg.cut === false` is the first branch of `cutting.js:decide`, so with it
+  off all three doors and the desktop door refuse together (`reason: 'off'`), no breakpoint is seeded and no set
+  is remembered. Off is not held out: a held-out session is one the policy still decides about. A row made then
+  still carries the `candidate` the request would have given up.
+- **Off for a machine:** `proxy: { cut: false }` in `<THINKER_HOME>/config.json`, `--no-cut`, or
+  `THINKER_PROXY_CUT=off`. It reaches the service as `--no-cut` (`proxy-service.js:serviceArgs`); the desktop
+  door follows (`clear-door.js:desktopPolicy`: `cut` and `auto` are on unless the config says false).
 - **The policy stamp says which.** `policyId` is `v<version>-off` while cutting is off, so a saving made under
   the one policy is never pooled with the other (`cutting.js`).
-- **Back on:** `proxy: { cut: true }` in `<THINKER_HOME>/config.json` (the way to ship it, through a PR),
-  `--cut`, or `THINKER_PROXY_CUT=on`. Every guard below is untouched and comes back exactly as it was.
-- A test that exercises the cutting asks for `cut: true` in its own config; `test/cut-off.test.js` is the only
-  file that says what the default does.
+- **The proxy does the rest either way:** carrying and logging every request (`op: proxy`, the cache reads and
+  writes every dollar figure is built from), `proxy-retry.js`, routing and pricing other providers' models, the
+  gateways and Bedrock, and the delegation's savings read off the calls it sees.
+- A test that exercises the cutting may still ask for `cut: true` in its own config; `test/cut-off.test.js` says
+  what the default does and what the switch does.
 
-**The clearing: how thinker cuts results when it is asked to (MANDATORY, 2026-11-04; OFF by default since
-2026-11-19, above):**
+**The clearing: how thinker cuts results (MANDATORY, 2026-11-04; on by default, above):**
 - Cut and keep newest turn + 3 results. Trigger 140k, floor 8k, payback 25 calls. A session resumed past the cache's hour is cut by the same trigger and floor (2026-11-17); the pause only makes the cut free.
 - `decideCut` returns `reason` (seven branches: `off` wins, then `nothing-to-cut`, then `below-trigger`, then `below-clear-minimum`, `mid-turn`, `one-cut`, `payback`). Both doors use it.
 - Ratchet per conversation (keyed on first user message); write merges, never replaces; turn rises, set advances.
@@ -107,7 +117,7 @@ guard: the guards are not what is being reconsidered.
   hundreds of times dearer. The policy id says `+img`. Proxy only: the host hands the mod a result as text
   (`DESKTOP_POLICY` exempts it), and the Responses and Chat doors are unchanged. `proxy: { cutImages: false }` or
   `--no-cut-images` turns it off; there is no variable.
-- **No holdout (2026-11-12, the owner's call)**: `SERVICE_HOLDOUT` 0, the mod's `HOLDOUT` with it. A session that got a cut
+- **No holdout (2026-11-12, the owner's call; a quarter from 2026-11-18 to 2026-11-22, then none again, above)**: `SERVICE_HOLDOUT` 0, the mod's `HOLDOUT` with it. A session that got a cut
   is a long session, so "cleared against held out" never compared like with like, and at 50% it cost every install half
   the saving. `proxy: { holdout }` in config puts an arm back for an experiment; the Factory's compression diff then reads it.
 - **Re-reads of cleared files are measured per session instead** (`src/rereads.js`, programmatic, no model): the Stop
@@ -838,7 +848,7 @@ The owner: "drop the 'find savings' page and 'view report' page. Thinker should 
 - **Only the rewrite a cut caused is charged** (2026-11-16, the owner's call; `accountant.js:clearingCostBySession`, `register.tsx:charge`): the request that made the cut (the row's `clear`; the mod's first request after a clear). A rewrite on any later request was coming without the clearing and is in no cost figure.
 - **Factory's two arms:** `telemetry.js:armsMetrics` sends `factory.arms` sums (sessions, exchanges, dollars, rework, cache traffic, merged PRs) per stage/loop, by policy stamp. Schema 1, read by **Diff by feature** dashboard.
 - **The Factory itself, by stage, loop and week** (2026-11-22, the owner's ask: "we should also get rework metrics from users by stage. let's use this data later to figure out if context cutting is causing rework"; `telemetry.js:factoryMetrics`, the payload's `factory` block, schema 1):
-  - The arms are the controlled comparison and are empty on most machines: they hold only sessions a feature reached against ones held out from it, and with the cutting off by default no session is on the clearing's on side. This block is every measured session of the six-week report instead: `stages` (cost, tokens, calls, and the `rework` part of each: what the stage spent inside a loop), `loops` by kind, `prs` (merged, measured, first pass), and `weeks`, the same per week with the current one last and each named by its local start day.
+  - The arms are the controlled comparison and are empty on most machines: they hold only sessions a feature reached against ones held out from it, and since 2026-11-22 the clearing holds no session out (it was off altogether from 2026-11-19), so its arm has one side. This block is every measured session of the six-week report instead: `stages` (cost, tokens, calls, and the `rework` part of each: what the stage spent inside a loop), `loops` by kind, `prs` (merged, measured, first pass), and `weeks`, the same per week with the current one last and each named by its local start day.
   - Sums alone, never a share, so a dashboard takes rework share as a ratio of sums over the fleet. `policy` is the cut policy the machine runs today (`-off` where it cuts nothing): rework by stage is read against it machine by machine, and on one machine the weeks before a switch against the weeks after. A correlation, not the holdout's answer; the arms are still the one controlled comparison.
   - Read off each repository's kept report, as the arms are; `reposWithoutReport` counts the ones with none. Nothing names a repository, a session or a pull request. No database change: it rides `reports.raw_json`. No dashboard reads it yet.
 - **Maintenance keeps the Report** (2026-11-22; `commands/learn.js:runMaintain`, `report-snapshot.js:refreshReport`): after a run that was not skipped, the six-week report is made again where what it rests on has moved (one run at a time a checkout; nothing read where nothing moved). Until then only the page or `thinker report` made one, so an install whose person opened neither sent no arms and no Factory, and its chat and its week-on check had no measured figures to read. Not under `THINKER_TEST`, as the context snapshot beside it.

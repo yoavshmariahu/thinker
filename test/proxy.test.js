@@ -28,8 +28,8 @@ const cuttable = (extra = {}) => {
   ms.push({ role: 'user', content: [{ type: 'text', text: 'next' }] });
   return Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: ms, stream: true, ...extra }));
 };
-// so a test fixture is big enough to be worth cutting, and `cut: true` because cutting is off by default
-// since 2026-11-19 (proxy.js:PROXY_DEFAULTS) while these tests are about what a cut does when asked for
+// so a test fixture is big enough to be worth cutting; `cut: true` is said outright (it is the default again
+// since 2026-11-22, proxy.js:PROXY_DEFAULTS) because these tests are about what a cut does when asked for
 const CUTS = { cut: true, trigger: 0, clearAtLeast: 0 };
 const SSE = [
   'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":3,"cache_read_input_tokens":90000,"cache_creation_input_tokens":2000,"output_tokens":1}}}\n\n',

@@ -102,27 +102,34 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // essential criterion the same, up to 32k of thinking gone in a session, no refusal from the API. What it adds
 // over a cut that keeps the thinking was not isolated there, so the holdout is what says; `--no-cut-thinking`
 // or `proxy: { cutThinking: false }` is the way back.
-// **`cut` off since 2026-11-19, the owner's call: nothing is cut, and the proxy stays.** What the cutting was
-// worth on this machine, read the day it was turned off: $7.01 in the week to 2026-11-15 and $4.03 in the week
-// after, against $1,164 and $393 of spend -- under 1%, where delegation was $16.60 and $13.52 over the same two
-// weeks on a third of the traffic. The two earlier weeks read $239 and $298, so the series does not even agree
-// with itself about the size of its own saving, and the holdout cannot say which figure is true: 2 sessions had
-// cleared against 18 held out past the trigger (`thinker factory --diff compression`), a spread of ±54% where
-// the difference to be measured is a percent or two. A policy whose own ledger disagrees by 50x is not a policy
-// that can be tuned; the strategy is being rethought from the measurement up.
-// Off is OFF, not held out: a held-out session is a session the policy still decides about, and the point here is
-// that nothing is decided. `holdout` stays what it was for whenever a cut comes back.
-// What the proxy keeps doing, which is why it is not turned off with the cutting: it carries every request and
-// logs what it cost (`op: proxy`, the cache reads and writes that every dollar figure on this machine is built
-// from), recovers a request that never reached the API (`proxy-retry.js`), routes the other providers'
-// models (`providers.js`) and prices them, serves the gateways and Bedrock, and counts the delegation's savings
-// from the calls it sees. None of that cuts anything.
-// A request is still measured while nothing is cut (`cutting.js:decide` answers `reason: 'off'` with the
-// `candidate` it would have taken): the log goes on saying what there was to cut and what the tail would have
-// cost, which is the only free evidence the next strategy can be built on.
-// `cut: true` in the `proxy` block of the machine config, or `--cut`, puts it back exactly as it was -- every
-// guard below is untouched and the policy stamp (`cutting.js:policyId`) says which of the two was in force.
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', cut: false, trigger: 140000, keepMin: 3, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, cutBreakpoint: true, cutThinking: true, thinkingKeepTurns: 2 };
+// **`cut` back on since 2026-11-22, for every install, with no session held out** (the owner's call: "for all
+// users please", then of the holdout, "actually 0 holdout. cutting doesn't even get tirggered very often";
+// `proxy-service.js:SERVICE_HOLDOUT` 0). It was off from 2026-11-19 to then, and why is worth keeping: read the day
+// it was turned off, the cutting was $7.01 in the week to 2026-11-15 and $4.03 in the week after, against $1,164
+// and $393 of spend -- under 1% -- where the two earlier weeks read $239 and $298, and the holdout could not say
+// which was true (2 sessions cleared against 18 held out past the trigger, ±54% around a difference of a percent
+// or two). A policy whose own ledger disagreed by 50x could not be tuned, so it was stopped.
+// What changed is the count, not the policy: the accountant (accountant.js, the same day) put the machine's own
+// fortnight at $128.84 cleared gross, $14.30 of it given back in cache writes the cuts caused and $0.25 in
+// re-reads, in one sum every door reads -- and $98 of it was one session of the fourteen that were cut. The saving
+// is a few very long sessions, which a week's row of one repository hides. That is also why nothing is held out:
+// a cut is rare, and a holdout takes its share of exactly those few sessions (a quarter left one machine 2 cleared
+// against 18 held out in six weeks, too few to read and a saving given up to get them).
+// What says whether a cut costs more than it saves, with no holdout: every cut's own cache write and every
+// re-read of a cleared file are counted and taken off (accountant.js: `clearingCostBySession`, `rereadCost`, the
+// net), and each install sends its rework by stage and by loop stamped with the policy it ran
+// (telemetry.js `factory`), so the weeks before the switch can be read against the weeks after, and one policy
+// against another. That is a correlation and not a comparison; `proxy: { holdout }` brings a comparison back.
+// Every guard below is as it was, and the stamp (`cutting.js:policyId`) says which policy made a saving, so
+// nothing from the off days is pooled with this.
+// `cut: false` in the `proxy` block of the machine config, `--no-cut`, or `THINKER_PROXY_CUT=off` turns it off
+// for a machine: then nothing is cut, no breakpoint is seeded and no set is remembered (`cutting.js:decide`,
+// `reason: 'off'`), and the request is still measured with the `candidate` it would have given up. Off is OFF, not
+// held out: a held-out session is one the policy still decides about. The proxy does the rest either way: it
+// carries every request and logs what it cost, recovers one that never reached the API (`proxy-retry.js`), routes
+// and prices the other providers' models (`providers.js`), serves the gateways and Bedrock, and counts the
+// delegation's savings from the calls it sees.
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', cut: true, trigger: 140000, keepMin: 3, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, cutBreakpoint: true, cutThinking: true, thinkingKeepTurns: 2 };
 // The request as the decision needs it: the prompt in tokens, the cached prefix a cut keeps (`prefix`: the system
 // prompt and the tool definitions, which is all the API finds again once a cut changes the history -- Claude Code
 // sets its breakpoints on the system prompt and the newest messages, so a prefix ending mid-conversation is never
@@ -405,7 +412,7 @@ export function proxyConfig(flags = {}, env = process.env) {
     if (/^(0|off|false|no)$/i.test(s)) return false;
     return dflt;
   };
-  // the one switch over all the rest: off, and no door cuts anything (cutting.js:decide)
+  // the one switch over all the rest: on by default, and with it off no door cuts anything (cutting.js:decide)
   cfg.cut = onOff('cut', 'THINKER_PROXY_CUT', PROXY_DEFAULTS.cut);
   cfg.clearDeep = onOff('clear-deep', 'THINKER_PROXY_CLEAR_DEEP', PROXY_DEFAULTS.clearDeep);
   cfg.cutInputs = onOff('cut-inputs', 'THINKER_PROXY_CUT_INPUTS', PROXY_DEFAULTS.cutInputs);
