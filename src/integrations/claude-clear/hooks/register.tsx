@@ -18,7 +18,7 @@ import type { Register, SessionMessage } from 'claude-code'
 // because a mod has no import, and a session keeps the mod it loaded at its start: one opened under an old release
 // went on clearing by that release's rules for days after the machine had updated, and that is where the fleet's
 // losing sessions were. The mod now asks the installed CLI at each decision (`ask`, below) and does what it is told.
-// What a clear costs, counted as the proxy counts it (cutting.js:chargedRewrite; test/claude-clear.test.js holds
+// What a clear costs, counted as the proxy counts it (cutting.js:chargedRewrite; test/cutting.test.js holds
 // the two together): what the first request after a clear wrote into the prompt cache, priced at the one-hour
 // write rate (accountant.js:clearingCostBySession) -- unless it read nothing back, which means the cache had
 // expired and the write was coming anyway. No floor on the context and no share of it (2026-11-18): the floor was
@@ -189,7 +189,7 @@ function schedule($: any, from: string, tokens = 0) {
 // it, so this hook answers `tool.describe` for the same tools with the same sentence (a mod can rewrite a
 // description, not a schema). The registry is the machine's, read once a session; the file the switch wrote
 // holds what a transcript recorded, so the definition as the engine built it is written over it here, once.
-// The sentence is tool-stubs.js:pointer, held to it by test/claude-clear.test.js.
+// The sentence is tool-stubs.js:pointer (no test holds the two together: change both).
 export const POINTER_OPENS = 'thinker keeps this tool\'s full definition out of the prompt.'
 export const toolPointer = (name: string, file: string) => `${name}: ${POINTER_OPENS} Before the first call to it in this session, read ${file} (what it does and the schema of its input), then call it as that file says.`
 let stubs: Record<string, { file: string }> | null = null

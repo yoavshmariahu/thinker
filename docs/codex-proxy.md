@@ -145,27 +145,18 @@ service's own default). A session
 comes from `session_id`, `x-codex-session-id`, or `prompt_cache_key`. With a
 nonzero holdout, requests without an identifier are left unchanged.
 
-Unit and loopback tests cover preservation, streaming, authentication headers,
-upstream errors, usage, native compaction passthrough, and repeat requests:
+The cut as the proxy applies it on the wire is tested on loopback, this door
+included, in `test/proxy-cut.test.js`:
 
 ```sh
-npm test -- test/proxy-responses.test.js test/proxy.test.js
+npm test -- test/proxy-cut.test.js
 ```
 
-An optional real-client test starts the installed Codex against a loopback fake
-model in a disposable home. It executes a harmless fixture command, resumes the
-session, and verifies that only the older output is shortened. It uses no real
-model, credentials or personal configuration:
-
-```sh
-THINKER_CODEX_PROXY_SMOKE=1 npm test -- test/proxy-codex.test.js
-```
-
-Verified this way with Codex CLI 0.164.0. A separate live ChatGPT smoke test also
-verified provider acceptance and resume as described above. Neither test proves
-answer quality or token savings on real coding tasks. The live test used a
-private temporary login copy and settings, removed afterward; normal Codex
-settings were unchanged and Thinker telemetry was disabled with `THINKER_TEST=1`.
+Verified against Codex CLI 0.164.0. A live ChatGPT smoke test also verified
+provider acceptance and resume as described above. Neither proves answer quality
+or token savings on real coding tasks. The live test used a private temporary
+login copy and settings, removed afterward; normal Codex settings were unchanged
+and Thinker telemetry was disabled with `THINKER_TEST=1`.
 
 Protocol references: [Codex provider configuration](https://learn.chatgpt.com/docs/config-file/config-reference)
 and [OpenAI compaction](https://developers.openai.com/api/docs/guides/compaction).

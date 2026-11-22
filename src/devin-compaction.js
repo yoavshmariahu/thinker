@@ -26,7 +26,7 @@ import { readMachineConfig } from './repo-switch.js';
 import { noteCompression } from './compression.js';
 
 export const DEVIN_COMPACT_KEY = 'compaction_threshold_tokens';
-// The default: the proxy's result-clearing trigger (proxy.js:PROXY_DEFAULTS.trigger), held equal by test/cli-ui-sync.test.js.
+// The default: the proxy's result-clearing trigger (proxy.js:PROXY_DEFAULTS.trigger); no test holds the two equal, so change both.
 export const DEVIN_COMPACT_AT = 140_000;
 const thinkerHome = () => process.env.THINKER_HOME || path.join(os.homedir(), '.thinker');
 const readJson = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };

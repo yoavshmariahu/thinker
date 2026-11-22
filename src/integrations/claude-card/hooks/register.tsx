@@ -37,7 +37,7 @@ export function formatTokens(n: number): string {
 }
 
 // A dollar figure for people, as prices.js:formatDollars writes it; the mod has its own copy because
-// it runs inside Claude Code, and test/claude-card.test.js holds the two texts together.
+// it runs inside Claude Code (no test holds the two texts together: change both).
 export function formatDollars(d: number): string {
   if (d == null || !Number.isFinite(d)) return '–'
   const a = Math.abs(d), s = d < 0 ? '−' : ''
@@ -69,8 +69,8 @@ async function markSession($: any): Promise<void> {
   } catch {}
 }
 
-// The status line's words, as src/accountant.js:savingsStatus writes them (test/claude-card.test.js
-// holds the two sentences together). Both figures are already formatted; `today` is null when the kept
+// The status line's words, as src/accountant.js:savingsStatus writes them (no test holds the two
+// sentences together: change both). Both figures are already formatted; `today` is null when the kept
 // ledger's day is not this one, since a figure stamped yesterday is not what was saved this morning.
 // The version is the ledger's own (the copy that counted these figures), and this row is the only
 // place thinker names it: the agents never do, so a person has no other way to see what they run.
@@ -219,7 +219,7 @@ async function noticeShown($: any): Promise<void> {
 }
 
 // What changed in thinker, drawn once per machine as a card under an answer. The words are
-// src/update-note.js's, which test/claude-card.test.js holds this copy to; the mod runs inside Claude
+// src/update-note.js's (no test holds this copy to them: change both); the mod runs inside Claude
 // Code and can import nothing from thinker. Once per note, keyed on the note's own id, and never where
 // the notices are off -- a person who asked thinker to be quiet did not ask for release notes.
 export const UPDATE_NOTE: Note = {

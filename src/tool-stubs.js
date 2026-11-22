@@ -12,8 +12,8 @@
 // each request it forwards, description and schema both (`stubTools`, from proxy.js:transformRequest);
 // the clearing mod inside a Claude Code session answers `tool.describe` with the same sentence, since a
 // desktop session never reaches the proxy and a mod can rewrite a description but not a schema
-// (src/integrations/claude-clear). The sentence is the same string in both; test/claude-clear.test.js
-// holds the mod's copy to this one. Whichever door first sees the definition as the engine built it
+// (src/integrations/claude-clear). The sentence is the same string in both (no test holds the
+// two together: change both). Whichever door first sees the definition as the engine built it
 // writes the file (`writeDefinition`): the switch itself writes what a transcript recorded, which is the
 // description with an empty schema, so the proxy fills in the schema when a request shows it.
 //

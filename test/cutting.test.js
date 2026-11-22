@@ -1,427 +1,374 @@
-// The three properties the client-side cut exists to provide. Each was impossible with the
-// server-side edit, and each failure below is one this session measured.
+// The cut policy (src/cutting.js) and the desktop door (src/clear-door.js, which the clearing mod asks through
+// `thinker hook clear`). Every seam here is a pure function over plain objects: the clock comes in as `now`, the
+// machine config as `config`, the record's directory as a path. Nothing in this file reaches a network, a child
+// process or the machine's own home.
+import { tmp } from './helpers.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { cutCandidates, applyCut, transformRequest, proxyConfig, cutPlaceholder, proxyReport, RESULT_WEIGHTS } from '../src/proxy.js';
-import { sessionOf, SESSION_HEADERS, decideCut, freshCut, priceCut, placeholder, mergeCut, cutStore, cutResponse, clearedOf, clearedUsesOf, clearedEstimated, policyId, VERSION, PAYBACK, wroteCold, savedAs, chargedRewrite, readRate } from '../src/cutting.js';
+import nodeModule from 'node:module';
+import { fileURLToPath } from 'node:url';
+import { decideCut, freshCut, mergeCut, cutStore, cutResponse, priceCut, policyId, placeholder, cutInput, chargedRewrite, PAYBACK, COLD_MS } from '../src/cutting.js';
+import { clearAnswer, clearPays, desktopPolicy, stampOf, HOLD_GROWTH, NEVER } from '../src/clear-door.js';
+import { keptCalls, keepPatterns, writeKeep } from '../src/keep.js';
+import { PROXY_DEFAULTS, resultTokens } from '../src/proxy.js';
+import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 
-const BIG = 'X'.repeat(40000);
-const headers = { 'anthropic-beta': 'context-management-2025-06-27' };
-// n turns of `calls` tool uses each, then a fresh prompt: the shape of a working session
-const session = (turns, calls = 4) => {
-  const ms = [];
-  for (let t = 0; t < turns; t++) {
-    ms.push({ role: 'user', content: [{ type: 'text', text: `turn ${t}` }] });
-    for (let c = 0; c < calls; c++) {
-      ms.push({ role: 'assistant', content: [{ type: 'thinking', thinking: `t${t}.${c}`, signature: 'sig' }, { type: 'tool_use', id: `u${t}.${c}`, name: 'Read', input: { file_path: `/f${t}.${c}` } }] });
-      ms.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: `u${t}.${c}`, content: BIG }] });
+const cfg = { ...PROXY_DEFAULTS };
+const MOD = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'integrations', 'claude-clear', 'hooks', 'register.tsx');
+// a candidate as proxy.js:cutCandidates hands one over: the ids it would replace, what they come to, and what
+// the rewrite would be. `rungs` makes the ladder, deepest last, which is the whole-set candidate.
+const rung = (ids, tokens, recache) => ({ ids, tokens, recache });
+const rungs = steps => ({ ...steps[steps.length - 1], steps });
+const PAYS = rung(['a'], 30000, 20000);          // repaid in 12 later calls
+const NEVER_PAYS = rung(['a'], 9000, 2000000);   // a small cut behind a huge tail
+
+// a desktop conversation as the mod hands one over
+const big = n => 'x'.repeat(n);
+const said = text => ({ role: 'user', text, toolUses: [] });
+const pair = (id, chars, tool = 'Read', input = {}) => [
+  { role: 'assistant', text: '', toolUses: [{ tool_use_id: id, tool, input }] },
+  { role: 'user', text: '', toolUses: [], toolResults: [{ tool_use_id: id, text: big(chars) }] },
+];
+const BIG_RESULT = resultTokens(big(150000));
+// two old results worth taking; newer ones the recency rule holds back, one too short to be worth a placeholder,
+// and the running turn's, which is the model's working set
+const conversation = [said('go'), ...pair('a', 150000), ...pair('b', 150000), ...pair('c', 100), ...pair('d', 300), ...pair('e', 300), said('now'), ...pair('f', 300)];
+const small = [said('go'), ...pair('a', 300), ...pair('b', 300), ...pair('c', 300), ...pair('d', 300), said('now'), ...pair('e', 300)];
+
+test('out of the box the cutting is on, and no session is held out of it', () => {
+  assert.equal(PROXY_DEFAULTS.cut, true, 'every install cuts');
+  assert.equal(SERVICE_HOLDOUT, 0, 'and no session is kept out of it to be compared: a cut is rare, and a holdout takes its share of exactly the few long sessions the saving is in');
+  const d = decideCut(freshCut('s'), PROXY_DEFAULTS, { prompt: PROXY_DEFAULTS.trigger, turn: 1 }, { cand: PAYS });
+  assert.equal(d.clear, true, 'the defaults alone cut a conversation past the trigger');
+  assert.equal(d.reason, undefined, 'nothing refused it');
+  assert.equal(clearAnswer({ op: 'start', session: 's' }, { config: {} }).auto, true, 'and the desktop door clears a session of its own accord');
+  assert.equal(clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 200000, messages: conversation }, { config: {} }).clear, true, 'with nothing in the machine config');
+});
+
+test('nothing is cut below the trigger, with too little to take, or with nothing finished, and the answer says which', () => {
+  for (const [reason, prompt, cand] of [
+    ['below-trigger', cfg.trigger - 1, PAYS],
+    ['below-clear-minimum', cfg.trigger, rung(['a'], cfg.clearAtLeast - 1, 1000)],
+    ['nothing-to-cut', cfg.trigger, null],
+  ]) {
+    const d = decideCut(freshCut('s'), cfg, { prompt, turn: 1 }, { cand });
+    assert.equal(d.reason, reason, `a prompt of ${prompt} with ${cand ? cand.tokens : 0} to take`);
+    assert.equal(d.clear, false, reason);
+    assert.equal(d.cut.length, 0, reason);
+  }
+});
+
+test('past the trigger at the start of a turn, a cut that pays is made', () => {
+  const d = decideCut(freshCut('s'), cfg, { prompt: cfg.trigger, turn: 1 }, { cand: PAYS, now: 1e9 });
+  assert.equal(d.clear, true);
+  assert.ok(d.cut.includes('a'), 'the result it chose is in the set');
+  assert.equal(d.turn, 1, 'the boundary is recorded, so the set cannot move again inside this turn');
+  assert.equal(d.tokens, PAYS.tokens, 'the row says what left the prompt');
+  assert.ok(d.payback <= PAYBACK, 'and that it repays inside the limit');
+  assert.equal(d.cold, false);
+});
+
+test('a cut that would not repay inside the payback limit is refused, and says what it held back', () => {
+  const d = decideCut(freshCut('s'), cfg, { prompt: 500000, turn: 1 }, { cand: NEVER_PAYS });
+  assert.equal(d.reason, 'payback');
+  assert.equal(d.clear, false);
+  assert.equal(d.cut.length, 0);
+  assert.equal(d.held.tokens, NEVER_PAYS.tokens, 'the rung it refused');
+  assert.equal(d.held.pays, false);
+  assert.ok(d.held.payback > PAYBACK, 'refused for the calls it would take to repay');
+  assert.equal(d.candidate, NEVER_PAYS.tokens, 'and the log can still say what a cut was worth');
+});
+
+test('inside a turn the cut does not move', () => {
+  const rec = { ...freshCut('s'), cut: ['old'], turn: 4 };
+  const d = decideCut(rec, cfg, { prompt: 500000, turn: 4 }, { cand: PAYS });
+  assert.equal(d.reason, 'mid-turn');
+  assert.equal(d.clear, false);
+  assert.deepEqual(d.cut, ['old'], 'the same set, so the request is the bytes it was');
+  // the control: the very same request at the next boundary does cut
+  assert.equal(decideCut(rec, cfg, { prompt: 500000, turn: 5 }, { cand: PAYS }).clear, true);
+});
+
+test('a stale copy of a conversation\'s record cannot undo a newer one', () => {
+  const fresh = { ...freshCut('s'), cut: ['a', 'b'], turn: 3, calls: 9, clears: 2, saved: 500 };
+  const stale = { ...freshCut('s'), cut: [], turn: 1, calls: 1, clears: 0, saved: 10 };
+  const merged = mergeCut(fresh, stale);
+  assert.deepEqual(merged.cut, ['a', 'b'], 'the set the furthest-on turn reserved');
+  assert.equal(merged.turn, 3, 'the turn only rises');
+  assert.equal(merged.calls, 9, 'and no counter falls');
+  assert.deepEqual(mergeCut(fresh, { ...stale, turn: 3, cut: ['c'] }).cut, ['a', 'b', 'c'], 'two requests of one boundary take both sets');
+  assert.deepEqual(mergeCut(fresh, { ...stale, session: 'other' }).cut, [], 'another conversation is its own record');
+  // and the same through the store, where the two requests each hold their own clone
+  const store = cutStore(tmp('cut'));
+  store.write({ ...fresh });
+  const back = store.write({ ...stale });
+  assert.equal(back.cut.length, 2, 'the stale request is handed the set that stands');
+  assert.equal(store.read('s').turn, 3);
+});
+
+test('when the answer to a cut lands, the record and the row say what left the prompt', () => {
+  const rec = freshCut('s');
+  const made = { turn: 2, cut: ['a'], clear: true, tokens: 30000, recache: 20000, cost: 35000, payback: 12, clientCut: { chars: 60000, tokens: 30000, cut: 3 } };
+  const [ev] = cutResponse(rec, cfg, made, { read: 1, write: 2 }, { now: 1000 });
+  assert.equal(ev.clear, true);
+  assert.equal(ev.tokens, made.tokens, 'what the cut took out, which is the figure every saving is read from');
+  assert.equal(ev.recache, made.recache, 'what it had written again');
+  assert.equal(ev.cost, made.cost); assert.equal(ev.payback, made.payback);
+  assert.equal(ev.results, 3, 'and how many results it was');
+  assert.equal(rec.clears, 1, 'the record counts the clear');
+  assert.ok(rec.saved > 0, 'the cut is worth a read of those tokens on this call and every later one');
+  // an answer that arrives after a later request has reserved the next boundary cannot roll the set back
+  assert.deepEqual(cutResponse(rec, cfg, { turn: 1, cut: [], clear: false }, { read: 1, write: 2 }, { now: 2000 }), []);
+  assert.equal(rec.turn, 2); assert.deepEqual(rec.cut, ['a']);
+});
+
+test('a session picked up cold obeys the same trigger and size floor', () => {
+  const now = 1e12;
+  const cold = { ...freshCut('s'), at: now - COLD_MS - 1 };
+  assert.equal(decideCut(cold, cfg, { prompt: cfg.trigger - 1, turn: 1 }, { cand: PAYS, now }).reason, 'below-trigger');
+  assert.equal(decideCut(cold, cfg, { prompt: cfg.trigger, turn: 1 }, { cand: rung(['a'], cfg.clearAtLeast - 1, 10), now }).reason, 'below-clear-minimum');
+  const d = decideCut(cold, cfg, { prompt: cfg.trigger, turn: 1 }, { cand: PAYS, now });
+  assert.equal(d.clear, true, 'past both guards a resumed session is cut like a live one');
+  assert.equal(d.cold, true, 'and the row says the cache had expired');
+});
+
+test('of the rungs that pay, the one that saves most is taken, not the deepest', () => {
+  const ladder = rungs([rung(['a'], 9000, 10000), rung(['a', 'b'], 20000, 25000), rung(['a', 'b', 'c'], 30000, 300000)]);
+  const d = decideCut(freshCut('s'), cfg, { prompt: 500000, turn: 1 }, { cand: ladder });
+  assert.equal(d.clear, true);
+  assert.deepEqual(d.cut, ['a', 'b'], 'the largest rung that repays');
+  assert.equal(d.tokens, 20000);
+  assert.equal(d.depth, 2, 'how far back it reached');
+  assert.equal(d.rungs, 3, 'and that it had a choice');
+});
+
+test('with cutting switched off neither door cuts, both stamp it off, and both still say what they would have taken', () => {
+  const off = { ...cfg, cut: false };
+  const d = decideCut(freshCut('s'), off, { prompt: 500000, turn: 1 }, { cand: PAYS });
+  assert.equal(d.reason, 'off');
+  assert.equal(d.clear, false);
+  assert.equal(d.candidate, PAYS.tokens, 'what this boundary gave up');
+  assert.equal(d.policy, policyId(off), 'a saving under one policy is never pooled with the other');
+  assert.notEqual(d.policy, policyId(cfg));
+  const door = desktopPolicy({ proxy: { cut: false } });
+  assert.equal(door.auto, false, 'the desktop door clears nothing either');
+  assert.equal(stampOf(door), policyId({ ...PROXY_DEFAULTS, cut: false, cutInputs: false, cutImages: false, cutBreakpoint: false, cutThinking: false }));
+  const a = clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 500000, messages: conversation }, { config: { proxy: { cut: false } } });
+  assert.equal(a.clear, false);
+  assert.equal(a.reason, 'off');
+  assert.equal(a.askAt, NEVER, 'and it is not asked again');
+});
+
+test('the newest copy of a file the person works from stays in the prompt', () => {
+  const read = (id, file, more = {}) => ({ id, name: 'Read', input: { file_path: file, ...more } });
+  const shell = (id, command) => ({ id, name: 'Bash', input: { command } });
+  const calls = [
+    read('md1', '/r/notes.md'), read('md2', '/r/notes.md'),            // a *.md read twice
+    read('py1', '/r/core.py'), read('py2', '/r/core.py', { offset: 1, limit: 20 }),
+    read('log1', '/r/run.log'), read('log2', '/r/run.log'),            // nobody's notes
+    read('cut1', '/r/plan.txt'), read('cut2', '/r/plan.txt'),          // cut once, then read again
+    shell('sh1', 'cat /r/README.md'), shell('sh2', 'cat /r/README.md | head -5'),
+  ];
+  const { ids, files } = keptCalls(calls, { prompts: ['have another look at core.py please'], cut: ['cut1'] });
+  const why = Object.fromEntries(files.map(f => [f.id, f.why]));
+  assert.equal(why.md2, 'pattern', 'notes are written to be carried from one call to the next');
+  assert.equal(why.py1, 'named', 'the person named this one');
+  assert.equal(why.cut2, 'reread', 'a file is lost at most once');
+  assert.equal(why.sh1, 'pattern', 'the notes are kept however the model read them, a shell line included');
+  assert.ok(!ids.has('md1'), 'an older copy of a kept file still goes');
+  assert.ok(!ids.has('log1') && !ids.has('log2'), 'an ordinary read is the cut\'s to take');
+  assert.ok(!ids.has('py2'), 'a few lines of a file never displace the whole read of it');
+  assert.ok(!ids.has('sh2'), 'nor does a line that only passed a few of them on');
+});
+
+test('what the profile learned the person points at is kept, and each checkout\'s list is its own', () => {
+  const dir = tmp('keep-home'), at = Date.now();
+  const learned = ['plan.txt', 'https://site.com/insights'];
+  assert.equal(writeKeep('/r/one', learned, { dir, now: at }), true, 'a list the profile learned is written');
+  assert.equal(writeKeep('/r/one', learned, { dir, now: at }), false, 'and writing the same list again changes nothing');
+  assert.equal(writeKeep('/r/two', ['other.txt'], { dir, now: at }), true);
+  const patterns = keepPatterns({ dir, now: at + 2000 });
+  for (const p of [...learned, 'other.txt']) assert.ok(patterns.includes(p), `${p} is read back, by whichever door asks`);
+  const call = (id, name, input) => ({ id, name, input });
+  const { ids } = keptCalls([call('p1', 'Bash', { command: 'cat /r/one/plan.txt' }),
+    call('u1', 'WebFetch', { url: 'https://site.com/insights?range=7d' }), call('u2', 'Bash', { command: 'curl https://site.com/insights | jq .' })], { patterns });
+  assert.ok(ids.has('p1'), 'a file the person points at is kept from then on');
+  assert.ok(ids.has('u1'), 'so is a page they point at, and the pages under it');
+  assert.ok(!ids.has('u2'), 'a fetch piped on somewhere else is no copy of the page');
+  // a checkout's list is replaced on its own; what it no longer points at goes, and nobody else's list moves
+  assert.equal(writeKeep('/r/one', ['plan.txt'], { dir, now: at }), true);
+  const after = keepPatterns({ dir, now: at + 4000 });
+  assert.ok(!after.includes('https://site.com/insights'), 'the address this checkout no longer points at');
+  assert.ok(after.includes('other.txt'), 'and another checkout\'s is untouched');
+});
+
+test('the desktop door clears exactly where the proxy\'s pricing says a cut pays', () => {
+  const p = desktopPolicy(null);
+  let pays = 0, refuses = 0;
+  for (const model of ['claude-opus-5', 'claude-opus-5-5', 'claude-sonnet-5-5', 'claude-fable-5-2']) {
+    for (const tokens of [6000, 20000, 60000, 105472, 200000]) {
+      // the last three are tails that repay on the very last call allowed, one for each read rate in the list:
+      // a door whose arithmetic is a single call out agrees everywhere else and differs here
+      for (const ratio of [0.5, 1, 1.21, 1.5, 1.94, 2.5, 4, 10, 1.342, 0.654, 0.323]) {
+        const recache = Math.round(tokens * ratio);
+        const proxy = priceCut(null, { tokens, recache }, { model }).pays;
+        const door = clearPays(p, { dropped: tokens, recache, cleared: false, model });
+        assert.ok(door === proxy, `${model}, a tail ${ratio}x a cut of ${tokens}: door ${door}, proxy ${proxy}`);
+        proxy ? pays++ : refuses++;
+      }
     }
   }
-  ms.push({ role: 'user', content: [{ type: 'text', text: 'the newest prompt' }] });
-  return ms;
+  assert.ok(pays > 0 && refuses > 0, 'the grid covers both sides of the decision');
+  assert.equal(stampOf(p), policyId({ ...PROXY_DEFAULTS, cutInputs: false, cutImages: false, cutBreakpoint: false, cutThinking: false }), 'one policy, one name for it');
+});
+
+// Every key of the proxy's clearing policy must reach the desktop door, or say here why a mod inside a session
+// cannot have it. The drift this stops: a key turned on in the proxy alone, with the suite green.
+const DESKTOP_POLICY = {
+  cut: { honoured: true },
+  trigger: { honoured: true },
+  clearAtLeast: { honoured: true },
+  keepMin: { honoured: true },
+  clearDeep: { honoured: true },
+  holdout: { honoured: true, value: SERVICE_HOLDOUT },   // the service's share, so a held-out session stays held out
+  upstream: { exempt: 'where the proxy forwards a request; a mod inside the session edits the conversation and sends nothing anywhere' },
+  cutInputs: { exempt: 'in the desktop app a call\'s own text is a file path and not a heredoc, so there is nothing there worth taking' },
+  cutImages: { exempt: 'the host hands a mod each tool result as its text alone, so a screenshot is not there for it to save or to take out' },
+  cutBreakpoint: { exempt: 'a cache breakpoint is a field of the request to the API, which the proxy forwards and a mod inside the session never sees' },
+  cutThinking: { exempt: 'a thinking block is part of the request to the API; the host hands a mod the tool results alone' },
+  thinkingKeepTurns: { exempt: 'how many earlier turns keep their thinking, which a mod cannot leave out at all' },
 };
-const body = messages => Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages }));
-// `cut: true`: cutting is off by default since 2026-11-19 (proxy.js:PROXY_DEFAULTS) and what this file tests
-// is the policy that runs when it is asked for. That the default cuts nothing is its own test, below.
-const cfg = extra => ({ ...proxyConfig({}, {}), cut: true, clientCut: true, trigger: 1, clearAtLeast: 1, ...extra });
-
-test('the newest turn is kept by a rule, not a count: a turn of ten tool calls keeps all ten', () => {
-  // B6, measured: with `keep: 3` the API kept three echoes and cleared the 25k read the turn was
-  // about to answer from, and the model said "I can't see the line count" on 4 of 14 turns. A count
-  // cannot express "this turn's work"; the rule can.
-  const ms = session(3, 10);
-  ms.pop();                                            // the newest turn is the last one, still open
-  const c = cutCandidates(ms, { keepMin: 3 });
-  const live = new Set(Array.from({ length: 10 }, (_, i) => `u2.${i}`));
-  assert.equal(c.ids.some(id => live.has(id)), false, 'nothing from the turn in progress is a candidate');
-  // keepMin is a FLOOR, not an allowance on top: the newest turn's results count towards it, as in
-  // the mod (`inLatestTurn || kept < keepMin`). A ten-call turn already exceeds a floor of three, so
-  // both settled turns are candidates in full.
-  assert.equal(c.ids.length, 20, 'both settled turns, the live one untouched');
-  const short = session(3, 1); short.pop();
-  assert.equal(cutCandidates(short, { keepMin: 3 }).ids.length, 0, 'the floor covers a one-call turn');
-});
-
-test('the ratchet: once cut, a result stays cut, so every call of a turn is byte-identical', () => {
-  // The server-side edit had no state: it re-derived the clearing per call, moved the set on its own
-  // schedule (3 moves in one 9-turn run, 15 in a week of the live log) and rewrote the prefix each
-  // time. Here the set is ours, so the bytes cannot move while the turn runs.
-  const ms = session(4);
-  const rec = { ...freshCut('s'), cut: [], turn: 0 };
-  const first = transformRequest('POST', '/v1/messages', headers, body(ms), { ...cfg(), cutRecord: rec });
-  assert.equal(first.injected, true);
-  assert.ok(first.cut.length > 0, 'the boundary decided a cut');
-  rec.cut = first.cut; rec.turn = first.turn;           // as cutResponse would persist it
-  // three more calls inside the same turn, each with another tool use appended
-  let grown = ms, prev = null;
-  for (let i = 0; i < 3; i++) {
-    grown = [...grown,
-      { role: 'assistant', content: [{ type: 'tool_use', id: `n${i}`, name: 'Bash', input: { command: 'echo' } }] },
-      { role: 'user', content: [{ type: 'tool_result', tool_use_id: `n${i}`, content: 'ok' }] }];
-    const t = transformRequest('POST', '/v1/messages', headers, body(grown), { ...cfg(), cutRecord: rec });
-    const sent = JSON.parse(t.body).messages.slice(0, ms.length);   // the prefix the cache matches on
-    if (prev) assert.deepEqual(sent, prev, 'the prefix is byte-identical from one call of a turn to the next');
-    prev = sent;
-    assert.deepEqual(t.cut, rec.cut, 'the set does not move mid-turn');
+test('every setting of the proxy\'s clearing is honoured by the desktop door or written down as one it cannot have', () => {
+  const door = desktopPolicy(null);
+  for (const key of Object.keys(PROXY_DEFAULTS)) {
+    const d = DESKTOP_POLICY[key];
+    assert.ok(d, `proxy.${key} is new and this door knows nothing about it: honour it in clear-door.js:desktopPolicy and add { honoured: true } here, or add { exempt: '<why a mod inside the session cannot have it>' }`);
+    if (d.honoured) assert.equal(door[key], 'value' in d ? d.value : PROXY_DEFAULTS[key], `this door's ${key} is the proxy's`);
+    else assert.ok(String(d.exempt).length > 40 && !(key in door), `proxy.${key} is exempt with a reason, and not half-honoured`);
   }
+  for (const key of Object.keys(DESKTOP_POLICY)) assert.ok(key in PROXY_DEFAULTS, `${key} is no longer a setting of the proxy's`);
+  assert.equal(desktopPolicy({ proxy: { trigger: 90000, clearAtLeast: 20000, keepMin: 5 } }).trigger, 90000, 'and the machine config moves this door with the proxy');
 });
 
-test('a cut that does not pay is not made, and the placeholder is deterministic', () => {
-  const ms = session(4);
-  // a tiny candidate against a huge tail: the rewrite cannot repay it
-  const p = priceCut({ prompt: 1e6 }, { tokens: 10, recache: 1e6 }, { calls: 1, model: 'claude-opus-5-5' });
-  assert.equal(p.pays, false, 'ten tokens never repay a million-token rewrite');
-  const rec = freshCut('s');
-  const held = decideCut(rec, { trigger: 1, clearAtLeast: 1 }, { prompt: 1e6, turn: 1 },
-    { cand: { ids: ['x'], tokens: 10, recache: 1e6, firstChanged: 0 }, model: 'claude-opus-5-5' });
-  assert.equal(held.clear, false); assert.deepEqual(held.cut, []);
-  assert.ok(held.held, 'the refusal is recorded with its arithmetic');
-  // the placeholder is a function of the original length alone, so re-applying gives the same bytes
-  const a = applyCut(ms, ['u0.0']), b = applyCut(ms, ['u0.0']);
-  assert.deepEqual(JSON.parse(JSON.stringify(a.messages)), JSON.parse(JSON.stringify(b.messages)));
-  assert.equal(applyCut(a.messages, ['u0.0']).cut, 0, 'an already-cut result is never cut twice');
+test('the desktop door clears a conversation that is mostly finished results, and names what goes', () => {
+  const ev = { from: 'auto', session: 's', tokens: 200000, messages: conversation };
+  const d = clearAnswer({ op: 'decide', ...ev }, { config: {} });
+  assert.equal(d.clear, true, 'a context this far past the trigger, held up mostly by old results, pays');
+  assert.equal(d.depth, 2, 'both of the old results');
+  const a = clearAnswer({ op: 'apply', ...ev, depth: d.depth }, { config: {} });
+  assert.equal(a.cleared, 2);
+  assert.deepEqual(Object.keys(a.replace).sort(), ['a', 'b'], 'the two oldest results, by id');
+  assert.ok(!('f' in a.replace), 'nothing of the turn the model is working in');
+  assert.equal(a.tokens, 2 * BIG_RESULT, 'and what they came to');
+  assert.equal(a.skip, undefined);
+  // the floor is the automatic clear's; a person who asks for one gets it
+  const auto = clearAnswer({ op: 'apply', from: 'auto', session: 's', messages: small }, { config: {} });
+  assert.ok(auto.skip && auto.skip.includes('under'), 'too little to be worth a rewrite');
+  const manual = clearAnswer({ op: 'apply', from: 'manual', session: 's', messages: small }, { config: {} });
+  assert.equal(manual.skip, undefined);
+  assert.ok(manual.cleared > 0, 'a hand-run clear takes what there is');
 });
 
-test('a cold boundary keeps to the trigger, the size floor and the payback, like a live one', () => {
-  // Through r8 a session resumed past the cache's hour lost every eligible result at any size, because the
-  // cut was free. The owner's call of 2026-11-17: that loses too much context, so a resumed session is cut
-  // by the rules of a live one. And of 2026-11-18: the pause no longer prices the rewrite at nothing either.
-  const cfg = { trigger: 140000, clearAtLeast: 20000 };
-  const cand = { ids: ['a', 'b'], tokens: 30000, recache: 90000, firstChanged: 0 };
-  const h = 65 * 60 * 1000 + 1;
-  const under = decideCut({ ...freshCut('s'), at: 1000, turn: 1 }, cfg, { prompt: 90000, turn: 2 }, { cand, now: 1000 + h, model: 'claude-opus-5' });
-  assert.equal(under.clear, false, 'under the trigger a resumed session keeps its results');
-  assert.equal(under.reason, 'below-trigger');
-  const small = decideCut({ ...freshCut('s'), at: 1000, turn: 1 }, { ...cfg, clearAtLeast: 100000 }, { prompt: 200000, turn: 2 }, { cand, now: 1000 + h, model: 'claude-opus-5' });
-  assert.equal(small.clear, false); assert.equal(small.reason, 'below-clear-minimum', 'and the size floor stands');
-  // a cut that pays warm: 30k taken out for 30k written again
-  const cheap = { ...cand, recache: 30000 };
-  const d = decideCut({ ...freshCut('s'), at: 1000, turn: 1 }, cfg, { prompt: 200000, turn: 2 }, { cand: cheap, now: 1000 + h, model: 'claude-opus-5' });
-  assert.equal(d.clear, true, 'over the trigger it is cut, as a live session would be');
-  assert.deepEqual(d.cut, ['a', 'b']);
-  const warm = decideCut({ ...freshCut('s'), at: 1000, turn: 1 }, cfg, { prompt: 200000, turn: 2 }, { cand: cheap, now: 2000, model: 'claude-opus-5' });
-  assert.equal(d.cold, true, 'the row still says the request found the cache cold');
-  assert.ok(d.cost > 0 && d.cost === warm.cost && d.payback === warm.payback, 'and its rewrite is priced as a warm one is');
-  assert.equal(d.candidate, 30000);
-  // so a cut a live session would refuse is refused after a pause too: 400k to write again for 30k taken out
-  const dear = { ids: ['a', 'b'], tokens: 30000, recache: 400000, firstChanged: 0 };
-  const held = decideCut({ ...freshCut('s'), at: 1000, turn: 1 }, cfg, { prompt: 450000, turn: 2 }, { cand: dear, now: 1000 + h, model: 'claude-fable-5-2' });
-  assert.equal(held.clear, false); assert.equal(held.reason, 'payback', 'a pause is no pass');
-  assert.ok(held.held.payback > 25);
-  // nothing eligible is still nothing to cut, cold or not
-  const empty = decideCut({ ...freshCut('s'), at: 1000, turn: 1 }, cfg, { prompt: 90000, turn: 2 }, { cand: { ids: [], tokens: 0, recache: 0 }, now: 1000 + h });
-  assert.equal(empty.clear, false);
-  // mid-turn the set never moves, cold or not
-  const mid = decideCut({ ...freshCut('s'), at: 1000, turn: 2 }, cfg, { prompt: 90000, turn: 2 }, { cand, now: 1000 + h });
-  assert.equal(mid.clear, false);
-  // the one-cut-a-session reading (clearDeep off) still holds on a cold boundary
-  const once = decideCut({ ...freshCut('s'), at: 1000, turn: 1, cut: ['z'] }, { ...cfg, clearDeep: false }, { prompt: 90000, turn: 2 }, { cand, now: 1000 + h });
-  assert.equal(once.clear, false);
-});
-
-test('the floor is 25 because 20 cut nothing, and 25 still refuses the cuts that lost', () => {
-  // the real boundaries, from this machine's proxy log. The first is the cheapest the Claude path reached in
-  // the two days after the cut landed: refused at 20, made at 25, in a session that then ran 283 more calls.
-  const opus = { model: 'claude-opus-5' };
-  const cheapest = priceCut({ prompt: 337692 }, { tokens: 105472, recache: 127570 }, opus);
-  // 22 since the cost became what the cut adds to the call rather than the whole rewrite (2026-11-13): the
-  // same boundary priced at 25 while the read the rewrite displaces was ignored. The verdict is the one the
-  // floor was chosen for, and the reason 20 cut nothing is unchanged -- it is still over 20.
-  assert.equal(cheapest.payback, 22, 'the cheapest real boundary of 2026-11-05 repays in 22 calls');
-  assert.equal(cheapest.pays, true, 'and 22 is inside the floor');
-  assert.ok(cheapest.payback > 20, 'where 20 refused it, which is why no cut was made that day');
-
-  // The four cuts of the +38% session that set the floor. Their recache is reconstructed from the paybacks
-  // the old arithmetic gave them (14, 32, 66, 82), so these are the same four candidates; corrected, they
-  // price at 13, 30, 62 and 77. What matters is that the verdicts do not move: 25 admits the first and no
-  // other, so the cheaper pricing re-admits none of the three cuts that lost.
-  for (const [was, now, want] of [[14, 13, true], [32, 30, false], [66, 62, false], [82, 77, false]]) {
-    const tokens = 100000, recache = was * tokens * 0.1 / 2;
-    const p = priceCut({ prompt: 400000 }, { tokens, recache }, opus);
-    assert.equal(p.payback, now, `the cut the old arithmetic priced at ${was} prices at ${now}`);
-    assert.equal(p.pays, want, `a cut repaying in ${now} is ${want ? 'made' : 'refused'}`);
+test('a session the proxy already serves, one held out, or a test is left alone, and the answer says which', () => {
+  for (const [reason, ev, config] of [
+    ['proxied', { baseUrl: 'http://127.0.0.1:4000' }, {}],
+    ['test', { test: true }, {}],
+    ['holdout', {}, { proxy: { holdout: 1 } }],
+  ]) {
+    const base = { session: 's', tokens: 500000, messages: conversation, ...ev };
+    const d = clearAnswer({ op: 'decide', from: 'auto', ...base }, { config });
+    assert.equal(d.clear, false, reason);
+    assert.equal(d.reason, reason, reason);
+    assert.equal(d.askAt, NEVER, `${reason}: and it is not asked again`);
+    assert.equal(clearAnswer({ op: 'start', ...base }, { config }).auto, false, `${reason}: the session is told at its start`);
   }
+  assert.equal(clearAnswer({ op: 'start', session: 's' }, { config: {} }).auto, true, 'an ordinary session is cleared by this door');
 });
 
-test('the cut replaces results and touches nothing else: one operation, not three', () => {
-  const think = { type: 'thinking', thinking: 'T', signature: 'sig' };
-  const tu = id => ({ type: 'tool_use', id, name: 'Read', input: { file_path: '/p/' + id } });
-  const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
-  const ms = [
-    { role: 'user', content: 'go' },
-    { role: 'assistant', content: [think, tu('a')] }, { role: 'user', content: [tr('a', 9000)] },
-    { role: 'assistant', content: [think, tu('b')] }, { role: 'user', content: [tr('b', 9000)] },
-    { role: 'user', content: [{ type: 'text', text: 'next' }] },
-    { role: 'assistant', content: [think, tu('c')] }, { role: 'user', content: [tr('c', 9000)] },
-  ];
-  const out = applyCut(ms, new Set(['a', 'b'])).messages;
-  const blocks = out.flatMap(m => Array.isArray(m.content) ? m.content : []);
-  // keyed on the function, not its words, so rewording the placeholder cannot break this
-  const cleared = blocks.filter(b => b.type === 'tool_result' && String(b.content?.[0]?.text || '') === placeholder(9000));
-  assert.equal(cleared.length, 2, 'the two older results are replaced');
-  // Why this holds the piggybacks out. The call text is a file path, 86 chars against a 25k result; in a
-  // 28-turn run the model read its own blanked calls, reported it had been making them without file paths,
-  // and then did so. Thinking carries no text at all from Claude Code (display: omitted), and dropping it
-  // is the edit that broke the API in October. Measured: 487,332 chars of results, 2,800 of inputs, 0 of
-  // thinking. The results are the feature.
-  assert.equal(blocks.filter(b => b.type === 'thinking').length, 3, 'every thinking block is left alone');
-  assert.equal(blocks.filter(b => b.type === 'tool_use' && Object.keys(b.input || {}).length).length, 3,
-    'every tool call keeps its arguments');
-  assert.equal(out[7].content[0].content, 'x'.repeat(9000), 'the newest turn keeps its own result');
+test('an attempt that cleared nothing is held until the context has grown, not asked again after every answer', () => {
+  const base = { op: 'decide', from: 'auto', session: 's', messages: conversation };
+  const below = clearAnswer({ ...base, tokens: cfg.trigger - 1 }, { config: {} });
+  assert.equal(below.reason, 'below-trigger');
+  assert.equal(below.askAt, cfg.trigger, 'the context to come back at');
+  const held = clearAnswer({ ...base, tokens: 500000, holdUntil: 900000 }, { config: {} });
+  assert.equal(held.clear, false);
+  assert.equal(held.reason, 'held');
+  assert.equal(held.askAt, 900000, 'while an attempt is held, nothing is asked until the context gets there');
+  assert.equal(held.hold, HOLD_GROWTH, 'how far a failed attempt holds the next');
+  assert.ok(HOLD_GROWTH > PROXY_DEFAULTS.clearAtLeast, 'the hold is a window of its own, not the size floor a session grows through in a turn');
 });
 
-test('stopping is free: applying the set and cutting nothing more leaves the prefix alone', () => {
-  // The server-side exit cost 351,929 tokens of write -- 74% of the damage the gauge stopped over --
-  // because dropping the edit un-cleared the conversation. Here "stop" is a decision not to add ids.
-  const ms = session(4);
-  const rec = { ...freshCut('s'), cut: ['u0.0', 'u0.1'], turn: 5 };
-  const a = transformRequest('POST', '/v1/messages', headers, body(ms), { ...cfg(), cutRecord: rec });
-  // same turn, no new decision, and a boundary that declines to add anything
-  const b = transformRequest('POST', '/v1/messages', headers, body(ms), { ...cfg({ clearAtLeast: 1e9 }), cutRecord: { ...rec, turn: 6 } });
-  assert.deepEqual(JSON.parse(a.body).messages, JSON.parse(b.body).messages,
-    'declining to cut more sends exactly what the previous call sent');
+test('what stands in a cut result\'s place says it was removed after use and how big it was, and a cut call keeps its arguments', () => {
+  const said = placeholder(40000);
+  assert.ok(said.includes('removed by thinker after use'), 'the model is told when it went, not that it never had it');
+  assert.ok(said.includes('40000'), 'and what it was');
+  const cut = cutInput({ command: big(500), description: 'list the files', file_path: '/r/a.js', all: true }, {});
+  assert.deepEqual(Object.keys(cut.input).sort(), ['all', 'command', 'description', 'file_path'], 'every key the agent sent stays');
+  assert.equal(cut.input.description, 'list the files', 'a short value stays verbatim');
+  assert.equal(cut.input.file_path, '/r/a.js');
+  assert.equal(cut.input.all, true);
+  assert.ok(cut.input.command.includes('500'), 'only the long body goes, and says how long it was');
+  assert.equal(cut.chars, 500);
+  assert.equal(cutInput({ description: 'ls', file_path: '/r/a.js' }, {}), null, 'a call with nothing long in it is not touched');
 });
 
-test('a turn boundary re-edits nothing older: the write leak that cost ~50k a turn', () => {
-  // The bug this guards, found 2026-11-04 by diffing the requests of a real session. `clearInputs` and
-  // `clearThinking` applied to the assistant rows BEFORE the newest turn. So when a turn ended, the rows
-  // of the turn just finished crossed from protected to older and were re-edited -- thinking stripped,
-  // call text blanked -- 38%, 59% and 70% of the way up the conversation on three consecutive boundaries
-  // of one session. Everything below that point lost its place in the cache and was written again: ~50k
-  // per boundary, 26 boundaries, ~1.3M tokens, which was the bulk of a +38% loss against a control.
-  //
-  // What makes it safe now is that the cut touches tool results and nothing else, and the set only grows
-  // at a boundary. So this asserts the property rather than the absence of those two flags: every message
-  // older than the newest turn is byte-identical from one request of a session to the next.
-  const think = { type: 'thinking', thinking: '', signature: 'sig'.repeat(300) };
-  const tu = id => ({ type: 'tool_use', id, name: 'Read', input: { file_path: '/p/' + id } });
-  const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
-  const turn = i => [
-    { role: 'user', content: 'prompt ' + i },
-    { role: 'assistant', content: [think, tu('a' + i), tu('b' + i)] },
-    { role: 'user', content: [tr('a' + i, 30000), tr('b' + i, 30000)] },
-    { role: 'assistant', content: [{ type: 'text', text: 'done ' + i }] },
-  ];
-  const base = [...turn(1), ...turn(2), ...turn(3)];
-  const frozen = new Set(['a1', 'b1', 'a2', 'b2']);   // the set a previous boundary settled on
-  const before = applyCut(base, frozen).messages;
-  const later = [
-    ['the next prompt arrives', [...base, { role: 'user', content: 'prompt 4' }]],
-    ['its first results arrive', [...base, { role: 'user', content: 'prompt 4' },
-      { role: 'assistant', content: [think, tu('a4')] }, { role: 'user', content: [tr('a4', 30000)] }]],
-  ];
-  for (const [what, messages] of later) {
-    const after = applyCut(messages, frozen).messages;
-    before.forEach((m, i) => assert.equal(JSON.stringify(after[i]), JSON.stringify(m),
-      `${what}: message ${i} must be byte-identical, or everything below it is written again`));
-  }
-});
-
-// What the cut took out has to reach the five readers that report it. Until 0.2.23 it reached none:
-// `applyCut` never returned the `tokens` its caller put on the row, and every reader asked
-// `row.cleared > 0`, which the API sets and the cut does not. Measured on production telemetry
-// 2026-11-05: an install on 0.2.22 whose clearing-side requests moved over 85 hourly reports while
-// its `requestsCleared` stayed at exactly 3,414 and its `cleared` at 1,196,669,313 -- the frozen
-// residue of the API-side era, with not one cut counted since.
-test('a cut says what it took out, and every reader of the saving agrees on the figure', () => {
-  const ms = session(6);
-  const cand = cutCandidates(ms, { keepMin: 3 });
-  const applied = applyCut(ms, cand.ids);
-  assert.ok(applied.cut > 0);
-  assert.equal(applied.tokens, Math.round(applied.chars * RESULT_WEIGHTS.letter), 'the row carries tokens, not undefined: the results are letters, counted as letters');
-
-  const t = transformRequest('POST', '/v1/messages', headers,
-    Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: ms })),
-    { ...proxyConfig(), cut: true, cutRecord: freshCut('s'), trigger: 1000, clearAtLeast: 1000 });
-  assert.ok(t.injected && t.clientCut.tokens > 0, 'the request logs its own count');
-
-  // A row as the proxy wrote it between 2026-11-04 and the fix in `clearedBy`: `clientCut` alone, no
-  // `cleared`, because nothing was asked of the API. Those rows are still inside the 30-day window.
-  const row = { op: 'proxy', at: '2026-11-05T10:00:00Z', session: 's', model: 'claude-opus-5-5', status: 200,
-    clientCut: t.clientCut, injected: true, input: 10, read: 200000, write: 0, out: 5 };
-  assert.equal(clearedOf(row), t.clientCut.tokens);
-  assert.equal(clearedUsesOf(row), t.clientCut.cut);
-  assert.ok(clearedEstimated(row), 'thinker counted it, the API did not measure it');
-  // and a row written since, which carries both: still the cut's own count, so still an estimate
-  const now = { ...row, cleared: t.clientCut.tokens, clearedUses: t.clientCut.cut };
-  assert.equal(clearedOf(now), t.clientCut.tokens);
-  assert.ok(clearedEstimated(now), 'the field it arrives in does not make it a measurement');
-
-  // the API-side era's rows keep their measured figure, and are not estimates
-  const old = { op: 'proxy', at: '2026-11-01T10:00:00Z', session: 'old', cleared: 7000, clearedUses: 3 };
-  assert.equal(clearedOf(old), 7000);
-  assert.equal(clearedUsesOf(old), 3);
-  assert.equal(clearedEstimated(old), false);
-
-  // the log's two sides (proxy.js:proxyReport)
-  const sides = proxyReport([row]);
-  assert.equal(sides.clearing.cleared, t.clientCut.tokens);
-  assert.equal(sides.clearing.requestsCleared, 1);
-  // a long call after a clear is counted after it, which is what the rewrite warning reads
-  assert.equal(sides.clearing.rewrites.after.calls, 1);
-  assert.equal(sides.clearing.rewrites.before.calls, 0);
-});
-
-// Two requests of one conversation in the proxy at once. The record is the reservation that keeps the
-// set from moving inside a turn, so a write may never undo one: the simulation of 2026-11-05 had an
-// overlapping request's late answer put the set back to 0 ids mid-turn (`mergeCut`, `cutStore.update`).
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-cut-'));
-
-test('a record never goes backwards: the turn, the set, and every counter', () => {
-  const at = Date.now();
-  const reserved = { ...freshCut('c1'), turn: 7, cut: ['a', 'b'], calls: 9, clears: 2, saved: 500, chars: 40, at };
-  const behind = { ...freshCut('c1'), turn: 6, cut: ['a'], calls: 4, clears: 1, saved: 10, chars: 10, at: at - 1000 };
-  const m = mergeCut(reserved, behind);
-  assert.equal(m.turn, 7, 'the boundary a later request reserved stands');
-  assert.deepEqual(m.cut, ['a', 'b'], 'and so does the set it reserved');
-  assert.deepEqual([m.calls, m.clears, m.saved, m.chars], [9, 2, 500, 40], 'no counter is rolled back');
-  assert.equal(m.at, at);
-  // at the same boundary both requests decided the same set; a union cannot shrink it either way
-  assert.deepEqual(mergeCut({ ...reserved, turn: 7 }, { ...behind, turn: 7, cut: ['c'] }).cut, ['a', 'b', 'c']);
-  // the turn moving on is the one case where the newer set replaces the older
-  assert.deepEqual(mergeCut(reserved, { ...behind, turn: 8, cut: ['a', 'b', 'c'] }).cut, ['a', 'b', 'c']);
-  assert.deepEqual(mergeCut(null, behind).cut, ['a'], 'a first write has nothing to merge with');
-  assert.equal(mergeCut({ ...reserved, session: 'other' }, behind).turn, 6, 'another conversation is not merged in');
-});
-
-test('the store merges a stale writer and counts an increment on the freshest record', () => {
-  const dir = tmp();
+test('a conversation\'s record outlives the proxy, and a request with no session writes nothing', () => {
+  const dir = tmp('cut');
   const store = cutStore(dir);
-  // request A reads, reserves the boundary, and its answer is still streaming
-  const a = store.read('c1');
-  a.turn = 5; a.cut = ['x'];
-  store.write(a);
-  // request B reads what A reserved, reserves the next boundary, and is answered first
-  const b = store.read('c1');
-  assert.deepEqual([b.turn, b.cut], [5, ['x']], 'B starts from the reservation, not from nothing');
-  b.turn = 6; b.cut = ['x', 'y'];
-  store.write(b);
-  store.update('c1', rec => cutResponse(rec, {}, { turn: 6, cut: ['x', 'y'], model: 'claude-opus-5-5' }, { read: 1 }));
-  // A's answer lands now, with the record A read minutes ago
-  store.update('c1', rec => cutResponse(rec, {}, { turn: 5, cut: ['x'] }, { read: 1 }));
-  const rec = store.read('c1');
-  assert.equal(rec.turn, 6, 'the late answer did not put the turn back');
-  assert.deepEqual(rec.cut, ['x', 'y'], 'nor the set, which is what keeps the cache within a turn');
-  assert.equal(rec.calls, 2, 'and both calls were counted');
-  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'c1.json'), 'utf8')).turn, 6, 'the disk says the same');
+  const rec = store.read('s1');
+  rec.cut = ['a', 'b']; rec.turn = 2; rec.clears = 1;
+  store.write(rec);
+  const after = cutStore(dir);   // a proxy that was restarted reads the record off the disk
+  assert.deepEqual(after.read('s1').cut, ['a', 'b']);
+  assert.equal(after.read('s1').turn, 2);
+  assert.equal(after.read('s2').cut.length, 0, 'a conversation with no record starts empty');
+  const files = fs.readdirSync(dir).length;
+  store.write({ ...freshCut(''), cut: ['x'] });
+  assert.equal(fs.readdirSync(dir).length, files, 'a request thinker cannot name a session for leaves nothing behind');
 });
 
-test('a record is renamed into place, so a reader never sees half of one', () => {
-  const dir = tmp();
-  const store = cutStore(dir);
-  store.write({ ...freshCut('c1'), turn: 2, cut: ['x'] });
-  assert.deepEqual(fs.readdirSync(dir), ['c1.json'], 'nothing is left behind but the record itself');
-  // the other proxy of a handover reads the file while this one writes it
-  const read = () => JSON.parse(fs.readFileSync(path.join(dir, 'c1.json'), 'utf8'));
-  for (let i = 3; i < 60; i++) { store.write({ ...freshCut('c1'), turn: i, cut: ['x', `y${i}`] }); assert.ok(read().turn >= 2); }
-  assert.equal(cutStore(dir).read('c1').turn, 59, 'and a fresh process reads the latest');
-});
-
-// Every refusal names the branch that refused it (2026-11-08). Until then the Messages door derived the reason
-// from `candidate` alone, so of this machine's 125 refusals carrying a candidate, 29 above the floor and 11 held
-// back on payback were all logged 'below-clear-minimum' -- the one question the log exists to answer, since the
-// floor is the lever the policy turns on, and the 60k floor was chosen against it.
-test('a refusal says which branch refused it, and a request with nothing to cut says that whatever the branch', () => {
-  const cfg = { trigger: 140_000, clearAtLeast: 60_000, keepMin: 3 };
-  const rec = (turn, cut = [], at = Date.now()) => ({ ...freshCut('k'), turn, cut, at, calls: 10, model: 'claude-opus-5-5', session: 's' });
-  const cand = tokens => ({ ids: ['u1'], tokens });
-  const none = { ids: [], tokens: 0 };
-  const why = (r, c, m, o) => decideCut(r, c, m, o).reason;
-  const big = { turn: 5, prompt: 400_000 };
-
-  assert.equal(why(rec(5), cfg, big, { cand: cand(200_000) }), 'mid-turn');
-  assert.equal(why(rec(4, ['x']), { ...cfg, clearDeep: false }, big, { cand: cand(200_000) }), 'one-cut');
-  assert.equal(why(rec(4), cfg, big, { cand: none }), 'nothing-to-cut');
-  assert.equal(why(rec(4), cfg, { turn: 5, prompt: 100_000 }, { cand: cand(70_000) }), 'below-trigger',
-    'something to cut and the prompt too small to spend it: the trigger answers for this row');
-  assert.equal(why(rec(4), cfg, big, { cand: cand(30_000) }), 'below-clear-minimum');
-
-  // nothing to cut wins over every branch, because mid-turn is most of the traffic and would drown the log
-  assert.equal(why(rec(5), cfg, big, { cand: none }), 'nothing-to-cut', 'mid-turn with nothing to cut is not a refusal');
-  assert.equal(why(rec(4, ['x']), { ...cfg, clearDeep: false }, big, { cand: none }), 'nothing-to-cut');
-  assert.equal(why(rec(4), cfg, { turn: 5, prompt: 100 }, { cand: none }), 'nothing-to-cut');
-
-  // a payback refusal is not a size refusal: it cleared the floor and the tail did not repay inside PAYBACK
-  const held = decideCut(rec(4), cfg, { turn: 5, prompt: 200_000 }, { cand: { ids: ['u1'], tokens: 61_000 }, now: Date.now() });
-  if (!held.clear) { assert.equal(held.reason, 'payback'); assert.ok(held.held.payback > 25); assert.equal(held.candidate, 61_000); }
-  else assert.ok(held.payback <= 25, 'a cut that was made repaid inside the horizon');
-
-  // a cut carries no reason, and a refusal that was not the candidate's fault still reports the candidate,
-  // so the same log answers what a lower trigger would have taken
-  assert.equal(decideCut(rec(4), cfg, big, { cand: cand(300_000) }).reason, undefined);
-  assert.equal(decideCut(rec(4), cfg, { turn: 5, prompt: 100_000 }, { cand: cand(70_000) }).candidate, 70_000);
-  // and the set never moves on any refusal
-  for (const o of [{ cand: cand(200_000) }, { cand: none }, { cand: cand(30_000) }]) {
-    const d = decideCut(rec(5, ['keep']), cfg, big, o);
-    assert.deepEqual(d.cut, ['keep']); assert.equal(d.clear, false);
+// The mod is frozen for as long as a session stays open (an update never replaces the folder a running session
+// loaded), so a policy inside it goes on deciding by the rules of the release the session was opened under.
+test('the clearing mod decides nothing itself: it asks the installed thinker', () => {
+  const src = fs.readFileSync(MOD, 'utf8');
+  for (const name of ['TRIGGER', 'CLEAR_AT_LEAST', 'KEEP_MIN', 'HOLDOUT', 'PAYBACK', 'COLD_MS', 'MIN_CHARS', 'RESULT_WEIGHTS', 'TOKENS_PER_CHAR', 'KEEP_DEFAULT', 'POLICY_REV']) {
+    assert.ok(!new RegExp(`\\b(const|let) ${name}\\b`).test(src), `${name} is the installed thinker's: a copy here is frozen for as long as a session stays open`);
+  }
+  for (const fn of ['policyId', 'clearPays', 'clearLadder', 'chooseDepth', 'keptOf', 'keepMatcher', 'heldOut', 'resultTokens', 'placeholder', 'readRate']) {
+    assert.ok(!new RegExp(`\\b(function|const) ${fn}\\b`).test(src), `${fn} is decided by the installed thinker, not in the mod`);
+  }
+  assert.ok(src.includes("'hook', 'clear'"), 'the mod asks the CLI the settings name');
+  for (const op of ['start', 'decide', 'apply']) {
+    assert.ok(src.includes(`op: '${op}'`), `the mod asks "${op}"`);
+    assert.ok(Object.keys(clearAnswer({ op, from: 'auto', session: 's', messages: [] }, { config: {} })).length > 1, `and the installed thinker answers "${op}"`);
   }
 });
 
-
-// --- which policy made a saving ------------------------------------------------------------------------------
-// A date in the code was the alternative, and it is wrong for everybody but the machine that shipped the
-// change: a person on an older copy runs the older policy today. So the saving names its own policy, and a
-// reader groups by it (cutting.js:policyId, the comment there).
-test('a policy names itself from the settings in force, so two floors are never pooled', () => {
-  const now = { trigger: 140000, clearAtLeast: 60000, clearDeep: true };
-  assert.equal(policyId(now), `v${VERSION}-t140k-f60k-p${PAYBACK}-deep`);
-  // every lever that changes what a cut is worth changes the id
-  assert.notEqual(policyId({ ...now, clearAtLeast: 100000 }), policyId(now), 'the floor that gates a cut');
-  assert.notEqual(policyId({ ...now, trigger: 110000 }), policyId(now), 'the trigger');
-  assert.notEqual(policyId({ ...now, clearDeep: false }), policyId(now), 'one cut a session against many');
-  // and the same settings always give the same id, whatever else is in the config
-  assert.equal(policyId({ ...now, holdout: 0.5, keepMin: 3, upstream: 'https://example.invalid' }), policyId(now));
-  // a config with nothing in it is not today's policy by default: it says so
-  assert.ok(policyId({}).includes('?'), 'a setting that is not there is unknown, never assumed');
-});
-
-test('the row the proxy logs names the policy, on a clear and on a refusal alike', () => {
-  const ms = session(4);
-  const rec = { ...freshCut('s'), cut: [], turn: 0 };
-  const clearing = cfg({ cutRecord: rec });
-  const cut = transformRequest('POST', '/v1/messages', headers, body(ms), clearing);
-  assert.ok(cut.injected, 'the request was cut');
-  assert.equal(cut.policy, policyId(clearing), 'a clear carries the policy that allowed it');
-  const refusing = cfg({ cutRecord: rec, clearAtLeast: 1e9 });
-  const left = transformRequest('POST', '/v1/messages', headers, body(ms), refusing);
-  assert.equal(left.reason, 'below-clear-minimum');
-  assert.equal(left.policy, policyId(refusing), 'and a refusal carries the policy that refused it');
-  assert.notEqual(left.policy, cut.policy, 'the floor is in the id, so the two are told apart');
-});
-
-// 2026-11-18. Every token a cut left out was priced as a cache read, on the requests where it would have been a write.
-test('what a token left out of a request was worth: a read from a warm cache, a write where the request wrote everything', () => {
-  assert.equal(wroteCold({ read: 0, write: 195_000 }), true, 'past the cache\'s hour: nothing read back, the whole context written');
-  assert.equal(wroteCold({ write: 100 }), true, 'a row with no read at all read nothing');
-  assert.equal(wroteCold({ read: 35_000, write: 55_000 }), false, 'a cut\'s own rewrite still reads the system prompt back');
-  assert.equal(wroteCold({ read: 0, write: 0 }), false, 'a row with no usage says nothing about its cache');
-  assert.equal(wroteCold({}), false); assert.equal(wroteCold(null), false);
-  // the two marks never both hold: a request is charged to the cut or softened by it, not both
-  for (const u of [{ read: 0, write: 9 }, { read: 9, write: 9 }, { read: 9, write: 0 }, {}]) assert.equal(wroteCold(u) && chargedRewrite(u), false);
-  assert.deepEqual(savedAs({ read: 300_000, write: 2_000 }, 1000), { cacheRead: 1000 });
-  assert.deepEqual(savedAs({ read: 0, write: 200_000, write1h: 200_000 }, 1000), { cacheWrite: 1000, cacheWrite1h: 1000 });
-  assert.deepEqual(savedAs({ read: 0, write: 200_000, write1h: 150_000, write5m: 50_000 }, 1000), { cacheWrite: 1000, cacheWrite1h: 750 }, 'at the request\'s own mix of the two TTLs');
-  assert.deepEqual(savedAs({ read: 0, write: 200_000, write1h: 0, write5m: 200_000 }, 1000), { cacheWrite: 1000, cacheWrite1h: 0 });
-  assert.deepEqual(savedAs({ read: 0, write: 200_000 }, 1000), { cacheWrite: 1000, cacheWrite1h: 1000 }, 'the hour\'s where the row does not say, as every other write is priced');
-  assert.deepEqual(savedAs({ read: 0, write: 200_000, write1h: 900_000 }, 1000), { cacheWrite: 1000, cacheWrite1h: 1000 }, 'never more one-hour writes than writes');
-  // and the read a cut is priced against is the model's own published ratio, not its family's
-  assert.equal(readRate('claude-fable-5-2'), 0.025); assert.equal(readRate('claude-fable-5-1'), 0.025);
-  assert.equal(readRate('claude-fable-5'), 0.1, 'Fable 5 reads at a tenth');
-  assert.equal(readRate('claude-sonnet-5-5'), 0.05, 'Sonnet 5.5 at a twentieth'); assert.equal(readRate('claude-sonnet-5'), 0.1);
-  assert.equal(readRate('claude-opus-5-5'), 0.05); assert.equal(readRate('claude-opus-5'), 0.1);
-});
-
-// 2026-11-19: Goose names its session in a header of its own, and a session with no name is one the ledger never sees
-test('a request says whose session it is: Claude Code\'s header, OpenCode\'s, Goose\'s, and never a path or a URL', () => {
-  assert.equal(sessionOf({ 'x-claude-code-session-id': 'ce2488b7-f2eb' }), 'ce2488b7-f2eb');
-  assert.equal(sessionOf({ 'x-opencode-session-id': 'ses_abc' }), 'ses_abc');
-  assert.equal(sessionOf({ 'agent-session-id': '20261119_3' }), '20261119_3', 'Goose');
-  assert.equal(sessionOf({ 'agent-session-id': 'goose-1', 'x-session-id': 'other' }), 'goose-1', 'the agent\'s own header before the name anything might set');
-  assert.equal(sessionOf({ 'x-claude-code-session-id': 'cc', 'agent-session-id': 'goose-1' }), 'cc');
-  for (const bad of ['/tmp/session', 'https://x/y', 'two words', '', 'x'.repeat(201)]) assert.equal(sessionOf({ 'agent-session-id': bad }), null, JSON.stringify(bad.slice(0, 20)));
-  assert.equal(sessionOf({}), null);
-  assert.ok(SESSION_HEADERS.indexOf('agent-session-id') < SESSION_HEADERS.indexOf('x-session-id'));
+// What a clear cost is counted twice over, once in each door, and only this holds the two together: the mod's
+// runner (`claude plugin test`) refuses an import from outside the plugin's folder, so the comparison can only be
+// made here. The mod is transpiled and imported, which also fails where the file would not load at all -- #888
+// left two `const answer` in one function and the mod did nothing in any session, with the suite green.
+test('the clearing mod charges a clear what the proxy charges it', { skip: !nodeModule.stripTypeScriptTypes && 'this Node cannot strip types (22.13 or newer does); the release runs it' }, async () => {
+  const warned = process.emitWarning;
+  process.emitWarning = (...a) => { if (!String(a[0]).includes('stripTypeScriptTypes')) warned(...a); };
+  let mod;
+  try {
+    const js = nodeModule.stripTypeScriptTypes(fs.readFileSync(MOD, 'utf8'), { mode: 'strip' });
+    mod = await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
+  } finally { process.emitWarning = warned; }
+  for (const [usage, why] of [
+    [{ write: 150000, read: 12000 }, 'a warm prefix written again is the clear\'s to pay for'],
+    [{ write: 150000, read: 0 }, 'a request that read nothing back found the cache gone, and that write was coming anyway'],
+    [{ write: 0, read: 12000 }, 'a request that only read costs a clear nothing'],
+    [{ write: 0, read: 0 }, 'nor one that did neither'],
+  ]) {
+    assert.equal(mod.chargedRewrite(usage), chargedRewrite(usage), why);
+  }
+  // and the running count, over the API's own field names, charged on the one request a clear changed
+  const api = (write, read) => ({ cache_creation_input_tokens: write, cache_read_input_tokens: read });
+  assert.deepEqual(mod.charge({ rewrites: 1, write: 100 }, api(150000, 12000)), { rewrites: 2, write: 150100 });
+  assert.deepEqual(mod.charge(undefined, api(150000, 0)), { rewrites: 0, write: 0 }, 'a cold cache is nobody\'s cost');
+  assert.deepEqual(mod.charge({ rewrites: 1, write: 100 }, api(150000, 12000), false), { rewrites: 1, write: 100 }, 'a rewrite on any later request was coming without the clear');
 });

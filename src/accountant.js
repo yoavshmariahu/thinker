@@ -9,7 +9,7 @@
 // request's saving in delivery.js, a session's clearing in compression.js). A figure nobody can check against the
 // one beside it is the thing this module ends.
 //
-// The rule, held by test/accountant-only.test.js: a saving is priced here and nowhere else. No other module calls
+// The rule, held by test/savings.test.js: a saving is priced here and nowhere else. No other module calls
 // prices.js:costOfInputSavings, nets a saving against what it cost, or adds savings up over a window. The parts of
 // thinker that act keep the records of what they did (the proxy's rows and the clearing's session record in
 // compression.js, the delegation trigger's rows in the log, a decision in context-suggest.js); every door that says

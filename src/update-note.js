@@ -9,7 +9,7 @@
 // Shown once per machine per note, keyed on the note's own id and not on a version, so a note can be
 // written without cutting a release and a release that changes nothing a person can see says nothing.
 // The Claude Code mod draws it as a card under an answer (src/integrations/claude-card) and carries
-// its own copy of these words, which test/claude-card.test.js holds to this file; every other agent
+// its own copy of these words (no test holds the two together: change both); every other agent
 // gets it at the top of the next end-of-turn summary (commands/hooks.js).
 import fs from 'node:fs';
 import os from 'node:os';

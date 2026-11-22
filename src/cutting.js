@@ -59,7 +59,7 @@ export const isRewrite = u => { const ctx = (u?.read || 0) + (u?.write || 0) + (
 // six warm ones were charged nothing: 46k written of 114k, 59k of 79k, and 55k of 90k on a cut of 258k -- 160k
 // written tokens uncharged beside 456k charged. The write includes the turn's own new tokens, which would have
 // been written anyway; that overstates a cut's cost by a little, where the old rule understated it by a lot.
-// The desktop clearing mod holds the same rule (register.tsx:chargedRewrite, test/claude-clear.test.js).
+// The desktop clearing mod holds the same rule (register.tsx:chargedRewrite; test/cutting.test.js holds the two together).
 export const chargedRewrite = u => (u?.write || 0) > 0 && (u?.read || 0) > 0;
 // The same mark, read the other way round: what the tokens a cut had ALREADY left out were worth on a request.
 // From a warm cache they would have been read back, the cheapest thing a token can be. On a request that read

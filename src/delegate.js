@@ -947,7 +947,7 @@ export async function preToolHook({ ev: raw, store, session, cwd, cfg = delegate
   // The other door has already decided this very call (`noteDecided`): nothing to decide, and no second row.
   // Claude Code only, because it is the only host with two doors on one call, and because its id is the API's
   // own `toolu_*`, one to a call. Devin's is not: its CLI 3000.11.234 sent `read:0#99f0` for every read of a
-  // session (test/delegate-handoff.test.js), so there an id says nothing about which call this is.
+  // session, so there an id says nothing about which call this is.
   if (client === 'claude' && ev.tool_use_id) { let decided = false; state.update(st => { decided = noteDecided(st, ev.tool_use_id); }); if (decided) return null; }
   return delegateTool({ ev, state, session, cwd, cfg, run, client, verifier, readCap: HOSTS[client].readCap, log: row => store.log(row),
     // where the context starts again (compactions.js): a copy from before a compaction is no longer in the

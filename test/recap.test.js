@@ -6,6 +6,7 @@
 // nothing else; that it cuts nothing, moves no turn and spends no seed; that what it sends is what a call
 // inside the turn before it sent; and that the prompt the person comes back with is then the boundary,
 // which is where the cut belongs.
+import './helpers.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { transformRequest, proxyConfig, turnId, PROXY_DEFAULTS } from '../src/proxy.js';

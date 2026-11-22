@@ -312,8 +312,8 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
 
 // Attribute recorded work to the merge week. Missing counters cannot make a PR look cheap:
 // the cost average uses only complete PRs, with its denominator exposed beside the merge count.
-// The Profile figure as the command prints it; the page draws the same numbers (page.html:profileFigure, held together
-// by test/cli-ui-sync.test.js). Framed as what a person would ask of it (the owner, 2026-11-08): with the profile
+// The Profile figure as the command prints it; the page draws the same numbers (page.html:profileFigure).
+// Framed as what a person would ask of it (the owner, 2026-11-08): with the profile
 // against without, how often they had to repeat themselves and what a prompt costs, a verdict in words with a date
 // where there is not enough data yet, and what the profile holds and how often its lines were acted on. The arms'
 // counts, the intervals and the unlearned share stay in `thinker profile holdout`. `cost`: the prompt's price rather
@@ -495,7 +495,7 @@ const mean = (xs, { signed = false } = {}) => { const v = xs.filter(x => Number.
 // figure fell by it when the sizing was fixed (transcripts.js:noteTokens), and a person who knew the old figure is
 // owed the reason. Null where there is none. The page and the command say the same sentence from this one field.
 // The sentence is made here and carried on the view as `line`, so the page prints the words the command prints and
-// neither door writes its own (test/cli-ui-sync.test.js).
+// neither door writes its own.
 export const notesUnsentLine = u => `Harness notes leave out ${u.perPrompt.toLocaleString()} tokens a prompt that the hooks here wrote down and the agent never sent${u.hook ? ` (most of it ${u.hook})` : ''}: what a hook prints is context, the command that ran is not.`;
 export function notesUnsent(tokens, prompts, hooks) {
   if (!(tokens > 0) || !(prompts > 0)) return null;

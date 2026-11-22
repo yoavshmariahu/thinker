@@ -22,21 +22,15 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - `src/ui/` mirrors CLI commands, never duplicates.
 - Page defaults and output must match CLI: `thinker chat` ↔ the chat, `thinker chat --history` ↔ the Chat history beside it, `thinker activity` ↔ Recent activity beside it, `thinker factory` ↔ Factory tab, `thinker context --history` ↔ Recent activity tab, `thinker settings` ↔ Settings tab.
 - `thinker context` and `thinker report` have no tab since 2026-11-21 ("The Find Savings and View Report pages, removed" below): the commands are their only door.
-- New default or flag: add test to `test/cli-ui-sync.test.js`.
-- That file is for the **pair**: an assertion names both doors (page and CLI, page and the terminal's own
-  renderer). One file's internals pinned by a regex over its source belongs in that file's own test, not here --
-  26 such assertions were taken out on 2026-11-15, and they were most of why the file was edited twice a day.
 
 **The proxy and desktop clearing hold one policy (MANDATORY):**
 - `src/proxy.js` and the desktop door implement the same clearing policy, never two.
-- The clearing mod (`src/integrations/claude-clear`) holds NO policy (2026-11-18): an open session keeps the mod it loaded, so a copy there is frozen at the release the session was opened under. It asks the installed CLI at each decision (`thinker hook clear`, `src/clear-door.js`: `start`, `decide`, `apply`) and puts the answer in place. A constant or rule back in the mod fails `test/claude-clear.test.js`.
-- Every `PROXY_DEFAULTS` key honored by `clear-door.js:desktopPolicy` or exempted with reason in `DESKTOP_POLICY` (`test/claude-clear.test.js`).
+- The clearing mod (`src/integrations/claude-clear`) holds NO policy (2026-11-18): an open session keeps the mod it loaded, so a copy there is frozen at the release the session was opened under. It asks the installed CLI at each decision (`thinker hook clear`, `src/clear-door.js`: `start`, `decide`, `apply`) and puts the answer in place. A constant or rule back in the mod fails `test/cutting.test.js`.
+- Every `PROXY_DEFAULTS` key honored by `clear-door.js:desktopPolicy` or exempted with reason in `DESKTOP_POLICY` (`test/cutting.test.js`).
 - `cut` is honoured there, not exempt (2026-11-19): with the cutting off the desktop door clears nothing either. It is where most of this machine's clearing happened, so a switch one door kept would have left the measurement as unreadable as it was.
 - Policy change is judged live on cache writes against 15% holdout, not replays.
 - A change to `register.tsx` is only tested by `claude plugin test src/integrations/claude-clear` (its
-  `hooks/clear.test.tsx` is a bun test and `npm test` never reaches it). Run it. `npm test` holds the cheap
-  half: `test/claude-clear.test.js` transpiles the file and fails where it would not load at all -- what the
-  other assertions there, each extracting one function from the source as text, cannot see (#888).
+  `hooks/clear.test.tsx` is a bun test and `npm test` never reaches it). Run it.
 
 **Codex and Claude use the same cut policy (MANDATORY):**
 - `src/proxy-responses.js` → `src/cutting.js:decideCut` (Messages).
@@ -52,11 +46,14 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Worktree has no `node_modules`. First `npm test` can race and fail on `ERR_MODULE_NOT_FOUND`; treat as nothing.
 - Run `npm ci` before tests in new worktree.
 
-**Test selection:**
-- `npm test`: files changed vs `origin/main`. Changed code not reached listed on stderr.
-- `npm test -- test/file.test.js`: run named files.
-- `TEST_BASE=HEAD npm test`: working tree only.
-- `--all`: full suite (use for runner or wrong selection).
+**Tests (rebuilt 2026-11-22, the owner: "they are currently low signal and slow"):**
+- `npm test` runs every file in `test/`, every time, in a few seconds. `npm test -- test/file.test.js` runs named files. There is no selection.
+- One file per core feature: `cutting` (the policy and the desktop door), `proxy-cut` (the cut on the wire), `recap` (no cut while the person is away), `savings` (the accountant), `delegation`, `instructions`, `chat`, `upkeep`. The clearing mod has its own: `claude plugin test src/integrations/claude-clear`.
+- A test is a behavior a person would notice broken, driven through the function the door calls, with the model, `gh`, the clock and any child process injected. It must go red when one line of the product is broken; a test that cannot is not added.
+- Not tests: wording, history, internals read out of source text, a tunable's literal value. A check of the source is allowed only where the rule is about the source: one accountant, the mod holding no policy, every proxy setting honoured or exempt at the desktop door.
+- `test/helpers.js` is imported first by every test file: a throwaway home, test mode, no telemetry, a git that knows nothing of the machine. A file stays around a second and under about 400 lines.
+- A known gap is a test skipped with what is wrong in a line (`{ skip: 'known gap: …' }`), never a deleted one. Fixing the gap means taking the skip off.
+- What it catches, measured the day it was written: of 126 one-token breaks made at random in the core source files, the suite went red on 56 (44%). The suite it replaced went red on 35 of a sample of 42 (83%), at 41 s a run against 2 s, and caught every break this one catches. Lean is a trade, and what it gives up is mostly display, logging and report code; a break there is not noticed here.
 - Requires Node 20+. `npm test` runs `scripts/test.sh`.
 
 **Desktop apps (MANDATORY):**
@@ -66,7 +63,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 
 **Cutting is ON for every install, with no session held out (2026-11-22, the owner's call: "for all users please",
 then "actually 0 holdout. cutting doesn't even get tirggered very often"; `proxy.js:PROXY_DEFAULTS.cut`,
-`proxy-service.js:SERVICE_HOLDOUT` 0, held by `test/cut-off.test.js`):**
+`proxy-service.js:SERVICE_HOLDOUT` 0, held by `test/cutting.test.js`):**
 - **It was off from 2026-11-19 to 2026-11-22, and why is worth keeping.** Read the day it was turned off, the
   cutting was worth $7.01 and $4.03 in the weeks to 2026-11-15 and 2026-11-22 against $1,164 and $393 of spend
   (the Report's weekly savings table), under 1%, where the two weeks before read $239 and $298: the series
@@ -96,7 +93,7 @@ then "actually 0 holdout. cutting doesn't even get tirggered very often"; `proxy
 - **The proxy does the rest either way:** carrying and logging every request (`op: proxy`, the cache reads and
   writes every dollar figure is built from), `proxy-retry.js`, routing and pricing other providers' models, the
   gateways and Bedrock, and the delegation's savings read off the calls it sees.
-- A test that exercises the cutting may still ask for `cut: true` in its own config; `test/cut-off.test.js` says
+- A test that exercises the cutting may still ask for `cut: true` in its own config; `test/cutting.test.js` says
   what the default does and what the switch does.
 
 **The clearing: how thinker cuts results (MANDATORY, 2026-11-04; on by default, above):**
@@ -146,10 +143,10 @@ then "actually 0 holdout. cutting doesn't even get tirggered very often"; `proxy
 - On Anthropic a read is a tenth of a write, so it is a ~6% change -- invisible while only Anthropic was priced. Where a read is half the input price it is most of the cost.
 - Measured on this machine's 93 priced warm boundaries: Anthropic 1h cuts 13 → 20, Anthropic 5m 49 → 68, GLM read 1/2 93 → 93 (already all passing), GLM read 1/5 89 → 92. **So it lands on Anthropic and the OpenAI/Gemini shape, not on GLM**, where the guards above were the only thing refusing.
 - `payback` 0 is reachable and means repaid on the call that makes the cut; it cannot go below (clamped, to keep `Math.ceil`'s `-0` out of the log).
-- The desktop door decides in ratios (`clear-door.js:clearPays`): `(writeRatio - 1) x recache <= (PAYBACK + 1) x dropped`, held to `priceCut` over 160 points by `test/claude-clear.test.js`.
+- The desktop door decides in ratios (`clear-door.js:clearPays`): `(writeRatio - 1) x recache <= (PAYBACK + 1) x dropped`, held to `priceCut` over a grid of models, cut sizes and tails by `test/cutting.test.js`.
 **The cut is taken from the tail backwards (2026-11-13, `proxy.js:cutCandidates`, `cutting.js:decideCut`):**
 - Taking every eligible result starts the rewrite at the OLDEST one, so it spans nearly the whole conversation while removing only the results in that span -- 26-34% of it on this machine's 93 priced warm boundaries against the 42% Anthropic's hourly rates need, which is why 0 of the 12 boundaries under the current stamp were cut.
-- A removed token saves the same wherever it sat; only the cost depends on position. So `cutCandidates` returns `steps`, the nested suffixes from the tail backwards, built in one backward pass (the set only grows backwards, so a message already passed never changes and the running sum is every deeper rung's tail). The deepest rung IS the old whole-set candidate, held to the single stringify's figure by `test/cut-ladder.test.js`.
+- A removed token saves the same wherever it sat; only the cost depends on position. So `cutCandidates` returns `steps`, the nested suffixes from the tail backwards, built in one backward pass (the set only grows backwards, so a message already passed never changes and the running sum is every deeper rung's tail). The deepest rung IS the old whole-set candidate, with the single stringify's figure.
 - `decideCut` takes the largest-saving rung that pays. No new constant: the pricing is the whole of the economics and this chooses among priced options. `depth` and `rungs` ride **inside `clear` and `held`**, which every door already logs (2026-11-14: they were on the decision and on no row, so the first live run could not say whether a boundary had one rung or nine). Chat and Responses build no ladder yet and hand one set, which is picked as before.
 - `clearAtLeast` 60k → **8k**, and it no longer scales with the route (#781 scaled it while it was economics). The floor was the economics when a boundary had one candidate; now it only guards against acting on `recache`'s estimation noise, and noise is in tokens, not in what a provider charges. The trigger still scales.
 - The mod holds the same policy: `clearLadder`, `chooseDepth`, and `clearOld({ depth })`. The check prices every rung and queues a compaction turn only if one repays; a hand-run clear still takes everything.
@@ -217,7 +214,7 @@ then "actually 0 holdout. cutting doesn't even get tirggered very often"; `proxy
 - The newest copy of a kept file stays (a whole read, a `cat`, a Write); older copies are cut as before. Kept: `*.md`, what the profile learned, a file the person named in a prompt, a file read again after a cut.
 - A web address is kept as a file is (a fetch tool's call, an untrimmed `curl`): learned or named, and it covers the pages under it.
 - No model at decision time. The profile's reader records `sources` on an observation (files the person pointed at, held to their own words by `sourcePattern`); `profile.js:syncKeep` writes them to `<THINKER_HOME>/state/keep.json`, a list per checkout, read together by every door.
-- Every door: `proxy.js:keptOf`, `proxy-responses.js:responsesKept`, `proxy-chat.js:chatKept`, the desktop door (`clear-door.js:keptOf`, which calls keep.js itself; the mod has no copy, `test/keep.test.js`), `delegate.js:delegateTool` (`declined: 'kept'`). Policy `r10`; a boundary's row carries `kept: { results, tokens }`.
+- Every door: `proxy.js:keptOf`, `proxy-responses.js:responsesKept`, `proxy-chat.js:chatKept`, the desktop door (`clear-door.js:keptOf`, which calls keep.js itself; the mod has no copy, `test/cutting.test.js`), `delegate.js:delegateTool` (`declined: 'kept'`). Policy `r10`; a boundary's row carries `kept: { results, tokens }`.
 - Delegation's "named" reads the newest prompt only.
 - Replayed over this machine's 14 days (16 cut sessions, 1.88M tokens taken): `.md` 1.3% of it, the list as a whole 8.3%, most of that files named in a prompt.
 
@@ -256,7 +253,7 @@ then "actually 0 holdout. cutting doesn't even get tirggered very often"; `proxy
   the machine's own request back and stays in its log. The scalar is the number that must stay at zero. Split by
   door, because only the Messages path rewrites a call's own text and only it binds thinking to the conversation's
   bytes -- the Responses (Codex) door replaces results alone, so a refusal there means something else, and a machine
-  that uses only that door may not read as a blank (`test/metrics-dashboard.test.js` holds every card to both).
+  that uses only that door may not read as a blank.
 - Measured before it shipped: 22 days, 30,341 proxied requests, 12,537 with a thinker edit, **2** 400s -- both
   2026-10-24, both the API-side clearing era, none since the cut moved client-side. The valve has never fired.
 - Fixed on the way: the `proxy-cut-rejected` row carried no `session`, so `proxyReport`'s `sessionsRejected` keyed
@@ -280,7 +277,7 @@ then "actually 0 holdout. cutting doesn't even get tirggered very often"; `proxy
 - Cadence state in `state/notice.json`; pending in cache's `notice-pending.json`.
 
 **What changed in thinker, said once (2026-11-10):**
-- `UPDATE_NOTE` in `src/update-note.js` (id, title, lines, more); mirrored by mod (`test/claude-card.test.js`).
+- `UPDATE_NOTE` in `src/update-note.js` (id, title, lines, more); mirrored by mod.
 - Keyed on note id, never version (`updateNoteShown` in `state/update-note.json`).
 - Card where mod runs (end of first turn); Stop hook's summary everywhere else.
 - A line links to the local page with `{chat}` / `{factory}` (2026-11-22): filled with the address of a page started for it
@@ -581,7 +578,7 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 - "Critical decisions or thinking does not get routed to a cheaper model. These models should be scoped for simple tasks."
 - A cheaper model gets work whose answer is already there to be found or copied, and which the lead checks against the source before acting: where things are in a large file (the lead reads the lines it edits), what a test runner printed. It reports what is there; it is never asked what to do or why.
 - Never moved to a cheaper model: a subagent the lead chose to start (research, a survey, a review, a plan, a diagnosis, a page read with a question to answer), a build, a fix. That is the lead's thinking, on the model the person chose.
-- In the code: the trigger has two kinds, `explore` and `verify`; the hook is wired on `Read|Bash` and never on the Agent tool; the verifier's prompt asks for what the runner printed, "no cause, no fix, no opinion" (`test/delegate-handoff.test.js` pins all three).
+- In the code: the trigger has two kinds, `explore` and `verify`; the hook is wired on `Read|Bash` and never on the Agent tool; the verifier's prompt asks for what the runner printed, "no cause, no fix, no opinion".
 - A new kind needs both halves before it is proposed: the answer can be checked against the source by the lead or by code, and a paired run on real briefs shows the same answers, not only a lower cost.
 
 **A read and a suite run have a model each (2026-11-20, the owner's call: "split please"):**
@@ -676,7 +673,7 @@ Headroom Labs; `delegate.js` "the same file, read again", `op: repeat`):**
 - `thinker status` sends a real report (the waiting one, or an empty one), so "reachable" means the key was accepted. The server lives in the private repository; `fleet: { url }` in config points a test at loopback.
 
 **Savings: one accountant (MANDATORY, 2026-11-22, the owner: "we need to build a single source of truth. we should have an accountant module that is fully responsible for tracking savings", then "consolidate any savings logic into the accountant"):**
-- `src/accountant.js` is the one place a saving is priced, netted against what it cost, and added up. No other module calls `prices.js:costOfInputSavings`, writes `saved - rewrite - reread`, reads the clearing's rows for a count (`compression.js:clearingRows`, through `records`), or defines a function that says what was saved. Held by `test/accountant-only.test.js`, which reads the source.
+- `src/accountant.js` is the one place a saving is priced, netted against what it cost, and added up. No other module calls `prices.js:costOfInputSavings`, writes `saved - rewrite - reread`, reads the clearing's rows for a count (`compression.js:clearingRows`, through `records`), or defines a function that says what was saved. Held by `test/savings.test.js`, which reads the source.
 - The parts that act keep the **records** of what they did, and only those: the proxy's rows and the session's clearing record with its card (`compression.js`), the trigger's rows in the log (`delegate.js`), a decision (`context-suggest.js`), which session worked on which pull request and with what share (`delivery.js`). Every door that says what was saved asks the accountant: the status line and the cards (the ledger), `thinker savings`, `thinker report`, the chat, Recent activity, `thinker prs` and its comment, the telemetry.
 - What it holds: `records` (the one reader: a repository's log or the machine's, with the clearing's rows for the sessions it names); the rules -- context cleared (`clearedBySession`, what a clear cost `clearingCostBySession`, `rereadCost`, a session's `sessionSaving`, the net `netOf`), reads delegated (`delegationSavings`, by session `delegationBySession`, `delegatedView`), reads already in context (`repeatSavings`), a change to the context (`actionEffect`, `withEffects`, `dollarsADay`, `impactSaid`); the sums (`weeklySavings` and `repositorySavings` for the Report, `savingsByDay` for the telemetry, `addSaving`/`sumSavings` for a pull request's sessions, `sumHanded`); the book (`computeSavings`, `readSavings`, `savingsNow`, `<THINKER_HOME>/state/savings.json`); the words (`savingsLine`, `savingsStatus`, `savingsDetail`, `savingsNet`, `delegatedTotalSaid`).
 - Why: asked what it had saved in a fortnight, the chat said $38 -- the reads handed to cheaper agents, the only figure it had been given -- while the status line's count for the same days was $167, $129 of it the clearing's. Each figure was right; they were separate computations over separate records (`report-savings.js`, `savings-ledger.js`, `delivery.js`, `compression.js`, `upkeep.js`, `report.js`, `telemetry.js` each loaded the clearing's rows or priced a saving for itself). The move changed no figure any door printed.
@@ -693,7 +690,7 @@ Headroom Labs; `delegate.js` "the same file, read again", `op: repeat`):**
 - `machine-home.js:ownsMachine`: only the account's own `~/.thinker`, outside test mode, writes or restarts the proxy's entry, the telemetry schedule and the update schedule. The account's home is the password database's (`os.userInfo()`), never `$HOME`. All three writers ask it; a new entry asks it too.
 - Any other home (a test's, a benchmark's, a `HOME` pointed elsewhere) keeps its entries under itself and calls no launchctl, systemctl or crontab. Its schedules are its own invocations.
 - A proxy of any other home exits when that home is gone (`proxy-service.js:homeGoneWatcher`); the machine's own is never watched.
-- Tests of the writers stand a directory in for the account (`machine: { account }`) and leave only stubs on `PATH` (`test/service-ownership.test.js`). Never the real service manager, never a real entry.
+- Tests of the writers stand a directory in for the account (`machine: { account }`) and leave only stubs on `PATH`. Never the real service manager, never a real entry.
 - Why: a test file run outside `npm test` with `HOME=<tmp>` counted as the machine under the old rule (`os.homedir()`), booted the person's proxy out of launchd and registered a test copy under its label; the proxy launchd started for it then rewrote the person's telemetry job. 36 proxies of deleted homes were alive, 1.2 GB.
 
 **The telemetry job is bounded (MANDATORY, 2026-11-21):**
@@ -764,7 +761,7 @@ ignored; its history is in git before 2026-11-08.
 
 The owner, in one day: thinker is an agent of its own. It "should take actions on its own and put up PRs as needed, but only for important things and not too frequently"; "make the chat the main full page and recent activity shows up on the right with one line summary of the action and its impact"; "no more manual action please. thinker does its work for you. its opinionated"; and "PRs may be in review and any actions with those should have links".
 
-- **No manual action (MANDATORY).** Nothing is listed for the person to do and no door has a button, a route or a verb to do, leave, undo or re-check a thing. Thinker does its work; the chat is the one place a person tells it to do, leave or take back something. How it behaves is said there too, and since 2026-11-21 also set by hand on the Settings tab and with `thinker settings` ("Settings" below): a setting is a standing choice, never a thing to do, so nothing there does, leaves or takes back anything. Held by `test/cli-ui-sync.test.js`.
+- **No manual action (MANDATORY).** Nothing is listed for the person to do and no door has a button, a route or a verb to do, leave, undo or re-check a thing. Thinker does its work; the chat is the one place a person tells it to do, leave or take back something. How it behaves is said there too, and since 2026-11-21 also set by hand on the Settings tab and with `thinker settings` ("Settings" below): a setting is a standing choice, never a thing to do, so nothing there does, leaves or takes back anything.
 - **The page opens on the chat.** The conversation fills the page; down its left side (the owner, 2026-11-21, after a first build with it on the right) a toggle shows Recent activity or the Chat history, and opens on the Chat history (the owner, 2026-11-22). `thinker chat` ↔ the conversation, `thinker activity` ↔ Recent activity, `thinker chat --history` ↔ the Chat history, each one function or view. The Recent activity tab keeps the decisions' tables (Action savings, PR savings).
 - **Upkeep** (`src/upkeep.js`): a check, what was done, what is held back. One view (`upkeepView`; `mergeUpkeepViews` for All repositories).
 - **A check spends no model tokens.** It reads what was measured already: by code, or by the one pass each session gets when it ends. Nothing is replayed, nothing judged twice.
@@ -821,7 +818,7 @@ The owner: "drop the 'find savings' page and 'view report' page. Thinker should 
 
 - **What went**: the two tabs of the page (`#tab-save`, `#tab-report`, their nav buttons, script and CSS: `page.html` 2,016 → 1,289 lines); their routes (`/api/context`, `/api/explain`, `/api/changes/approve|dismiss|start`, `/api/context/switch|compression`); the installer's browser answer (`setup/context-ask.js`: the terminal list is the question); the page link in the weekly question and its preselect lists (`suggestionsUrl`, `offeredPicks`).
 - **What stays, and why**: `thinker context` and `thinker report`, and every computation behind them (`context-view.js`, `context-suggest.js`, `context-snapshot.js`, `context-machine.js`, `report.js`, `report-snapshot.js`). Thinker's own check acts on the Context report (`upkeep.js`), and the impact it reports is read from the kept Report; the commands are a person's door to the same figures.
-- **The page now**: Chat (default), Factory, Recent activity. `/api/report` stays for the Factory and Recent activity's PR savings; `/api/changes/revert|retry` stay for Recent activity. An old link (`tab=save|report|changes|cache`) opens the chat; `tab=save&view=history` opens Recent activity. Held by `test/cli-ui-sync.test.js`.
+- **The page now**: Chat (default), Factory, Recent activity. `/api/report` stays for the Factory and Recent activity's PR savings; `/api/changes/revert|retry` stay for Recent activity. An old link (`tab=save|report|changes|cache`) opens the chat; `tab=save&view=history` opens Recent activity.
 - **No door may promise the pages**: no text or link names a tab that is not there. `thinker context` is where the detail is.
 - **The weekly question, retired the same day**: from 2026-10-22 maintenance kept the five largest changes once a week and the prompt hook had the person's agent ask which to make (`scheduleContextSuggestion`, `contextSuggestOffer`, the MCP `context` tool). The owner's answer to how a person should hear of a batch was "Recent activity plus one line in a session", so nothing schedules it, the hook does not offer it and no tool answers it; `maintain: { contextSuggest }` is ignored. In git before this date.
 - **Kept without a caller**: `thinker ui --background` (a page started for the machine); the scan worker can still read a Context report (`scans.read('context', …)`).
@@ -919,9 +916,8 @@ and each is now closed on its own, so that no one of them is what the machine de
   reach. Every other job a prompt starts (`update`, `learn`, `savings --refresh`, `session-work`) marked itself
   before it started; this one did not. Now the hour is **claimed before the job exists**
   (`telemetry.js:claimAttempt`, `state/telemetry/attempt.<n>`): an exclusive create of the next number, which the
-  file system gives to one of however many ask, and which is the attempt whether or not anything is sent. Eight
-  processes asking in the same millisecond is a test (`test/telemetry-job.test.js`). A second file,
-  `state/telemetry/run.lock`, is held while a report is built and sent, by the forced ones too (`install`,
+  file system gives to one of however many ask, and which is the attempt whether or not anything is sent. A second
+  file, `state/telemetry/run.lock`, is held while a report is built and sent, by the forced ones too (`install`,
   `update`, `uninstall`), which wait up to 20 s for their turn; a lock whose process is gone, or older than a job
   may live, is taken over.
 - **The report had no ceiling.** It is read out of everything the machine has logged, synchronously, so no timer
@@ -1150,7 +1146,7 @@ outside (`commands/telemetry.js:endIfStuck`) once the report is sent.
 ## Error reports, with consent (2026-10-29, the owner's ask)
 
 - **Recording:** `recordError` called from catch sites; never throws, writes one line. Disabled in test mode (`THINKER_ERRORS_TEST`). Deduplicates, keeps max 20 records over 14 days.
-- **Scrubbing:** Replace `<thinker>` (install path), `<repo>` (repository), `~` (home), `<token>` (credentials), `<url>` (URLs), last two segments (other absolute paths). Checked in `test/error-report.test.js`.
+- **Scrubbing:** Replace `<thinker>` (install path), `<repo>` (repository), `~` (home), `<token>` (credentials), `<url>` (URLs), last two segments (other absolute paths).
 - **Consent:** Asked once per machine via agent's question tool, answered through `thinker errors --answer yes|no|never`. Only asked where records exist and telemetry is on.
 - **`thinker errors`:** Prints records. Flags: `--send`, `--json`, `--answer`.
 - **Endpoint:** `/errors` on metrics API (server side, not in this repository). Rejects payloads matching `LOOKS_PRIVATE`, `LOOKS_LIKE_URL`, `LOOKS_LIKE_TOKEN`.
@@ -1279,8 +1275,7 @@ trusted_hash = "sha256:6118…1471"
 - `codex --dangerously-bypass-hook-trust` runs hooks without these entries
   for one invocation; thinker does not use it.
 
-The code is `clients.js:codexHookHash` and `clients.js:trustCodex`; a hash
-that Codex stored is held in `test/clients.test.js`.
+The code is `clients.js:codexHookHash` and `clients.js:trustCodex`.
 
 ### Learning from any agent
 

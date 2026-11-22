@@ -55,7 +55,7 @@ export function inputRate(store, sessions) {
 }
 // The row's colour on both doors (the owner's rule, 2026-11-09): a part used in under 10% of the calls that carried it
 // is red at 5,000 tokens a call or more, yellow under that, and nothing at all under 500 tokens, since a part that
-// small is not worth a decision. `page.html:flagOf` is the same line; test/cli-ui-sync.test.js holds the two together.
+// small is not worth a decision. `page.html:flagOf` is the same line (no test holds the two together: change both).
 export const FLAG = { used: 0.1, red: 5000, none: 500 };
 export const flagOf = r => r.off || r.usedShare == null || r.usedShare >= FLAG.used || !(r.tokens >= FLAG.none) ? null : r.tokens >= FLAG.red ? 'red' : 'yellow';
 export const rateOf = v => v?.rate?.perToken ?? (v?.rate?.input ? v.rate.usd / v.rate.input : null);

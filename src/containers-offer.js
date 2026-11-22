@@ -34,8 +34,7 @@ export const ANSWER_DAYS = 7;
 export const AGAIN_DAYS = 30;
 // Agents with no way to put a question to the person
 const SILENT = ['windsurf', 'goose', 'augment'];
-// The question, as the owner wrote it on 2026-11-05. The agent is told not to reword it, and
-// test/cli-ui-sync.test.js holds this string, so a change to it is a change somebody made on purpose.
+// The question, as the owner wrote it on 2026-11-05. The agent is told not to reword it.
 export const QUESTION = 'thinker is installed on your machine but not in the container. Install it here to get token cost savings on your sessions?';
 export const OPTIONS = '"Yes" / "No" / "Never ask again"';
 

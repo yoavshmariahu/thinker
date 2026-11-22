@@ -107,8 +107,8 @@ export function shellRoute(text, { isOwn = () => false, ignoreCloud = [] } = {})
 }
 
 // Every route this machine holds for Claude Code besides the settings file thinker writes, nearest first.
-// In test mode nothing outside the test's own directories is read: THINKER_ROUTE_HOME names the home to scan
-// (test/proxy-route.test.js), as CLAUDE_CONFIG_DIR names the settings directory.
+// In test mode nothing outside the test's own directories is read: THINKER_ROUTE_HOME names the home to scan,
+// as CLAUDE_CONFIG_DIR names the settings directory.
 export function routeEvidence({ env = process.env, isOwn = () => false, repos = [], limit = 3, ignoreShellCloud = [] } = {}) {
   const home = env.THINKER_ROUTE_HOME || (isTestMode() ? null : env.HOME || os.homedir());
   if (!home) return [];
