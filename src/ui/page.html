@@ -438,7 +438,7 @@
     <section id="tab-chat" hidden>
       <div class="home">
         <div class="home-chat">
-          <div class="home-col home-head"><span class="chat-sub" id="chat-about"></span><select class="sel" id="h-repo" aria-label="Repository"></select></div>
+          <div class="home-col home-head"><span class="chat-sub" id="chat-about"></span></div>
           <div class="chat-log" id="chat-log" aria-live="polite"><div class="home-col" id="chat-msgs"></div></div>
           <div class="home-col"><div class="chat-hints" id="chat-hints"></div>
           <form class="chat-form" id="chat-form"><div class="chat-box"><div class="chat-attach" id="chat-attach"></div><textarea id="chat-input" rows="2" aria-label="Message to thinker" placeholder="Ask what it did, or tell it how to behave"></textarea></div><button class="btn" id="chat-send" type="submit">Send</button></form></div>
@@ -466,10 +466,7 @@
         <symbol id="fxi-merge" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2.5"/><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M6 7.5v9M6 16c4 0 9-1 9.5-4"/></symbol>
       </defs></svg>
       <div class="ctx-top"><div><div class="kicker">The big picture, down to the loop</div><h1>Software factory<span class="fx-dot">.</span></h1>
-      <p class="lede">How your agents move from first prompt to merged pull request, what each stage costs, and where work comes back round. <span class="muted" id="f-asof"></span></p></div>
-      <div class="controls">
-        <select class="sel" id="f-repo" aria-label="Repository"></select>
-      </div></div>
+      <p class="lede">How your agents move from first prompt to merged pull request, what each stage costs, and where work comes back round. <span class="muted" id="f-asof"></span></p></div></div>
       <div id="factory-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the factory…</div></div>
     </section>
 
@@ -560,7 +557,9 @@ const hashRepo = () => { const r = H().get('repo'); return r === 'here' ? '' : r
 // and which tab, normalized as show() does (the old History view is Recent activity; a tab the page no longer has,
 // an unknown one and no tab at all are the chat), so `repo=` reaches the tab that opens
 const hashTab = () => { const t = H().get('tab'); return ['save', 'changes'].includes(t) && H().get('view') === 'history' ? 'activity' : ['factory', 'activity', 'chat'].includes(t) ? t : 'chat'; };
-// the repositories with a cache (/api/repos); REPO is the one picked for the Factory
+// the repositories with a cache (/api/repos); REPO is the Factory's, from the link alone: the chat and the Factory
+// lost their repository dropdown on 2026-11-21 (the owner's call), so both cover every repository unless the link
+// (`thinker ui --here`) names one. Recent activity keeps its own picker.
 let REPOS = [], REPO = hashTab() === 'factory' ? hashRepo() : 'all';
 // `from=setup`: the installer opened the page (cache.js:uiCommand --from-setup), so a hint in the corner says how
 // to come back to it, then fades
@@ -882,13 +881,11 @@ const HOME_POLL_MS = 30_000, HOME_FAST_MS = 4_000, SIDE_SESSIONS = 8;
 const CHAT_HINTS = ['What have you done lately?', 'Ask me before you put up a pull request', 'How do you decide what is important?'];
 const chatAbout = () => HREPO && HREPO !== 'all' ? HREPO : '';
 const upWhen = t => { const d = new Date(t), now = new Date(), day = x => x.toDateString(), time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); return day(d) === day(now) ? `today ${time}` : day(d) === day(new Date(now - 864e5)) ? `yesterday ${time}` : `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${time}`; };
-$('#h-repo').onchange = e => { HREPO = e.target.value; e.target.blur(); loadHome(); };
 $('#side-more').onclick = () => show('activity');
 async function loadHome() {
   try { if (!REPOS.length) await fetchRepos(); } catch {}
   if (!HREPO) HREPO = REPOS.find(r => r.current)?.id || 'all';
   else if (HREPO !== 'all' && !REPOS.some(r => r.id === HREPO)) HREPO = 'all';
-  $('#h-repo').innerHTML = `<option value="all"${HREPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === HREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
   const r = REPOS.find(x => x.id === chatAbout());
   $('#chat-about').textContent = r ? `Talking about ${r.name}` : 'Talking about every repository';
   loadSide();
@@ -1007,7 +1004,6 @@ const FX_COLORS = { fix: ['#c2410c', '#ffedd5'], correction: ['#2563eb', '#dbeaf
 const FX_MORE = [['#0369a1', '#e0f2fe'], ['#4d7c0f', '#ecfccb'], ['#9a3412', '#fed7aa'], ['#7e22ce', '#f3e8ff']];
 const fxColor = (key, i) => FX_COLORS[key] || FX_MORE[i % FX_MORE.length];
 const fxVerdict = { good: 'good', mid: 'watch', bad: 'bad' };
-$('#f-repo').onchange = e => { REPO = e.target.value; e.target.blur(); loadFactory(); };
 async function loadFactory() {
   scanProgress({ refreshing: true });
   const el = $('#factory-body'), seq = ++FLOAD, inPlace = Boolean(FX) && FX_FOR === REPO;
@@ -1016,7 +1012,6 @@ async function loadFactory() {
     if (!REPOS.length) await fetchRepos();
     if (seq !== FLOAD || TAB !== 'factory') return;
     if (REPO !== 'all' && !REPOS.some(r => r.id === REPO)) REPO = REPOS.find(r => r.current)?.id || 'all';
-    $('#f-repo').innerHTML = `<option value="all"${REPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === REPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
     const want = REPO;
     await progressiveView(`/api/report?repo=${encodeURIComponent(REPO)}&weeks=6`, v => {
       if (v.empty) { el.innerHTML = '<div class="empty">No repository with a cache on this machine yet.</div>'; return; }
