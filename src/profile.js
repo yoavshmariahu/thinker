@@ -24,7 +24,7 @@ import { areaOf } from './areas.js';
 import { sessionState, locked, holdoutRate } from './session-state.js';
 import { sourcePattern, writeKeep } from './keep.js';
 import { compactionsSince } from './compactions.js';
-import { readMachineConfig } from './repo-switch.js';
+import { readMachineConfig, layeredConfig } from './repo-switch.js';
 
 export const PROFILE = {
   ledgerDays: 60,       // an observation older than this leaves the window and the file
@@ -73,7 +73,7 @@ export const RULE_VERDICTS = ['followed', 'violated', 'applicable'];
 // profile: false }` in .thinker/config.json turns it off for a repository, and THINKER_PROFILE=on|off wins over the
 // config, for a harness. The older `learn: { mode: 'profile' }` is still read as on.
 export function profileConfig(store) {
-  const learn = store.config().learn || {};
+  const learn = layeredConfig(store, 'learn') || {};
   const env = process.env.THINKER_PROFILE;
   const enabled = /^(on|1|true)$/i.test(env || '') ? true : /^(off|0|false)$/i.test(env || '') ? false : learn.profile !== false && learn.sessions !== false;
   return { enabled, model: typeof learn.profileModel === 'string' ? learn.profileModel : null };

@@ -427,6 +427,74 @@
       .modal-overlay { padding: 0.75rem; }
       .modal-header, .modal-body { padding-left: 1.1rem; padding-right: 1.1rem; }
     }
+    /* Settings (settings.js, as `thinker settings`): the groups down a column with their names beside it, no boxes round
+       them. The one choice that sets the tone (how much thinker does itself) is three cards that each say what they mean;
+       what it may change is a set of tiles to tick; everything else is a row with its control at the right. A setting
+       that depends on another sits in a soft panel under it, and is not drawn at all while that one is off. */
+    #tab-settings { max-width: 1010px; margin: 0 auto; }
+    #tab-settings .ctx-top { align-items: center; margin-bottom: 0; padding-bottom: 1.5rem; border-bottom: 1px solid #f0f0f0; }
+    #tab-settings .lede { margin-top: 0.35rem; font-size: 0.95rem; }
+    .set-layout { display: grid; grid-template-columns: 168px minmax(0, 1fr); gap: 3.5rem; align-items: start; }
+    .set-nav { position: sticky; top: 4.6rem; display: flex; flex-direction: column; align-items: stretch; gap: 0.15rem; padding-top: 1.35rem; margin-left: -0.7rem; }
+    .set-nav button { border: 0; background: transparent; text-align: left; padding: 0.4rem 0.7rem; border-radius: 8px; font-size: 0.86rem; color: #6b7280; cursor: pointer; transition: color 0.12s ease, background 0.12s ease; }
+    .set-nav button:hover { color: #111; }
+    .set-nav button.on { color: #111; background: #f4f4f5; font-weight: 500; }
+    .set-main { min-width: 0; padding-bottom: 30vh; }
+    .set-group { padding: 1.9rem 0 1.5rem; border-top: 1px solid #f0f0f0; scroll-margin-top: 4.6rem; }
+    .set-group:first-child { border-top: 0; padding-top: 1.5rem; }
+    .set-gtitle { font-size: 1.12rem; font-weight: 600; letter-spacing: -0.02em; }
+    .set-gabout { font-size: 0.86rem; color: #6b7280; line-height: 1.5; margin: 0.2rem 0 0.7rem; max-width: 560px; }
+    .set-row { display: flex; justify-content: space-between; align-items: center; gap: 2rem; padding: 0.68rem 0; }
+    .set-text { display: block; min-width: 0; }
+    .set-label { display: block; font-size: 0.9rem; font-weight: 500; color: #111; }
+    .set-help { display: block; font-size: 0.8rem; font-weight: 400; color: #6b7280; line-height: 1.45; margin-top: 0.1rem; max-width: 520px; }
+    .set-help code { font-size: 0.76rem; background: #f3f4f6; padding: 0.05rem 0.3rem; border-radius: 4px; }
+    .set-note { color: #92400e; }
+    .set-tag { display: inline-block; margin-left: 0.5rem; padding: 0.02rem 0.45rem; border: 1px solid #e5e7eb; border-radius: 999px; font-size: 0.68rem; font-weight: 500; color: #6b7280; vertical-align: 1px; }
+    .set-sub { font-size: 0.8rem; font-weight: 600; color: #111; margin: 1.5rem 0 0.6rem; }
+    .set-sub + .set-row { padding-top: 0.2rem; }
+    /* what depends on the row above it */
+    .set-kids { margin: 0.1rem 0 0.75rem; padding: 0.25rem 1.1rem; background: #fafafa; border: 1px solid #f0f0f0; border-radius: 12px; }
+    .set-kids .set-kids { background: #fff; border-color: #ececec; margin-bottom: 0.6rem; }
+    .set-kids > .set-row + .set-row, .set-kids > .set-kids + .set-row { border-top: 1px solid #f0f0f0; }
+    .set-kids .set-label { font-size: 0.87rem; }
+    /* one of three, each saying what it means */
+    .set-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.65rem; margin-top: 1rem; }
+    .set-card { display: flex; flex-direction: column; gap: 0.3rem; text-align: left; border: 1px solid #e5e7eb; background: #fff; border-radius: 12px; padding: 0.85rem 1rem 0.95rem; cursor: pointer; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+    .set-card:hover { border-color: #a1a1aa; }
+    .set-card.on { border-color: #111; box-shadow: inset 0 0 0 1px #111; }
+    .set-card-t { display: flex; align-items: center; gap: 0.55rem; font-size: 0.9rem; font-weight: 600; color: #111; }
+    .set-card-t::before { content: ''; box-sizing: border-box; flex: none; width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid #d4d4d8; background: #fff; transition: border 0.12s ease; }
+    .set-card.on .set-card-t::before { border: 5px solid #111; }
+    .set-card-d { font-size: 0.79rem; color: #6b7280; line-height: 1.45; }
+    /* things to tick */
+    .set-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.65rem; }
+    .set-tile.wide { grid-column: 1 / -1; display: flex; align-items: stretch; }
+    .set-tile.wide .set-tile-main { flex: 1; min-width: 0; }
+    .set-tile.wide .set-tile-sub { width: auto; flex: none; border-top: 0; border-left: 1px solid #f0f0f0; padding: 0 1.15rem; white-space: nowrap; }
+    .set-tile { border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; overflow: hidden; transition: border-color 0.15s ease, background 0.15s ease; }
+    .set-tile:hover { border-color: #a1a1aa; }
+    .set-tile:not(.on) { background: #fafafa; }
+    .set-tile:not(.on) .set-label { color: #6b7280; }
+    .set-tile-main { display: flex; gap: 0.7rem; align-items: flex-start; width: 100%; text-align: left; border: 0; background: transparent; padding: 0.8rem 0.95rem 0.85rem; cursor: pointer; }
+    .set-tile-sub { display: flex; gap: 0.6rem; align-items: center; width: 100%; text-align: left; border: 0; border-top: 1px solid #f0f0f0; background: #fafafa; padding: 0.5rem 0.95rem; font-size: 0.8rem; color: #374151; cursor: pointer; }
+    .ck { position: relative; box-sizing: border-box; flex: none; width: 17px; height: 17px; margin-top: 0.12rem; border: 1.5px solid #d4d4d8; border-radius: 5px; background: #fff; transition: background 0.12s ease, border-color 0.12s ease; }
+    .set-tile-sub .ck { width: 15px; height: 15px; margin-top: 0; }
+    [aria-checked="true"] > .ck { background: #111; border-color: #111; }
+    [aria-checked="true"] > .ck::after { content: ''; position: absolute; left: 5px; top: 1.5px; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+    .set-tile-sub[aria-checked="true"] > .ck::after { left: 4px; top: 0.5px; }
+    .sw { position: relative; flex: none; width: 36px; height: 21px; border: 0; padding: 0; border-radius: 999px; background: #d9d9de; cursor: pointer; transition: background 0.15s ease; }
+    .sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 17px; height: 17px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.2); transition: transform 0.15s ease; }
+    .sw[aria-checked="true"] { background: #111; }
+    .sw[aria-checked="true"]::after { transform: translateX(15px); }
+    .set-row > .sel { flex: none; font-size: 0.82rem; }
+    .sw:focus-visible, .set-card:focus-visible, .set-tile-main:focus-visible, .set-tile-sub:focus-visible, .set-nav button:focus-visible { outline: 2px solid #111; outline-offset: 2px; }
+    .set-tile-main:focus-visible, .set-tile-sub:focus-visible { outline-offset: -2px; }
+    .set-off { font-size: 0.86rem; color: #6b7280; padding: 1.2rem 0; }
+    .in { animation: set-in 0.2s ease; }
+    @keyframes set-in { from { opacity: 0; transform: translateY(-5px); } }
+    @media (prefers-reduced-motion: reduce) { .in { animation: none; } .sw, .sw::after, .set-card, .set-tile { transition: none; } }
+    @media (max-width: 820px) { .set-layout { grid-template-columns: minmax(0, 1fr); gap: 0; } .set-nav { display: none; } .set-cards, .set-tiles { grid-template-columns: minmax(0, 1fr); } .set-tile.wide { display: block; } .set-tile.wide .set-tile-sub { width: 100%; border-left: 0; border-top: 1px solid #f0f0f0; padding: 0.5rem 0.95rem; } .set-main { padding-bottom: 2rem; } }
   </style>
 </head>
 <body>
@@ -437,6 +505,7 @@
       <button class="nav-link" data-tab="factory" title="The sessions as a pipeline: what each stage cost, the loops detected, the first-pass yield">Factory</button>
       <span class="nav-sep" aria-hidden="true"></span>
       <button class="nav-link" data-tab="activity" title="Every decision taken here, and what still needs you">Recent activity<span class="badge" id="act-badge" hidden></span></button>
+      <button class="nav-link" data-tab="settings" title="How thinker works: what it may change on its own, what it hands to a cheaper model, what it learns and what it tells you">Settings</button>
     </div>
   </nav>
   <div id="scan-progress" class="scan-progress" hidden>
@@ -504,6 +573,20 @@
       </div>
       <div id="activity-prs" class="section" hidden></div>
       <div id="activity-body" class="section"><div class="empty"><span class="spinner"></span>Reading…</div></div>
+    </section>
+
+    <!-- Settings: how thinker works, set by hand (settings.js:settingsView, as `thinker settings`): what it may change on
+         its own, what is handed to a cheaper model, learning, what it tells you, what leaves the machine. For the machine,
+         or for one repository with its own values over the machine's (`thinker settings --here`). A setting sits under the
+         one it depends on and is not drawn while that one is off -->
+    <section id="tab-settings" hidden>
+      <div class="ctx-top"><div><h1>Settings</h1>
+      <p class="lede">How thinker works. A change applies from your next session.</p></div>
+      <div class="controls">
+        <div class="seg" id="s-scope" role="tablist" aria-label="Settings for"><button type="button" data-scope="machine" class="on" role="tab" aria-selected="true">This machine</button><button type="button" data-scope="repo" role="tab" aria-selected="false">One repository</button></div>
+        <select class="sel" id="s-repo" aria-label="Repository" hidden></select>
+      </div></div>
+      <div id="settings-body" class="section"><div class="empty"><span class="spinner"></span>Reading…</div></div>
     </section>
   </main>
   <div class="toast" id="toast"></div>
@@ -575,7 +658,7 @@ const H = () => new URLSearchParams(location.hash.slice(1));
 const hashRepo = () => { const r = H().get('repo'); return r === 'here' ? '' : r || 'all'; };
 // and which tab, normalized as show() does (the old History view is Recent activity; a tab the page no longer has,
 // an unknown one and no tab at all are the chat), so `repo=` reaches the tab that opens
-const hashTab = () => { const t = H().get('tab'); return ['save', 'changes'].includes(t) && H().get('view') === 'history' ? 'activity' : ['factory', 'activity', 'chat'].includes(t) ? t : 'chat'; };
+const hashTab = () => { const t = H().get('tab'); return ['save', 'changes'].includes(t) && H().get('view') === 'history' ? 'activity' : ['factory', 'activity', 'settings', 'chat'].includes(t) ? t : 'chat'; };
 // the repositories with a cache (/api/repos); REPO is the Factory's, from the link alone: the chat and the Factory
 // lost their repository dropdown on 2026-11-21 (the owner's call), so both cover every repository unless the link
 // (`thinker ui --here`) names one. Recent activity keeps its own picker.
@@ -610,13 +693,13 @@ function show(tab) {
   // makes those decisions itself and says what it did beside the chat. An old link to either, and any tab the page
   // does not know, opens the chat; Save's old History view (view=history) is Recent activity, as since 2026-10-24.
   if (['save', 'changes'].includes(tab) && H().get('view') === 'history') tab = 'activity';
-  if (!['factory', 'activity', 'chat'].includes(tab)) tab = 'chat';
+  if (!['factory', 'activity', 'settings', 'chat'].includes(tab)) tab = 'chat';
   document.querySelectorAll('.nav-link[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  for (const k of ['chat', 'factory', 'activity']) $(`#tab-${k}`).hidden = tab !== k;
+  for (const k of ['chat', 'factory', 'activity', 'settings']) $(`#tab-${k}`).hidden = tab !== k;
   TAB = tab;
   scanProgress(null);
   history.replaceState(null, '', `#tab=${tab}`);
-  if (tab === 'chat') loadHome(); else if (tab === 'factory') loadFactory(); else loadActivity();
+  if (tab === 'chat') loadHome(); else if (tab === 'factory') loadFactory(); else if (tab === 'settings') loadSettings(); else loadActivity();
 }
 function segOn(sel, on) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b === on)); }
 
@@ -1070,6 +1153,93 @@ async function fetchRepos() {
   const r = await api('/api/repos');
   REPOS = r.repos;
 }
+// ---- Settings (settings.js:settingsView, as `thinker settings`): the settings are the server's, in its order and with
+// its word on which are shown, so the page and the command can never hold two lists. A change is one POST and the answer
+// is the view after it: what depended on the setting just switched off is gone from the next drawing, and what comes
+// back (its value was kept) fades in. Only how a setting is drawn is the page's: a row, a card of three, a tile to tick.
+let SSCOPE = 'machine', SREPO = '', SSEEN = new Set();
+const settingsRepo = () => (SSCOPE === 'machine' ? 'all' : SREPO);
+const setHelp = t => esc(t).replace(/`([^`]+)`/g, '<code>$1</code>');
+// the machine's settings need no list of repositories, and that list can take a while on a fresh start (it is read
+// from the agents' transcripts): the settings are drawn at once and "One repository" comes alive when the list is in
+function settingsScope() {
+  if (!REPOS.some(r => r.id === SREPO)) SREPO = (REPOS.find(r => r.current) || REPOS[0] || {}).id || '';
+  if (!SREPO) SSCOPE = 'machine';
+  for (const b of $('#s-scope').children) { const on = b.dataset.scope === SSCOPE; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); if (b.dataset.scope === 'repo') b.disabled = !SREPO; }
+  $('#s-repo').hidden = SSCOPE !== 'repo';
+  $('#s-repo').innerHTML = REPOS.map(r => `<option value="${esc(r.id)}"${r.id === SREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
+}
+async function loadSettings() {
+  settingsScope();
+  if (!REPOS.length) fetchRepos().then(() => { if (TAB === 'settings') settingsScope(); }).catch(() => {});
+  try { renderSettings(await api(`/api/settings?repo=${encodeURIComponent(settingsRepo())}`)); }
+  catch (e) { $('#settings-body').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+function renderSettings(v) {
+  const before = SSEEN, fresh = id => (before.size && !before.has(id) ? ' in' : '');
+  SSEEN = new Set();
+  const val = o => esc(JSON.stringify(o.value)), checked = on => (on ? 'true' : 'false');
+  // in one repository: a setting that is the whole machine's says so, and so does one this repository set for itself
+  const tag = i => (v.scope !== 'repo' ? '' : i.where === 'machine' ? '<span class="set-tag" title="One value for every repository">whole machine</span>' : i.from === 'repo' ? '<span class="set-tag" title="Set for this repository; elsewhere the machine\'s value holds">set here</span>' : '');
+  const text = i => `<span class="set-text"><span class="set-label">${esc(i.label)}${tag(i)}</span>${i.help ? `<span class="set-help">${setHelp(i.help)}</span>` : ''}${i.note ? `<span class="set-help set-note">${esc(i.note)}</span>` : ''}</span>`;
+  const control = i => i.kind === 'switch'
+    ? `<button class="sw" type="button" role="switch" aria-checked="${checked(i.value)}" aria-label="${esc(i.label)}" data-set="${esc(i.id)}"></button>`
+    : `<select class="sel" aria-label="${esc(i.label)}" data-set="${esc(i.id)}">${i.options.map(o => `<option value="${val(o)}"${o.value === i.value ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`;
+  const group = g => {
+    const shown = g.items.filter(i => i.shown), kids = id => shown.filter(i => i.parent === id);
+    if (!shown.length) return '';
+    const oneOf = i => `<div class="set-cards" role="radiogroup" aria-label="${esc(i.label)}">${i.options.map(o => `<button type="button" role="radio" aria-checked="${checked(o.value === i.value)}" class="set-card${o.value === i.value ? ' on' : ''}" data-set="${esc(i.id)}" data-value="${val(o)}"><span class="set-card-t">${esc(o.label)}</span>${o.about ? `<span class="set-card-d">${esc(o.about)}</span>` : ''}</button>`).join('')}</div>`;
+    // a tile, and under its tick what depends on it
+    const tile = i => { SSEEN.add(i.id); return `<div class="set-tile${i.value ? ' on' : ''}${g.items.some(k => k.parent === i.id) ? ' wide' : ''}"><button type="button" class="set-tile-main" role="switch" aria-checked="${checked(i.value)}" data-set="${esc(i.id)}"><span class="ck" aria-hidden="true"></span>${text(i)}</button>${kids(i.id).map(k => { const f = fresh(k.id); SSEEN.add(k.id); return `<button type="button" class="set-tile-sub${f}" role="switch" aria-checked="${checked(k.value)}" data-set="${esc(k.id)}"><span class="ck" aria-hidden="true"></span>${esc(k.label)}</button>`; }).join('')}</div>`; };
+    const list = items => {
+      let html = '';
+      for (let n = 0; n < items.length; n++) {
+        const i = items[n], f = fresh(i.id);
+        if (i.section) html += `<div class="set-sub${f}">${esc(i.section)}</div>`;
+        if (i.as === 'tile') { const run = [i]; while (items[n + 1] && items[n + 1].as === 'tile' && !items[n + 1].section) run.push(items[++n]); html += `<div class="set-tiles${f}">${run.map(tile).join('')}</div>`; continue; }
+        SSEEN.add(i.id);
+        const under = kids(i.id);
+        if (i.as === 'cards') { html += oneOf(i) + list(under); continue; }
+        html += `<div class="set-row${f}">${text(i)}${control(i)}</div>${under.length ? `<div class="set-kids${fresh(under[0].id)}">${list(under)}</div>` : ''}`;
+      }
+      return html;
+    };
+    return `<section class="set-group" id="set-${esc(g.id)}"><h2 class="set-gtitle">${esc(g.title)}</h2>${g.about ? `<p class="set-gabout">${esc(g.about)}</p>` : ''}${list(kids(null))}</section>`;
+  };
+  const groups = v.groups.map(g => [g, group(g)]).filter(([, html]) => html);
+  // one repository has a switch of its own over everything (repo-switch.js, `thinker disable`)
+  const whole = v.scope === 'repo' ? `<section class="set-group"><div class="set-row"><span class="set-text"><span class="set-label">Thinker in ${esc(v.repo)}</span><span class="set-help">Off, nothing is served or learned in this repository and nothing is written into it.</span></span><button class="sw" type="button" role="switch" aria-checked="${checked(v.on)}" aria-label="Thinker in ${esc(v.repo)}" data-set="repo.on"></button></div></section>` : '';
+  $('#settings-body').innerHTML = `<div class="set-layout"><div class="set-nav" role="navigation" aria-label="Settings sections">${groups.map(([g]) => `<button type="button" data-goto="set-${esc(g.id)}">${esc(g.title)}</button>`).join('')}</div><div class="set-main">${whole}${groups.map(([, html]) => html).join('')}</div></div>`;
+  settingsSpy();
+}
+// the name beside the column that is the group now under the eye
+function settingsSpy() {
+  const groups = [...document.querySelectorAll('#settings-body .set-group[id]')];
+  let cur = groups[0];
+  for (const g of groups) if (g.getBoundingClientRect().top < 150) cur = g;
+  document.querySelectorAll('#settings-body .set-nav button').forEach(b => b.classList.toggle('on', Boolean(cur) && b.dataset.goto === cur.id));
+}
+addEventListener('scroll', () => { if (TAB === 'settings') settingsSpy(); }, { passive: true });
+async function changeSetting(id, value) {
+  try {
+    const r = await api('/api/settings', { repo: settingsRepo(), id, value });
+    renderSettings(r.view);
+    // the control that was used keeps the keyboard: the page was drawn again under it
+    const again = [...document.querySelectorAll('#settings-body [data-set]')].filter(e => e.dataset.set === id);
+    (again.find(e => e.classList.contains('on')) || again[0])?.focus({ preventScroll: true });
+    toast(r.said);
+  } catch (e) { toast(e.message, true); loadSettings(); }
+}
+$('#settings-body').addEventListener('click', e => {
+  const go = e.target.closest('button[data-goto]');
+  if (go) { document.getElementById(go.dataset.goto)?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); return; }
+  const b = e.target.closest('button[data-set]'); if (!b) return;
+  if (b.getAttribute('role') === 'switch') { const to = b.getAttribute('aria-checked') !== 'true'; b.setAttribute('aria-checked', to); changeSetting(b.dataset.set, to); }
+  else if (!b.classList.contains('on')) changeSetting(b.dataset.set, JSON.parse(b.dataset.value));
+});
+$('#settings-body').addEventListener('change', e => { const s = e.target.closest('select[data-set]'); if (s) changeSetting(s.dataset.set, JSON.parse(s.value)); });
+$('#s-scope').onclick = e => { const b = e.target.closest('button[data-scope]'); if (!b || b.disabled || b.dataset.scope === SSCOPE) return; SSCOPE = b.dataset.scope; SSEEN = new Set(); loadSettings(); };
+$('#s-repo').onchange = e => { SREPO = e.target.value; SSEEN = new Set(); e.target.blur(); loadSettings(); };
 // ---- Factory (factory.js, as `thinker factory`): read from the kept report `thinker report` prints, so a figure here
 // can never contradict the command. The canvas lays the detected loops out itself: shorter routes take the inner lanes,
 // sides alternate, a lane holds only loops whose spans and labels do not overlap, and loops sharing a stage edge spread

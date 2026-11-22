@@ -8,7 +8,7 @@ import { spawn } from 'node:child_process';
 import { pluginYields, pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, seenHits, searchedIdentifier, promptOutput, toolOutput, stopOutput, parkPending, takePending, agyTurnPrompt } from '../clients.js';
 import { dietConfig, dietResult, rememberTerms } from '../diet.js';
 import { Store, findRepoRoot } from '../store.js';
-import { isDisabledRepo } from '../repo-switch.js';
+import { isDisabledRepo, layeredConfig } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
 import { preToolHook, windowTool, noteSubagent } from '../delegate.js';
 import { beginTurn, currentTurn, isHarnessEvent, sessionState, locked } from '../session-state.js';
@@ -67,7 +67,7 @@ async function hookCommand(ctx) {
   const out = s => { printed = true; ctx.out(s); };
   const cli = path.join(HERE, 'cli.js');
   // the user-facing notice at the end of a turn; THINKER_NOTICE=off or `notice: false` in the config turns it off
-  const noticeOn = s => process.env.THINKER_NOTICE !== 'off' && s.config().notice !== false && s.config().notice !== 'off';
+  const noticeOn = s => process.env.THINKER_NOTICE !== 'off' && (n => n !== false && n !== 'off' && n?.enabled !== false)(layeredConfig(s, 'notice'));
   // model calls made by thinker run agents too; their hooks must do nothing
   let ev = {};
   try { ev = JSON.parse(readStdin() || '{}'); } catch {}

@@ -71,6 +71,8 @@ export const DELEGATE_SESSION_MARK = 'claude-delegate';
 
 export const DELEGATE_DEFAULTS = Object.freeze({
   enabled: true,      // on (the owner's call, 2026-11-16; off from 2026-11-12 until then): THINKER_DELEGATE=off or `delegate: false` switches it off
+  reads: true,        // big reads are handed over; `delegate: { reads: false }` keeps them with the lead (settings.js)
+  suites: true,       // whole-suite test runs are handed over; `delegate: { suites: false }` keeps them with the lead
   handoff: true,      // the host's own subagent does the work; the denial names it (the only path, 2026-11-12)
   fallback: false,    // thinker's own `claude -p` subagent where the host has none. Off: it is a second billing
                       // path, a second credential and invisible to the host. `delegate: { fallback: true }` asks for it.
@@ -348,6 +350,9 @@ export function decide(st, { prompt, read, suite, cfg = DELEGATE_DEFAULTS, hando
   st.delegate = d;
   const spentOn = kind => handoff && (d.handoffs[kind] || 0) >= (kind === 'explore' ? cfg.handoffsPerTurn ?? 5 : 1);
   const handedOver = key => Boolean(handoff && d.handed && d.handed[key]);
+  // each kind has its own switch under `enabled` (settings.js: a person may hand over reads and keep the suite, or the reverse)
+  if (suite && cfg.suites === false) return { fire: false };
+  if (!suite && cfg.reads === false) return { fire: false };
   if (suite) {
     const key = 'suite:' + suite, handed = handedOver(key);
     const spent = spentOn('verify') || handed;

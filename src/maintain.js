@@ -10,6 +10,7 @@ import path from 'node:path';
 import { readLog } from './usage.js';
 import { formatTokens } from './model-usage.js';
 import { isTestMode } from './test-mode.js';
+import { layeredConfig } from './repo-switch.js';
 import { pruneState } from './state-prune.js';
 import { syncPrs, ghAvailable, WINDOW_DAYS as DELIVERY_WINDOW_DAYS } from './delivery.js';
 import { recordError } from './error-report.js';
@@ -33,7 +34,7 @@ export const PRS_SYNC_INTERVAL_MS = 24 * 60 * 60_000;
 const LOCK_MS = 15 * 60_000;
 
 export function maintainConfig(store) {
-  const c = store.config().maintain;
+  const c = layeredConfig(store, 'maintain');
   return { ...DEFAULTS, ...(c && typeof c === 'object' ? c : {}) };
 }
 
@@ -55,7 +56,7 @@ export function spentToday(store, now = new Date()) {
 // now, except that a `dailyCap` of 0 or false still means no cap.
 export function withinDailyCap(store, { now = new Date(), spentFn = spentToday } = {}) {
   const cfg = maintainConfig(store);
-  const set = store.config().maintain;
+  const set = layeredConfig(store, 'maintain');
   const legacyOff = 'dailyCap' in cfg && !cfg.dailyCap && !(set && typeof set === 'object' && 'dailyTokens' in set);
   const cap = legacyOff ? 0 : Number(cfg.dailyTokens);
   if (!Number.isFinite(cap) || cap <= 0) return { ok: true, spent: 0, cap: 0 };

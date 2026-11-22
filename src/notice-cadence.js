@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { isTestMode } from './test-mode.js';
+import { layeredConfig } from './repo-switch.js';
 
 export const NOTICE_PROMPTS = 20;
 export const NOTICE_HOURS = 24;
@@ -50,9 +51,8 @@ export function writeNoticeLast(store, text, { now = Date.now() } = {}) {
 // `notice: { everyPrompts, everyHours }` in .thinker/config.json moves the floors; 0 drops one of
 // them. `notice: false` or `"off"` still turns the notices off outright (commands/hooks.js:noticeOn).
 export function noticeCadence(store) {
-  let cfg = {};
-  try { cfg = store?.config?.() || {}; } catch {}
-  const n = cfg.notice && typeof cfg.notice === 'object' ? cfg.notice : {};
+  const set = layeredConfig(store, 'notice');
+  const n = set && typeof set === 'object' ? set : {};
   const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : d);
   return { prompts: num(n.everyPrompts, NOTICE_PROMPTS), hours: num(n.everyHours, NOTICE_HOURS) };
 }

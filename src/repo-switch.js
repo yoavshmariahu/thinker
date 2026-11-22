@@ -9,6 +9,7 @@ import path from 'node:path';
 import { repoId, isGitCheckout } from './store.js';
 import { thinkerHome } from './update.js';
 import { mergeManaged } from './managed.js';
+import { isTestMode } from './test-mode.js';
 
 const file = home => path.join(home || thinkerHome(), 'config.json');
 // The machine's settings as they are in force: its own file, with whatever its fleet operator set over it
@@ -25,6 +26,18 @@ export function updateMachineConfig(home, fn) {
   const cfg = fn(read()) || read();
   writeMachineConfig(home, cfg);
   return cfg;
+}
+// A block a person may set for the machine or for one repository (`learn`, `notice`, `maintain`: settings.js): the
+// machine's, with the repository's own over it, key by key. Until 2026-11-21 these three were the repository's
+// alone, so "learn nothing from my sessions" had to be said once a checkout. A test that names no home never
+// reads the person's own file: what they set on their machine is not a test's input.
+export function layeredConfig(store, key, { home } = {}) {
+  let m, r;
+  if (home || process.env.THINKER_HOME || !isTestMode()) { try { m = readMachineConfig(home)[key]; } catch {} }
+  try { r = store?.config?.()?.[key]; } catch {}
+  if (r === undefined) return m;
+  const obj = v => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
+  return obj(m) && obj(r) ? { ...m, ...r } : r;
 }
 function writeMachineConfig(home, cfg) {
   const f = file(home);
