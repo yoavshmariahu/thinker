@@ -48,7 +48,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 
 **Tests (rebuilt 2026-11-22, the owner: "they are currently low signal and slow"):**
 - `npm test` runs every file in `test/`, every time, in a few seconds. `npm test -- test/file.test.js` runs named files. There is no selection.
-- One file per core feature: `cutting` (the policy and the desktop door), `proxy-cut` (the cut on the wire), `savings` (the accountant), `delegation`, `instructions`, `chat`, `upkeep`. The clearing mod has its own: `claude plugin test src/integrations/claude-clear`.
+- One file per core feature: `cutting` (the policy and the desktop door), `proxy-cut` (the cut on the wire), `recap` (no cut while the person is away), `savings` (the accountant), `delegation`, `instructions`, `chat`, `upkeep`. The clearing mod has its own: `claude plugin test src/integrations/claude-clear`.
 - A test is a behavior a person would notice broken, driven through the function the door calls, with the model, `gh`, the clock and any child process injected. It must go red when one line of the product is broken; a test that cannot is not added.
 - Not tests: wording, history, internals read out of source text, a tunable's literal value. A check of the source is allowed only where the rule is about the source: one accountant, the mod holding no policy, every proxy setting honoured or exempt at the desktop door.
 - `test/helpers.js` is imported first by every test file: a throwaway home, test mode, no telemetry, a git that knows nothing of the machine. A file stays around a second and under about 400 lines.
