@@ -5,7 +5,7 @@ import {jevKey,JEV_ENDPOINT} from '../../src/jev.js';
 import {jevEvaluate} from './transport.mjs';
 import {questionsFor} from './questions.mjs';import {ACTIONS} from './policy.mjs';
 export const hash=v=>createHash('sha256').update(Buffer.isBuffer(v)?v:JSON.stringify(v)).digest('hex');
-export const save=(p,x)=>fs.writeFileSync(p,JSON.stringify(x,null,2)+'\n');
+export const save=(p,x)=>fs.writeFileSync(p,JSON.stringify(x,(k,v)=>k==='key'?'<redacted>':v,2)+'\n');
 export function preflight(protocol){
  if(execFileSync('codex',['--version'],{encoding:'utf8'}).trim()!=='codex-cli '+protocol.models.codexCLI)throw Error('CLI mismatch');
  if(!jevKey()||JEV_ENDPOINT!=='https://api.typesafe.ai/v1/systemone')throw Error('Personal key and direct endpoint required');
