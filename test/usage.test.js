@@ -13,6 +13,47 @@ function withEnv(vars, fn) {
 }
 const repo = () => new Store(tmp('thinker-usage-')).init();
 
+// 2026-11-21. A telemetry report was built against a copy of a machine's logs, THINKER_HOME on the copy. The copy
+// named the person's home directory as a checkout, so the machine's real log was taken for that checkout's local
+// log and moved into the copy; the next run did the same to the log the hooks had started in its place, and wrote
+// it over the first. Ten weeks of usage, read back out of a running page server's memory.
+test('a read moves no log, the machine\'s log is never a local log, and a moved log is never written over', () => {
+  const home = tmp('thinker-home-'), account = tmp('thinker-account-');
+  const row = (session, t) => JSON.stringify({ t, op: 'request', session, task: 'q' }) + '\n';
+  withEnv({ THINKER_HOME: home, THINKER_LOG: undefined, HOME: account }, () => {
+    const one = repo(), local = path.join(one.dir, 'log.jsonl'), moved = n => path.join(one.dir, 'state', `log-before-shared${n ? `.${n}` : ''}.jsonl`);
+    fs.writeFileSync(local, row('old-1', '2026-01-01T00:00:00.000Z'));
+
+    // looking at a checkout from somewhere else -- what usage and telemetry do to every checkout on the machine
+    readLog(new Store(one.repo, { readonly: true }), { all: true });
+    assert.equal(fs.readFileSync(local, 'utf8'), row('old-1', '2026-01-01T00:00:00.000Z'), 'a store opened to read left the log where it was');
+    assert.equal(fs.existsSync(moved()), false);
+
+    // the checkout itself still brings its old log into the machine's, once
+    assert.deepEqual(readLog(one).map(e => e.session), ['old-1']);
+    assert.equal(fs.existsSync(local), false); assert.ok(fs.existsSync(moved()));
+
+    // and if it ever has one again, what was moved the first time is still there afterwards
+    fs.writeFileSync(local, row('old-2', '2026-01-02T00:00:00.000Z'));
+    assert.deepEqual(readLog(one).map(e => e.session), ['old-1', 'old-2']);
+    assert.match(fs.readFileSync(moved(), 'utf8'), /old-1/, 'the first moved log was not written over');
+    assert.match(fs.readFileSync(moved(2), 'utf8'), /old-2/);
+
+    // The person's home directory as a checkout: sessions run there, so a log names it. Its `.thinker` is the
+    // machine's own home and the `log.jsonl` in it is the machine's log, even while THINKER_HOME points elsewhere.
+    const machine = path.join(account, '.thinker', 'log.jsonl');
+    fs.mkdirSync(path.dirname(machine), { recursive: true });
+    fs.writeFileSync(machine, row('real-1', '2026-02-01T00:00:00.000Z') + row('real-2', '2026-02-02T00:00:00.000Z'));
+    const before = fs.statSync(machine);
+    readLog(new Store(account), { all: true });
+    const after = fs.statSync(machine);
+    assert.equal(after.ino, before.ino, 'the machine\'s log is the same file');
+    assert.equal(fs.readFileSync(machine, 'utf8').split('\n').filter(Boolean).length, 2, 'with every row it had');
+    assert.equal(fs.existsSync(path.join(account, '.thinker', 'state', 'log-before-shared.jsonl')), false);
+    assert.ok(!fs.readFileSync(path.join(home, 'log.jsonl'), 'utf8').includes('real-1'), 'and none of it was copied into the other home');
+  });
+});
+
 test('usage is kept in one log for the machine and summarized across repositories', () => {
   const home = tmp('thinker-home-');
   withEnv({ THINKER_HOME: home, THINKER_LOG: undefined }, () => {
