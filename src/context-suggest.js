@@ -1,33 +1,26 @@
 import { readScopedState, writeScopedState, machineUndoDir } from './scoped-state.js';
-// The Context view's five highest-leverage changes (context-view.js), each with a suggested action, put to the person
-// in their coding session. Once a week maintenance reads the report and keeps the top five here; the next prompt's
-// hook tells the agent to put the five to the person as a question, with its own question tool, and to record their
-// answer either way (contextSuggestOffer; prose the agent was asked to relay until 2026-10-27). Every part of the
-// context with the actions that can be taken on it is `allChanges`: a section compressed or removed, a skill or tool
-// switched off or back on; every decision is kept as the page's Recent activity with a Revert.
-// `thinker context --approve|--dismiss|--history` is the same over the top five. Until 2026-11-21 the question carried
-// a link to the page's Find Savings tab, where each part was a row; the owner had that page removed (thinker makes
-// these decisions itself, upkeep.js), and the detail the link stood for is `thinker context`.
-// Nothing is changed until the person chooses. Ranking and scheduling make no model call; compressing a section does,
-// and that call happens in a job of its own whichever door the person answered through (approveChanges), so none of
-// them -- the session, the command, the installer -- waits it out or writes the file without a pull request.
+// The changes the Context view finds to what loads into every prompt (context-view.js), each with a suggested action,
+// and the decisions on them. Every part of the context with the actions that can be taken on it is `allChanges`: a
+// section compressed or removed, a skill or tool switched off or back on; every decision is kept as Recent activity
+// with its undo. Thinker makes the ones that clearly pay by itself, in batches (upkeep.js, the door `thinker`);
+// `thinker context --approve|--dismiss|--history` is the person's own door over the top five.
+// Ranking makes no model call; compressing a section does, and that call happens in a job of its own whichever door
+// the decision came through (approveChanges), so nothing waits it out or writes the file without a pull request.
 //
 //   topChanges                    the ranking (context-view.js keeps it on the report)
 //   allChanges                    every part as a change with its options, whatever its waste
-//   currentChanges                the top five not dismissed or decided lately: the summary, the command
-//   scheduleContextSuggestion     maintenance: at most weekly, the five kept in <cache>/state/context-suggest.json
-//   contextSuggestOffer           the prompt hook: once, the summary, for the agent to pass on
-//   approveChanges, dismissChanges, revertDecision   the person's decisions, kept as the history (changeHistory), and taken back
+//   currentChanges                the largest not dismissed or decided lately: the command's five, a batch's twenty
+//   approveChanges, dismissChanges, revertDecision   the decisions, kept as the history (changeHistory), and taken back
 //   startSectionJob, runSectionJob, retryJob   a section's change as a job in the background: recorded at once, made by
-//                                    `thinker instructions … --job`, a pull request when done (instruction-pr.js) or failed with Retry
+//                                    `thinker instructions … --job`, a pull request when done (instruction-pr.js) or failed
 //   refreshPrStates               a pull request's state followed: open is pending, merged done, closed without merging rejected
 //                                    and suggested again; a merged one that this checkout has not pulled is `unpulled`
 //                                    (changeHistory, with `pullFrom`, the branch to pull): its section is not suggested
 //                                    again, and Recent activity says to pull and tints the decisions waiting on it
-//   ensureUi                      a detached `thinker ui --background` for the machine, reused while it runs (no door
-//                                    starts one since the question lost its link, 2026-11-21; kept for the next that does)
 //
-// `maintain: { contextSuggest: false }` in .thinker/config.json turns it off for a repository.
+// Until 2026-11-21 the top five were also put to the person once a week as a question in their session, and before
+// that on the page's Find Savings tab; both went when the owner had thinker make these decisions itself (see "The
+// weekly question, retired" below).
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
@@ -35,36 +28,19 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { thinkerHome } from './update.js';
 import { formatTokens } from './model-usage.js';
-import { formatDollars } from './prices.js';
-import { SIGNATURE } from './harness.js';
 import { sections, sectionId } from './instruction-value.js';
 import { describePart, describeEntry } from './part-describe.js';
 import { defaultBranch, prAvailable } from './instruction-pr.js';
-import { QUESTION_TOOLS, MCP_CLIENTS, askThrough, askInChat } from './repo-onboard.js';
 
 export const SUGGEST = {
   max: 5,
   days: 7,            // the window the changes are ranked and their totals counted over
-  everyDays: 7,       // a new summary at most this often
-  firstSessions: 10,  // and only once the repository has this many sessions to read
-  answerDays: 3,      // a summary not passed on in this long (no prompt here) is dropped
   minSaving: 15,      // a change saving fewer input tokens on an average prompt is not worth a line (500 a session
                       // until 2026-10-25, when the unit became a prompt: about 15 of them at this machine's median calls)
-  // What a question must carry before it interrupts anyone (2026-11-04). A line is worth printing at `minSaving`; a
-  // question stops a person in the middle of their own task, and has to be worth more than that. Both floors: a single
-  // change is never a question -- "1 -- compress repeated tool output, or none?" is what a desktop session was asked
-  // mid-answer on 2026-11-04, a picker with one option and no room to say what it meant -- and two changes worth a
-  // rounding error are not one either. Below them the summary is still put in the prompt, as a line, with nothing to
-  // answer: `thinker context` is where the detail is.
-  minAsk: 2,          // changes a question must carry
-  askSaving: 1000,    // and input tokens in every prompt they must save together (real summaries here: 8.7k-36k)
-  // How long a dismissal holds (2026-11-04, the owner's call: a month was too long). A change left alone comes back
-  // in the next weekly summary, so this is one day under `everyDays` and not equal to it: the hold runs from the
-  // moment the person answered, which is some time *after* the summary they answered was built, so a 7-day hold
-  // would outlive the next summary and the change would skip a week. Short of the cadence, it always expires first.
-  // It is not 0 either: `thinker context` typed an hour after a dismissal would print what was just dismissed.
+  // How long a dismissal holds (2026-11-04, the owner's call: a month was too long): under a week, so a change left
+  // alone is listed again within the week, and not 0, or `thinker context` typed an hour after a dismissal would print
+  // what was just dismissed.
   dismissedDays: 6,
-  uiWaitMs: 3000,     // how long ensureUi waits for the page to start
 };
 const DAY = 86_400_000;
 const DECIDED_DAYS = 30; // a change approved is not suggested again for this long (a dismissal: SUGGEST.dismissedDays)
@@ -106,7 +82,7 @@ function partChanges(view, { all = false } = {}) {
     kind: 'section', view: 'instructions', waste: s.waste, key: `section:${s.file}:${s.id}`, id: s.id, file: s.file, repo: s.repo,
     title: `${s.file} · ${s.parent ? `${s.parent}: ` : ''}${s.title}`, saving: s.wasted, windowSaving: s.wastedWindow, text: String(s.text || '').slice(0, 1500),
     why: `${s.usedShare != null ? `needed in ${Math.round(100 * s.usedShare)}% of prompts` : 'rarely acted on'}; ~${formatTokens(s.tokens)} tokens in every model call`,
-    action: 'compress or remove the section', sessions: view.instructions?.sessions || 0, prompts: s.prompts || 0, options: [ACTS.compress, ACTS.remove], ...describePart({ kind: 'section', text: s.text }),
+    action: 'compress or remove the section', sessions: view.instructions?.sessions || 0, prompts: s.prompts || 0, usedShare: s.usedShare ?? null, options: [ACTS.compress, ACTS.remove], ...describePart({ kind: 'section', text: s.text }),
   });
   // a skill or tool thinker switched off has one action, back on (by the key the switch-off kept); one nothing switches
   // off has none
@@ -143,7 +119,6 @@ function partChanges(view, { all = false } = {}) {
     total: c.windowSaving ?? (c.saving || 0) * (c.prompts || c.sessions), days: view.days }));
 }
 
-const configOn = store => store.config().maintain?.contextSuggest !== false;
 
 // The decisions on the changes (<cache>/state/context-suggest.json `history`, newest first): approved (its suggested
 // action made), applied after review, or dismissed, with what came of it.
@@ -249,10 +224,10 @@ const undoOf = (store, e) => e.decision === 'dismissed' ? { kind: 'dismissed' } 
 // `thinker`: through upkeep.js -- thinker acting by itself at a check, or the person saying so in Recent activity or the chat
 export const VIA = { session: 'session', page: 'page', setup: 'setup', command: 'command', thinker: 'thinker' };
 const viaOf = v => VIA[String(v)] || VIA.command;
-const entryOf = (store, c, decision, result, now, undo, { group = null, tokens = null, via = null } = {}) => {
+const entryOf = (store, c, decision, result, now, undo, { group = null, tokens = null, via = null, batch = null } = {}) => {
   const id = (c.scope === 'machine' ? 'machine-' : '') + randomBytes(6).toString('hex');
   if (undo && !group) writeJson(undoFile(store, id), undo);
-  return { id, ...(c.scope === 'machine' ? { scope: 'machine' } : {}), ...(group ? { group } : {}), at: new Date(now).toISOString(), ...(via ? { via } : {}), key: c.key, ...(c.keys ? { keys: c.keys } : {}), kind: c.kind, title: c.title, ...(c.what ? { what: c.what } : {}), ...(c.about ? { about: c.about } : {}), ...(c.kind === 'section' && c.file ? { file: c.file } : {}), ...(tokens ? { tokens } : {}), saving: c.saving, total: c.total, days: c.days ?? null, action: c.default?.text || null, act: c.default?.act || null, decision, result: result || null, ...(undo ? { revertible: true } : {}) };
+  return { id, ...(c.scope === 'machine' ? { scope: 'machine' } : {}), ...(group ? { group } : {}), ...(batch ? { batch } : {}), at: new Date(now).toISOString(), ...(via ? { via } : {}), key: c.key, ...(c.keys ? { keys: c.keys } : {}), kind: c.kind, title: c.title, ...(c.what ? { what: c.what } : {}), ...(c.about ? { about: c.about } : {}), ...(c.kind === 'section' && c.file ? { file: c.file } : {}), ...(tokens ? { tokens } : {}), saving: c.saving, total: c.total, days: c.days ?? null, action: c.default?.text || null, act: c.default?.act || null, decision, result: result || null, ...(undo ? { revertible: true } : {}) };
 };
 // a section's tokens before and after its edit (instruction-edit.js:previewEdit `sections`), kept on the entry so the
 // Report can cost the section a session on each side (report.js:actionEffect)
@@ -302,20 +277,29 @@ export function recordReviewed(store, change, result, { now = Date.now(), undo =
 // applied together are one job, one pull request, one undo, and a line each (the owner's ask, 2026-10-24: no actions
 // bundled into one row): reverting any one of them puts the whole file back, or closes the pull request, and marks the
 // others reverted with it.
-export function startSectionJob(store, changes, action, { pr = false, now = Date.now(), spawnFn = spawn, cliPath = CLI, via = VIA.page } = {}) {
-  const ids = [...new Set(changes.map(c => c.id).filter(Boolean))];
-  if (!ids.length || !['compress', 'remove'].includes(action)) return { error: 'no section to change' };
+// The command a job is: each list by its action, so a change that shortens some sections and removes others is one run.
+const SECTION_ACTS = ['compress', 'remove'];
+const jobArgs = (cliPath, ids, pr, group) => [cliPath, 'instructions', ...SECTION_ACTS.flatMap(a => (ids[a]?.length ? [`--${a}`, ids[a].join(',')] : [])), pr ? '--pr' : '--apply', '--job', group];
+// `action`: compress or remove for every section given, or `each` -- every section by its own suggested action, so a
+// batch of thinker's own is one job and one pull request whatever it holds (upkeep.js). `batch`: that batch's id, kept
+// on every entry.
+export function startSectionJob(store, changes, action, { pr = false, now = Date.now(), spawnFn = spawn, cliPath = CLI, via = VIA.page, batch = null } = {}) {
+  const actOf = c => (action === 'each' ? c.default?.act : action);
+  changes = changes.filter(c => SECTION_ACTS.includes(actOf(c)));
+  const ids = Object.fromEntries(SECTION_ACTS.map(a => [a, [...new Set(changes.filter(c => actOf(c) === a).map(c => c.id).filter(Boolean))]]));
+  const n = ids.compress.length + ids.remove.length;
+  if (!n) return { error: 'no section to change' };
   const group = randomBytes(6).toString('hex'), at = new Date(now).toISOString();
-  const es = changes.map(c => ({ ...entryOf(store, { ...c, default: ACTS[action] }, pr ? 'pull request' : 'applied', null, now, null, { group, via: viaOf(via) }), section: c.id, file: c.file, job: { state: 'running', action, pr, startedAt: at, pid: null, via: viaOf(via) } }));
+  const es = changes.map(c => ({ ...entryOf(store, { ...c, default: ACTS[actOf(c)] }, pr ? 'pull request' : 'applied', null, now, null, { group, via: viaOf(via), batch }), section: c.id, file: c.file, job: { state: 'running', action: actOf(c), pr, startedAt: at, pid: null, via: viaOf(via) } }));
   record(store, es);
-  const args = [cliPath, 'instructions', `--${action}`, ids.join(','), pr ? '--pr' : '--apply', '--job', group];
   let pid = null;
-  try { const child = spawnFn(process.execPath, args, { cwd: store.repo, detached: true, stdio: 'ignore' }); child.on?.('error', () => {}); child.unref?.(); pid = child.pid || null; }
+  try { const child = spawnFn(process.execPath, jobArgs(cliPath, ids, pr, group), { cwd: store.repo, detached: true, stdio: 'ignore' }); child.on?.('error', () => {}); child.unref?.(); pid = child.pid || null; }
   catch (e) { finishJob(store, group, j => ({ ...j, state: 'failed', error: `could not start: ${String(e.message || e).split('\n')[0]}`, finishedAt: at })); return { error: 'could not start the change', group }; }
   finishJob(store, group, j => ({ ...j, pid }));
-  store.log({ op: 'context-job', group, action, sections: ids.length, pr, state: 'started', via: viaOf(via) });
-  const n = ids.length, word = `${n} section${n === 1 ? '' : 's'}`;
-  return { group, said: action === 'compress' ? `Compressing ${word} in the background: ${pr ? 'a pull request opens with the change when the model is done' : 'the file in your working tree is rewritten when the model is done'}. Follow it under Recent activity.` : `Removing ${word}: ${pr ? 'a pull request opens with the change in a moment' : 'written to your working tree in a moment'}. Follow it under Recent activity.` };
+  const did = ids.compress.length && ids.remove.length ? 'each' : ids.remove.length ? 'remove' : 'compress';
+  store.log({ op: 'context-job', group, action: did, sections: n, pr, state: 'started', via: viaOf(via) });
+  const word = `${n} section${n === 1 ? '' : 's'}`;
+  return { group, said: did !== 'remove' ? `${did === 'each' ? 'Compressing or removing' : 'Compressing'} ${word} in the background: ${pr ? 'a pull request opens with the change when the model is done' : 'the file in your working tree is rewritten when the model is done'}. Follow it under Recent activity.` : `Removing ${word}: ${pr ? 'a pull request opens with the change in a moment' : 'written to your working tree in a moment'}. Follow it under Recent activity.` };
 }
 // every entry of the job rewritten by `fn` over its `job`, and `also` over the entry, from the state as it is now
 function finishJob(store, group, fn, also) {
@@ -338,7 +322,9 @@ export async function runSectionJob(store, { group, ids, action, pr = false }, {
     const prsMod = pr ? (prs || await import('./instruction-pr.js')) : null;
     const src = prsMod?.baseTexts ? prsMod.baseTexts(store.repo) : null;
     if (src?.error) return fail(src.error);
-    const p = await previewEdit(store, ids, action, src ? { texts: src.textOf, base: src } : {});
+    // each section by the action its own entry was started with (they differ in a batch of thinker's own)
+    const actions = Object.fromEntries(es.filter(e => e.section && e.job?.action).map(e => [e.section, e.job.action]));
+    const p = await previewEdit(store, ids, action, { ...(src ? { texts: src.textOf, base: src } : {}), actions });
     if (p.error) return fail(p.error);
     const done = { state: 'done', finishedAt: stamp(), tokens: p.modelTokens || null };
     const saving = es.reduce((s, e) => s + (e.saving || 0), 0);
@@ -366,173 +352,27 @@ export function retryJob(store, id, { now = Date.now(), spawnFn = spawn, cliPath
   if (!e) return { error: 'no such decision' };
   if (!e.failed) return { error: e.running ? 'still running' : 'nothing to retry' };
   const group = e.group, es = changeHistory(store, { now }).filter(h => h.group === group && h.job);
-  const ids = es.map(h => h.section).filter(Boolean), { action, pr } = e.job;
+  const { pr } = e.job, ids = Object.fromEntries(SECTION_ACTS.map(a => [a, es.filter(h => h.section && h.job.action === a).map(h => h.section)]));
+  const n = ids.compress.length + ids.remove.length, action = ids.compress.length && ids.remove.length ? 'each' : ids.remove.length ? 'remove' : 'compress';
   const at = new Date(now).toISOString();
-  finishJob(store, group, j => ({ state: 'running', action, pr, startedAt: at, pid: null, tries: (j.tries || 1) + 1 }));
+  finishJob(store, group, j => ({ state: 'running', action: j.action, pr, startedAt: at, pid: null, tries: (j.tries || 1) + 1 }));
   let pid = null;
-  try { const child = spawnFn(process.execPath, [cliPath, 'instructions', `--${action}`, ids.join(','), pr ? '--pr' : '--apply', '--job', group], { cwd: store.repo, detached: true, stdio: 'ignore' }); child.on?.('error', () => {}); child.unref?.(); pid = child.pid || null; }
+  try { const child = spawnFn(process.execPath, jobArgs(cliPath, ids, pr, group), { cwd: store.repo, detached: true, stdio: 'ignore' }); child.on?.('error', () => {}); child.unref?.(); pid = child.pid || null; }
   catch (err) { finishJob(store, group, j => ({ ...j, state: 'failed', error: `could not start: ${String(err.message || err).split('\n')[0]}`, finishedAt: at })); return { error: 'could not start the change' }; }
   finishJob(store, group, j => ({ ...j, pid }));
-  store.log({ op: 'context-job', group, action, sections: ids.length, pr, state: 'retried' });
-  return { said: `${e.title}: ${action === 'compress' ? 'compressing again in the background' : 'removing again'}${es.length > 1 ? `, with the ${es.length - 1} other section${es.length > 2 ? 's' : ''} of the same change` : ''}` };
+  store.log({ op: 'context-job', group, action, sections: n, pr, state: 'retried' });
+  return { said: `${e.title}: ${action === 'remove' ? 'removing again' : 'compressing again in the background'}${es.length > 1 ? `, with the ${es.length - 1} other section${es.length > 2 ? 's' : ''} of the same change` : ''}` };
 }
 
-// Maintenance: the top five kept for the next prompt, at most weekly, once there are enough sessions to read.
-// `view` is the report (context-view.js:contextView), given by tests; read here otherwise.
-export async function scheduleContextSuggestion(store, { now = Date.now(), view, force = false } = {}) {
-  if (!configOn(store)) return null;
-  const st = readState(store);
-  if (st.pending && !force) {
-    // never passed on (no prompt here since): dropped after a while, so a stale summary is not given
-    if (now - Date.parse(st.pending.at) > SUGGEST.answerDays * DAY) { delete st.pending; writeState(store, st); }
-    return null;
-  }
-  if (!force && st.checkedAt && now - Date.parse(st.checkedAt) < (st.firstAt ? SUGGEST.everyDays : 1) * DAY) return null;
-  view ??= (await import('./context-view.js')).contextView(store, { days: SUGGEST.days });
-  st.checkedAt = new Date(now).toISOString();
-  if (!force && (view.sessions || 0) < SUGGEST.firstSessions) { writeState(store, st); return null; }
-  st.firstAt ||= st.checkedAt;
-  const changes = currentChanges(store, view, { now });
-  if (changes.length) {
-    // what an input token costs here, kept with the summary so the question can say what the changes are worth in
-    // money and not in tokens alone (report-snapshot.js:inputRateHere, a read of the kept report; null without one,
-    // and then the summary quotes tokens alone rather than a figure nothing measured)
-    const rate = await (async () => { try { return (await import('./report-snapshot.js')).inputRateHere(store); } catch { return null; } })();
-    st.pending = { at: st.checkedAt, days: view.days, sessions: view.sessions, changes, ...(rate ? { rate } : {}) };
-    store.log({ op: 'context-suggest', changes: changes.length, saving: changes.reduce((a, c) => a + c.saving, 0) });
-  }
-  writeState(store, st);
-  return changes;
-}
-export const contextSuggestPending = store => configOn(store) && Boolean(readJson(stateFile(store))?.pending);
-// What the last summary put to the person, while a reply to it is still plausible (`SUGGEST.answerDays`): the basis
-// for the numbers in `thinker context --via session --approve 1,3`. null when none was passed on here, or it is old
-// enough that the numbers more likely mean a list the person has just seen printed.
-// Whether an answer to the last summary is still expected here: what the MCP `context` tool is offered on, as the
-// coverage tool is on a pending coverage question (mcp-server.js). Cleared by the answer.
-export const contextSuggestAwaiting = (store, opts) => configOn(store) && Boolean(offeredChanges(store, opts));
-
-// The answer, through thinker's own tool (`context`) or the command: the numbers the person chose from the lines the
-// summary showed, or none. thinker resolves them against that list and makes the changes itself, so the agent hands in
-// an answer rather than composing a command -- which is what the harness question did until 2026-10-25, and what the
-// coverage question still does (coverage.js:answerCoverage). `asked` says where they answered: their agent's question
-// tool (picker) or chat, which is how we know the question was put as a question at all.
-export async function answerContextSuggestion(store, choice, { now = Date.now(), asked = 'picker', client = null, ...job } = {}) {
-  const offered = offeredChanges(store, { now });
-  if (!offered) return 'There is no thinker suggestion waiting for an answer here. Go on with the task.';
-  const raw = String(choice ?? '').trim();
-  const clear = () => { const st = readState(store); delete st.offered; writeState(store, st); };
-  store.log({ op: 'context-answer', asked, client, changes: offered.length, choice: /^(none|no)$/i.test(raw) || !raw ? 'none' : 'some' });
-  if (/^(none|no)$/i.test(raw) || !raw) {
-    const said = dismissChanges(store, offered, { now, via: VIA.session });
-    clear();
-    return `${said.length} change${said.length === 1 ? '' : 's'} left alone; thinker will suggest ${said.length === 1 ? 'it' : 'them'} again next week. Go on with the task.`;
-  }
-  const picked = pickChanges(offered, raw);
-  // an answer that names none of the lines is not an answer: the question stays, and the agent is told what to pass
-  if (!picked.length) return `Nothing there matched: pass the numbers of the lines the suggestion showed (1-${offered.length}), comma-separated, or none. The question is still waiting.`;
-  const said = await approveChanges(store, picked, { via: VIA.session, now, ...job });
-  clear();
-  return said.join(' ');
-}
-
-export function offeredChanges(store, { now = Date.now(), days = SUGGEST.answerDays } = {}) {
-  const o = readJson(stateFile(store))?.offered;
-  if (!o?.changes?.length || !o.at) return null;
-  return now - Date.parse(o.at) > days * DAY ? null : o.changes;
-}
-
-// The page for the machine: one `thinker ui --background` (cache.js:uiCommand), its address in
-// THINKER_HOME/state/ui.json while it runs; started here when none does, waited for up to uiWaitMs.
+// The weekly question, retired (2026-11-21, the owner's answer to how a person should hear of a batch: "Recent
+// activity plus one line in a session"; "the weekly question that asked you to approve savings is retired, since
+// thinker no longer asks"). From 2026-10-22 maintenance kept the five largest changes once a week and the prompt hook
+// had the person's own agent ask which to make (scheduleContextSuggestion, contextSuggestOffer, the MCP `context`
+// tool's answerContextSuggestion); thinker now makes the ones that clearly pay itself, in batches (upkeep.js), and
+// says what it did. The code is in git before this date. `maintain: { contextSuggest }` in a config is ignored.
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
-const sleep = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+// where a page started for the machine (`thinker ui --background`, cache.js:uiCommand) keeps its address while it runs
 export const uiFile = (home = thinkerHome()) => path.join(home, 'state', 'ui.json');
-export function ensureUi(store, { home = thinkerHome(), spawnFn = spawn, waitMs = SUGGEST.uiWaitMs } = {}) {
-  const f = uiFile(home), running = () => { const u = readJson(f); return u?.url && u.pid && alive(u.pid) ? u.url : null; };
-  const now = running(); if (now) return now;
-  try {
-    const child = spawnFn(process.execPath, [CLI, 'ui', '--background'], { cwd: store.repo, detached: true, stdio: 'ignore' });
-    child.on?.('error', () => {}); child.unref?.();
-  } catch { return null; }
-  for (let t = 0; t < waitMs; t += 100) { sleep(100); const u = running(); if (u) return u; }
-  return null;
-}
-// a session no person is at: `claude -p`, the Agent SDK
-const unattended = (env = process.env) => /^sdk-/.test(env.CLAUDE_CODE_ENTRYPOINT || '');
-// The prompt hook: the pending summary, once. `client` is the agent, whose own question tool puts it to the person.
-//
-// A question, not prose (2026-10-27, the owner's ask). Until then the block asked the agent to pass the summary on in
-// a short message, and three devices that were shown one decided nothing at all: a relayed message can be skipped by
-// the agent, skimmed by the person, and leaves no answer either way, so there was nothing to tell "not interested"
-// from "never reached them". Asked through the agent's own tool (coverage.js does the same) it takes an answer before
-// the task goes on, and both answers are recorded: the numbers chosen are approved, nothing chosen is a dismissal
-// (`--dismiss all`), so the funnel has a denominator and a no.
-//
-// Built-in tools are left out of the options and named under them instead (the owner's rule of 2026-10-22, PR #441):
-// a picker's line has no room for what denying one costs -- no subagents, or no `/loop` -- so one is decided with
-// `thinker context --approve`, where the line says it. With nothing else to ask about, the block asks nothing.
-export function contextSuggestOffer(store, { now = Date.now(), env = process.env, client } = {}) {
-  if (!configOn(store) || unattended(env)) return '';
-  const st = readState(store);
-  if (!st?.pending) return '';
-  const p = st.pending; delete st.pending; st.offeredAt = new Date(now).toISOString();
-  // what a picker may carry, and what is named under it instead (built-in tools, above)
-  const asked = p.changes.filter(c => !c.builtin), builtin = p.changes.filter(c => c.builtin);
-  // The list as it was put to the person, kept for the answer window: they reply with the numbers of the lines they
-  // read, and the ranking moves under them -- every session of the window changes what each part costs a prompt, and
-  // the reply comes minutes to days later. Resolved against a list recomputed at that moment, "1" applied whatever
-  // ranked first then: on this repository's own figures, three sections within 3k tokens of each other reordered on
-  // one more session, so approving the first line compressed the third (2026-10-27).
-  st.offered = { at: st.offeredAt, days: p.days, changes: asked };
-  writeState(store, st);
-  // the one cost rule, in the order the person can check it: what the changes add to every prompt here, and what
-  // that came to over the window. Per prompt first since it is the figure they can hold against a prompt they have
-  // seen; the window total is the same number times the calls that carried it, and alone it reads as a figure nobody
-  // can place (a week of a 25k-token file across 7,600 calls is ~190M, true and useless).
-  const perPrompt = p.changes.reduce((a, c) => a + (c.saving || 0), 0);
-  const total = p.changes.reduce((a, c) => a + (c.total ?? c.saving ?? 0), 0);
-  // worth stopping someone for, or only worth saying (SUGGEST.minAsk, askSaving)
-  const thin = asked.length < SUGGEST.minAsk || asked.reduce((a, c) => a + (c.saving || 0), 0) < SUGGEST.askSaving;
-  store.log({ op: 'context-offer', changes: p.changes.length, saving: total, perPrompt, asked: !thin });
-  // What the saving is worth in money, where this repository's own report can price it (scheduleContextSuggestion
-  // keeps the rate). Nobody reads a question about 34M tokens and knows whether to care; "$42 a week" they do, and a
-  // suggestion nobody can value is one nobody acts on. One rule for the figure, the Report's own: these tokens at the
-  // list prices, cache reads at their own rate -- which is what a part of the context is read from on nearly every
-  // call, so it is far under the input rate and still worth saying.
-  const money = n => p.rate && n > 0 ? formatDollars(n * p.rate) : null;
-  const windowCost = money(total), per = c => { const m = money(c.total ?? c.saving ?? 0); return m ? `, about ${m}` : ''; };
-  const lines = asked.map((c, i) => `${i + 1}. ${c.title}: ~${formatTokens(c.saving || 0)} input tokens in every prompt (~${formatTokens(c.total ?? c.saving ?? 0)} over the last ${p.days} days${per(c)}); ${c.why}. Suggested: ${c.default ? c.default.text : 'dismiss, or change it by hand'}${c.options?.length > 1 ? ` (or: ${c.options.slice(1).map(o => o.act).join(', ')})` : ''}`).join('\n');
-  const lead = `thinker read the last ${p.days} days of agent sessions in this repository (${p.sessions} sessions) and found ${p.changes.length === 1 ? 'one change' : `${p.changes.length} changes`} to what loads into every session${windowCost ? `, together worth about ${windowCost} over those ${p.days} days` : ''}: ~${formatTokens(perPrompt)} input tokens in every prompt here, ~${formatTokens(total)} over those ${p.days} days.${windowCost && !thin ? ` The dollars are those tokens at the providers' list prices, cache reads at their own rate, as thinker's Report prices them; a subscription bills none of it by the token.` : ''}`;
-  // Where the detail is: the command, which lists every part with its figures and takes the same decisions. (Until
-  // 2026-11-21 this line was the link to the page's Find Savings tab, opened on these very changes.) A built-in tool
-  // is named here and decided there, since a picker's line cannot say what its change means.
-  const pageLine = `Every part of the context with its figures is in \`thinker context\` (\`--cards\` says what each part is and why you would change it)${builtin.length ? `. ${builtin.map(c => c.title).join(', ')}: a built-in tool is not switched off: a tool reference is created and the tool can still be used, which is worth reading in full, so ${builtin.length === 1 ? 'that one is' : 'those are'} decided with \`thinker context --approve\`, not here` : ''}.`;
-  // Nothing a picker may offer, or too little to interrupt for: the lines and where the detail is, and no question.
-  // The person hears it once, in one line of their agent's own answer.
-  if (thin) return `<thinker-context-suggestions>\n${lead}\n${lines ? `${lines}\n` : ''}${pageLine}\nMention this to the user in one line starting "${SIGNATURE}:" and go on with the task. Do not ask them about it as a question, and do not make any of these changes yourself.\n</thinker-context-suggestions>`;
-  const tool = QUESTION_TOOLS[client];
-  // The question says it is thinker's (askThrough, and the name in the question text for the chat fallback, which
-  // has no header): this is the question that cuts what the person loads into every session, and until 2026-10-29
-  // it was the only one of the four that never said who was asking.
-  const question = `thinker found these changes to what loads into every session here${windowCost ? `, worth about ${windowCost} over the last ${p.days} days at list prices` : ''}. Make any?`;
-  const ask = tool && client !== 'codex'
-    ? `Before you start on the request, ${askThrough(tool, question)}: one question whose options are the changes below, in this order, each option labelled with its own number and name as written below ("2. AGENTS.md · Releases") and taking the rest of its line as the description; let them choose more than one where your tool allows it. The numbers are how you hand their answer back, so keep them on the options rather than working them out again. Add a last option "None of these" so saying no is an answer like any other, and keep the whole question to the options your tool allows: where that leaves room for fewer changes than there are, offer the highest ones and say the rest are in \`thinker context\` (Claude Code's AskUserQuestion takes four, so three changes and the none).`
-    : `Before you start on the request, ${askInChat('which of these changes to make (any of them, or none), and wait for their answer.')}`;
-  // The answer comes back through thinker's own tool where the client speaks MCP (the harness question's way until
-  // 2026-10-25, the coverage question's still): thinker resolves the numbers against the list it showed and makes the
-  // changes, so nothing depends on the agent composing a command line. The command is the fallback and the typed door.
-  const cmd = `thinker context --days ${p.days} --via session`;
-  const after = MCP_CLIENTS.has(client)
-    ? `Then call thinker's \`context\` tool with choice set to the numbers they chose, comma-separated (a number may take another action after a colon, e.g. 3:remove), or none, and asked "${tool && client !== 'codex' ? 'picker' : 'chat'}"; if that tool is not offered, run \`${cmd} --approve <those numbers>\`, or \`${cmd} --dismiss all\` for none. thinker makes the changes and tells you what it did; pass that on in one line opening "${SIGNATURE}:". Then go on with the task.`
-    : `Then run \`${cmd} --approve <the numbers they chose, comma-separated; a number may take another action after a colon, e.g. 3:remove>\` and tell them in one line opening "${SIGNATURE}:" what it did. If they choose none, run \`${cmd} --dismiss all\`: thinker leaves them alone and offers them again next week. Then go on with the task.`;
-  return `<thinker-context-suggestions>
-${lead}
-${ask} Do not decide for them, do not make any of these changes yourself, and do not open the files to check them.
-${lines}
-${pageLine}
-${after}
-</thinker-context-suggestions>`;
-}
 
 // The person approved these changes (`thinker context --approve 1,3|all`, the page's Approve, the answer to the weekly
 // suggestion, the installer's picks): each one's default, made as the Context tab makes it. A skill or tool is switched
@@ -550,7 +390,10 @@ ${after}
 //
 // A change with no default (nothing switches it off) is left for review on the page. Returns one line per change, and
 // one per section job, since a job's sections share a pull request and an undo.
-export async function approveChanges(store, changes, { via = VIA.command, pr, spawnFn = spawn, cliPath = CLI, now = Date.now() } = {}) {
+// `batch`: the id of a batch of thinker's own (upkeep.js), kept on every entry made; its sections are then one job and
+// one pull request whatever their actions. `made`: an array given by the caller, filled with what became of each
+// change ({ key, title, error | result | group }).
+export async function approveChanges(store, changes, { via = VIA.command, pr, spawnFn = spawn, cliPath = CLI, now = Date.now(), batch = null, made = null } = {}) {
   // a change may carry the action the person picked (`chosen`, one of its options); else its suggestion
   changes = changes.map(c => ({ ...c, ...(c.kind === 'tool' ? { scope: 'machine' } : {}), default: c.options?.find(o => o.act === c.chosen) || c.default }));
   const { switchSources } = await import('./context-view.js');
@@ -561,11 +404,12 @@ export async function approveChanges(store, changes, { via = VIA.command, pr, sp
   const secs = changes.filter(c => act(c));
   if (secs.length) {
     const open = pr ?? prAvailable(store.repo).ok;
-    for (const action of ['compress', 'remove']) {
-      const xs = secs.filter(c => act(c) === action);
+    for (const action of batch ? ['each'] : ['compress', 'remove']) {
+      const xs = batch ? secs : secs.filter(c => act(c) === action);
       if (!xs.length) continue;
-      const j = startSectionJob(store, xs, action, { pr: open, now, spawnFn, cliPath, via });
+      const j = startSectionJob(store, xs, action, { pr: open, now, spawnFn, cliPath, via, batch });
       said.push(j.said || `${xs.map(c => c.title).join(', ')}: ${j.error}`);
+      for (const c of xs) made?.push({ key: c.key, title: c.title, ...(j.said ? { group: j.group } : { error: j.error }) });
     }
     changes = changes.filter(c => !act(c));
   }
@@ -581,10 +425,11 @@ export async function approveChanges(store, changes, { via = VIA.command, pr, sp
     return /^Switched off here/.test(r) && !/Not switched off/.test(r) ? { result: c.scope === 'machine' ? 'Switched off across all repositories from the next session on' : 'Switched off from the next session on', undo: { kind: 'off', key: c.sourceKey || c.name } } : { error: r.replace(/^Not switched off: /, '') };
   };
   for (const c of changes) {
-    if (c.scope === 'machine' && c.default?.act === 'off' && changeHistory(store).find(e => e.scope === 'machine' && e.key === c.key && !e.revertedAt)?.act === 'off') { said.push(`${c.title}: already ${c.builtin ? 'referenced' : 'switched off'} across all repositories`); continue; }
+    if (c.scope === 'machine' && c.default?.act === 'off' && changeHistory(store).find(e => e.scope === 'machine' && e.key === c.key && !e.revertedAt)?.act === 'off') { said.push(`${c.title}: already ${c.builtin ? 'referenced' : 'switched off'} across all repositories`); made?.push({ key: c.key, title: c.title, error: 'already done' }); continue; }
     let m; try { m = await make(c); } catch (e) { m = { error: String(e.message || e).split('\n')[0] }; }
     said.push(`${c.title}: ${m.error || m.result}`);
-    if (!m.error) record(store, [entryOf(store, c, 'approved', m.result, at, m.undo, { tokens: m.tokens || null, via: viaOf(via) })]);
+    made?.push({ key: c.key, title: c.title, ...(m.error ? { error: m.error } : { result: m.result }) });
+    if (!m.error) record(store, [entryOf(store, c, 'approved', m.result, at, m.undo, { tokens: m.tokens || null, via: viaOf(via), batch })]);
   }
   // a section's own approval is logged when its job finishes (runSectionJob), with the pull request it opened
   if (changes.length) store.log({ op: 'context-approve', changes: changes.length, saving: changes.reduce((a, c) => a + c.saving, 0), via: viaOf(via) });
@@ -651,6 +496,34 @@ export async function revertDecision(store, id, { now = Date.now(), prs } = {}) 
   store.log({ op: 'context-revert', kind: u.kind, ...(siblings.length ? { sections: 1 + siblings.length } : {}) });
   return { said: `${e.title}: ${{ off: 'turned back on from the next session on', on: 'switched off again from the next session on', output: u.level && u.level !== 'off' ? `${u.level} compression again` : 'compression off', edit: 'written back as it was', dismissed: 'suggested again' }[u.kind]}${withOthers(siblings)}` };
 }
+// One section put back as it was before thinker shortened it, by a pull request of its own (upkeep.js, a week after
+// the change took effect and only where it backfired): the rest of the pull request that shortened it stays. The
+// section's earlier text is read from the merge's parent (instruction-pr.js:sectionBefore) and set over what the base
+// branch holds now, so later edits elsewhere in the file are kept. `why` goes in the pull request's body. The entry is
+// marked taken back, with the pull request that does it (`restorePr`).
+export async function restoreSection(store, id, { now = Date.now(), prs, edit, why } = {}) {
+  const st = readState(store), e = (st.history || []).find(h => h.id === id);
+  if (!e) return { error: 'no such decision' };
+  if (e.revertedAt) return { error: 'already taken back' };
+  if (e.kind !== 'section' || e.act !== 'compress' || e.pr?.state !== 'merged') return { error: 'only a section shortened by a merged pull request is put back this way' };
+  const prsMod = prs || await import('./instruction-pr.js'), { previewEdit } = edit || await import('./instruction-edit.js');
+  const before = prsMod.sectionBefore(store.repo, { mergeCommit: e.pr.mergeCommit, number: e.pr.number, file: e.file, id: e.section });
+  if (before == null) return { error: `the section as it was before #${e.pr.number} could not be read` };
+  const src = prsMod.baseTexts(store.repo);
+  if (src.error) return { error: src.error };
+  const p = await previewEdit(store, [e.section], 'restore', { texts: src.textOf, base: src, restore: { [e.section]: before }, ...(why ? { note: why } : {}) });
+  if (p.error) return { error: p.error };
+  const r = await prsMod.openEditPr(store, p.key, { changes: [e], now });
+  if (r.error) return { error: r.error };
+  const at = new Date(now).toISOString();
+  e.restorePr = { number: r.number, url: r.url, branch: r.branch, base: r.base, openedAt: at };
+  e.result = `Pull request #${r.number} opened to put it back as it was`;
+  e.revertedAt = at;
+  writeState(store, st);
+  store.log({ op: 'context-revert', kind: 'restore-pr', pr: e.pr.number, restorePr: r.number, sections: 1 });
+  return { said: `${e.title}: pull request #${r.number} opened to put it back as it was`, pr: { number: r.number, url: r.url } };
+}
+
 // the changes a choice names: "all", or their numbers in the list (1-based), or their keys, each optionally with the
 // action picked instead of the suggestion after a colon ("3:remove"; `acts` maps keys to actions)
 // (`acts` maps keys to actions). The page gives keys as a list, read as they are: a key like `output:Read` is not a

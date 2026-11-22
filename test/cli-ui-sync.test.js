@@ -212,18 +212,19 @@ test('Recent activity is `thinker context --history|--revert|--retry`, a decisio
   // request can be opened: instruction-pr.js:prAvailable), which finishes the recorded decision (runSectionJob); nothing to wait
   // at (the owner's ask, 2026-10-24): Recent activity follows it
   const cs = read('context-suggest.js');
-  // every door records which one a decision came through (context-suggest.js:VIA), so the funnel can tell a change
-  // thinker made from one accepted in the session after the weekly suggestion
+  // every door records which one a decision came through (context-suggest.js:VIA), so a change thinker made by
+  // itself can be told from one a person typed
   assert.match(read('commands/context.js'), /fn\(store, picked, \{ via \}\)/);
-  assert.match(read('context-suggest.js'), /const cmd = `thinker context --days \$\{p\.days\} --via session`/);
-  assert.match(read('context-suggest.js'), /\$\{cmd\} --approve/);
-  // the answer comes back through thinker's own MCP tool where the client speaks MCP, the command being the fallback
-  assert.match(read('context-suggest.js'), /tool with choice set to the numbers they chose/);
-  // the weekly suggestion is a question the agent puts to the person with its own tool, and a no is recorded too.
-  // Every question thinker has an agent ask is built with askThrough (or askInChat where there is no such tool), so
-  // it carries thinker's name in the question and in the header and no offer can hand-write one that does not
-  // (2026-10-29, the owner's ask). A new question goes through the same helper.
-  for (const f of ['context-suggest.js', 'proxy-offer.js', 'error-report.js', 'containers-offer.js']) {
+  assert.match(read('upkeep.js'), /approveChanges\(store, picked, \{ via: VIA\.thinker, now, pr: true, batch: id, made/);
+  // the weekly question that put these changes to the person in their session is retired (2026-11-21): nothing
+  // schedules it, the prompt hook does not offer it, and no MCP tool answers it
+  assert.doesNotMatch(read('maintain.js'), /scheduleContextSuggestion/);
+  assert.doesNotMatch(read('commands/hooks.js'), /contextSuggestOffer/);
+  assert.doesNotMatch(read('mcp-server.js'), /registerTool\('context'/);
+  // Every question thinker still has an agent ask is built with askThrough (or askInChat where there is no such
+  // tool), so it carries thinker's name in the question and in the header and no offer can hand-write one that does
+  // not (2026-10-29, the owner's ask). A new question goes through the same helper.
+  for (const f of ['proxy-offer.js', 'error-report.js', 'containers-offer.js']) {
     const src = read(f);
     assert.match(src, /askThrough\(tool, /, `${f} asks through the labelled clause`);
     assert.match(src, /askInChat\(/, `${f} labels its chat fallback too`);
@@ -233,17 +234,18 @@ test('Recent activity is `thinker context --history|--revert|--retry`, a decisio
   // offer passes it to askThrough, which tells the agent to put it unchanged. A change here is deliberate.
   // one question a turn: the container offer takes its place in the hook's single chain, never beside another
   assert.match(read('commands/hooks.js'), /proxyOffer\(store, \{ client \}\) \|\| containersOffer\(store, \{ client \}\) \|\|/);
-  assert.match(read('context-suggest.js'), /\$\{cmd\} --dismiss all/);
-  assert.match(cs, /\[cliPath, 'instructions', `--\$\{action\}`, ids\.join\(','\), pr \? '--pr' : '--apply', '--job', group\]/);
-  // and so does every other door, since 2026-10-29: the weekly suggestion answered in the session (the MCP `context`
-  // tool), `thinker context --approve` and the installer's picks all approve through approveChanges, which sends a
+  // the command a job is: each list by its action, so a batch of thinker's own that shortens some sections and
+  // removes others is one run and one pull request
+  assert.match(cs, /const jobArgs = \(cliPath, ids, pr, group\) => \[cliPath, 'instructions', \.\.\.SECTION_ACTS\.flatMap\(a => \(ids\[a\]\?\.length \? \[`--\$\{a\}`, ids\[a\]\.join\(','\)\] : \[\]\)\), pr \? '--pr' : '--apply', '--job', group\];/);
+  // and so does every other door, since 2026-10-29: thinker's own batch, `thinker context --approve` and the
+  // installer's picks all approve through approveChanges, which sends a
   // section to the same job rather than compressing it inline, so no door holds a person's session through the model
   // call or writes the file without a pull request. Only a switch-off or a compression level is made where it is asked.
   assert.match(cs, /const secs = changes\.filter\(c => act\(c\)\);/);
-  assert.match(cs, /const j = startSectionJob\(store, xs, action, \{ pr: open, now, spawnFn, cliPath, via \}\);/);
+  assert.match(cs, /const j = startSectionJob\(store, xs, action, \{ pr: open, now, spawnFn, cliPath, via, batch \}\);/);
   assert.match(cs, /const open = pr \?\? prAvailable\(store\.repo\)\.ok;/);
   assert.doesNotMatch(cs.split('export async function approveChanges')[1].split('\n}')[0], /previewEdit|applyEdit/);
-  assert.match(read('commands/instructions.js'), /runSectionJob\(store, \{ group: flags\.job, ids, action, pr: Boolean\(flags\.pr\) \}\)/);
+  assert.match(read('commands/instructions.js'), /runSectionJob\(store, \{ group: flags\.job, ids: given\.flatMap\(idsOf\), action: given\.length > 1 \? 'each' : given\[0\], pr: Boolean\(flags\.pr\) \}\)/);
   assert.match(read('cli.js'), /instructions \[--remove <id> \| --compress <id> \[--pr \| --apply\] \[--job <id>\]\]/);
   const page = read('ui/page.html');
   assert.doesNotMatch(page, /edit-overlay|openEditModal|previewSections|api\/context\/edit|api\/context\/apply/);
@@ -461,21 +463,14 @@ test('Recent activity rows and `thinker context --history` say what the part is 
   for (const kind of ['section', 'skill', 'tool']) assert.match(read('context-suggest.js'), new RegExp(`describePart\\(\\{ kind: '${kind}'`));
 });
 
-test('the weekly question interrupts only when it is worth it, and both doors price a saving the same way (2026-11-04)', async () => {
-  const { SUGGEST } = await import('../src/context-suggest.js');
-  // a thin list is a line, never a picker: two changes and 1k input tokens a prompt together
-  // before thinker stops anyone in the middle of their own work
-  assert.deepEqual([SUGGEST.minAsk, SUGGEST.askSaving], [2, 1000]);
-  const suggest = read('context-suggest.js');
-  assert.match(suggest, /const thin = asked\.length < SUGGEST\.minAsk \|\| asked\.reduce\(\(a, c\) => a \+ \(c\.saving \|\| 0\), 0\) < SUGGEST\.askSaving/);
-  assert.match(suggest, /if \(thin\) return `<thinker-context-suggestions>/);
-  // and what a change is worth is said in money, from one rate: the dollars an input token cost here, off the kept
-  // report (report.js:inputRate), in the session's question and in `thinker context`'s Top changes alike
+test('what a change is worth is said in money, from one rate, by the command and by thinker itself', async () => {
+  // the dollars an input token cost here, off the kept report (report.js:inputRate): `thinker context`'s Top changes,
+  // and what a line of the activity says an action saves a day
   assert.match(read('report.js'), /export const inputRate = view => view\?\.inputRate \?\? null;/);
   assert.match(read('report.js'), /inputRate: pricedInput > 0 && pricedInputCost > 0 \? pricedInputCost \/ pricedInput : null,/, 'measured over the priced sessions alone');
   assert.match(read('report-snapshot.js'), /export function inputRateHere\(store/);
-  for (const f of ['context-suggest.js', 'commands/context.js']) assert.match(read(f), /inputRateHere\(store\)|inputRateHere\(store\)\)/, f);
-  for (const f of ['context-suggest.js', 'commands/context.js']) assert.match(read(f), /formatDollars\(/, f);
+  for (const f of ['upkeep.js', 'commands/context.js']) assert.match(read(f), /inputRateHere\(store/, f);
+  for (const f of ['upkeep.js', 'commands/context.js']) assert.match(read(f), /formatDollars\(/, f);
 });
 
 test('`thinker prs` is one door, and its help says what the figures are (2026-10-29)', async () => {
@@ -709,6 +704,10 @@ test('the page opens on the chat with Recent activity beside it: `thinker chat` 
   assert.doesNotMatch(html, /More like this|Less like this|data-ref-say/);
   // the card names its line (`id`), so the chat can be given what thinker knows behind it and answer about the thing
   assert.match(html, /CHAT_REF = \{ kind, id: x\.id \|\| '', text: x\.text,/); assert.match(read('chat.js'), /known = upkeepDetail\(whose\.store, card\.id, \{ now, home \}\)/);
+  // the Factory's own "Chat about this", to the right of a clicked stage's trend: the stage goes into the same prompt box
+  // as the same kind of card, named by its key, and the chat is given what the Factory holds on it from the kept report
+  assert.match(html, /chat\.className = 'fx-chat'; chat\.textContent = 'Chat about this'; chat\.onclick = \(\) => \{ fxPopClose\(\); chatAboutStage\(stage, dollars\); \};/);
+  assert.match(html, /CHAT_REF = \{ kind: 'stage', id: s\.key, text: /); assert.match(read('chat.js'), /lines: stageDetail\(v, card\.id, /); assert.match(read('chat.js'), /readReport\(r\.store\)\?\.view/, 'from the kept report, never made for a message');
   // per session, what was handed to cheaper agents and what that saved: the Report's delegation figure, one rule, both doors
   assert.match(read('upkeep.js'), /delegationBySession\(\{ events, compression: rows, config,/); assert.match(read('report-savings.js'), /for \(const r of delegationSavings\(\{ events, compression, config \}\)\) \{\n    const g = of\(r\.session\);/);
   assert.match(html, /Delegated to cheaper agents<\/div><div class="side-total">\$\{esc\(g\.said\)\}/); assert.match(read('upkeep.js'), /`Delegated to cheaper agents · \$\{delegatedTotalSaid\(v\.delegated\)\}`/);
@@ -717,9 +716,9 @@ test('the page opens on the chat with Recent activity beside it: `thinker chat` 
   assert.match(read('ui/server.js'), /child\(\['activity', 'run', '--look', '--quiet', '--repo', checkout\], checkout\)/);
   assert.match(read('commands/activity.js'), /upkeepCheck\(store, \{ act: !flags\.look \}\)/);
   const { behaviorOf, upkeepView, upkeepCheck, BEHAVIOR } = await import('../src/upkeep.js');
-  // by itself, for important things, not often: the defaults both doors describe
-  assert.deepEqual([BEHAVIOR.level, BEHAVIOR.prs, BEHAVIOR.sweep, BEHAVIOR.tools, BEHAVIOR.important, BEHAVIOR.prEveryDays, BEHAVIOR.prsPerDay, BEHAVIOR.toolEveryDays], ['auto', true, true, true, 'high', 7, 1, 1]);
-  assert.match(read('cli.js'), /at most one pull request a repository a week, one\s+pull request and one tool a day over the machine/);
+  // by itself, only what clearly pays, in batches: the defaults both doors describe (the owner's answers, 2026-11-21)
+  assert.deepEqual([BEHAVIOR.level, BEHAVIOR.prs, BEHAVIOR.remove, BEHAVIOR.sweep, BEHAVIOR.tools, BEHAVIOR.skills, BEHAVIOR.minPerDay, BEHAVIOR.batchPerDay, BEHAVIOR.batchEveryDays], ['auto', true, true, true, true, false, 1, 5, 7]);
+  assert.match(read('cli.js'), /worth \$1 a day or more, together in one batch once they come to \$5 a day, at most one\s+batch a repository a week/);
 
   // on the wire, over a home of its own: a pull request in review is a line with its link and what it is expected to
   // save, exactly as the command prints it; what thinker holds back is not on the page at all

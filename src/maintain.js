@@ -23,9 +23,6 @@ export const DEFAULTS = {
   // nothing at all and the weekly context message cannot carry it (it is built from the sessions thinker can
   // see). `maintain: { containers: false }` stops the machine being looked at.
   containers: true,
-  // the week's five highest-leverage context changes (context-suggest.js), passed on at the next prompt with a link to
-  // the local page; no model call, nothing changed but by the person on the page. `maintain: { contextSuggest: false }`
-  contextSuggest: true,
   // read the repository's pull requests from GitHub, so `thinker prs` and the telemetry know what the
   // sessions here delivered (delivery.js). Free: the person's own `gh` login, read-only, no model call and
   // no token. At most once a day, and only back to the last sync. `maintain: { prSync: false }` turns it off.
@@ -161,20 +158,19 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     if (cfg.containers !== false && !dry) {
       try { const { scheduleContainersOffer } = await (fns.containers ? { scheduleContainersOffer: fns.containers } : import('./containers-offer.js')); const c = scheduleContainersOffer(store, { now }); if (c) r.containerFound = c.name || c.id; } catch (e) { failed('containers', e); }
     }
-    // 4. at most weekly, the five highest-leverage changes the Context view finds (context-suggest.js), for the next prompt
-    if (cfg.contextSuggest !== false && !dry) {
-      try { const { scheduleContextSuggestion } = await (fns.contextSuggest ? { scheduleContextSuggestion: fns.contextSuggest } : import('./context-suggest.js')); const c = await scheduleContextSuggestion(store, { now }); if (c) r.contextSuggested = c.length; } catch (e) { failed('context-suggest', e); }
-    }
-    // 5. upkeep (upkeep.js): what the agents left behind here, and what is important enough for thinker to do by itself
-    // -- remove merged worktrees and branches, put up a pull request, switch off a tool -- within how often it may. No model call. What it
-    // did is said once at the end of a turn (maintenanceNotice), and kept under Recent activity.
+    // 4. (the weekly context suggestion ran here until 2026-11-21; thinker makes those changes itself now, in step 5)
+    // 5. upkeep (upkeep.js): what the agents left behind here, and what clearly pays for thinker to do by itself --
+    // remove merged worktrees and branches, and send the context changes worth making as one batch (a pull request for
+    // its sections, its tools switched) once enough has piled up. No model call. What it did is said once at the end of a
+    // turn (maintenanceNotice: the owner's answer, 2026-11-21, "Recent activity plus one line in a session"), and
+    // kept under Recent activity.
     if (!dry) {
       try {
         const { upkeepCheck } = await (fns.upkeep ? { upkeepCheck: fns.upkeep } : import('./upkeep.js'));
         const k = await upkeepCheck(store, { now });
         if (!k.skipped) {
           if (k.pending) r.upkeepPending = k.pending;
-          if (k.did?.length) { r.upkeepDid = k.did.length; state.unreported = { ...(state.unreported || {}), did: [...new Set([...(state.unreported?.did || []), ...k.did.map(d => d.kind === 'pr' ? 'started a pull request for a section nobody needs (Recent activity has its link)' : `${d.said.charAt(0).toLowerCase()}${d.said.slice(1)}`)])].slice(-4) }; }
+          if (k.did?.length) { r.upkeepDid = k.did.length; state.unreported = { ...(state.unreported || {}), did: [...new Set([...(state.unreported?.did || []), ...k.did.map(d => `${d.said.charAt(0).toLowerCase()}${d.said.slice(1)}${d.kind === 'batch' && /pull request/.test(d.said) ? ' (Recent activity has its link)' : ''}`)])].slice(-4) }; }
         }
       } catch (e) { failed('upkeep', e); }
     }
@@ -250,7 +246,6 @@ export function renderMaintain(r) {
   if (r.pruned) bits.push(`${r.pruned} state ${r.pruned === 1 ? 'file' : 'files'} pruned`);
   if (r.prSynced) bits.push(`${r.prSynced} pull ${r.prSynced === 1 ? 'request' : 'requests'} read`);
   if (r.containerFound) bits.push(`a container found (${r.containerFound})`);
-  if (r.contextSuggested) bits.push(`${r.contextSuggested} context ${r.contextSuggested === 1 ? 'change' : 'changes'} suggested`);
   if (r.upkeepDid) bits.push(`${r.upkeepDid} ${r.upkeepDid === 1 ? 'thing' : 'things'} done on its own`);
   if (r.upkeepPending) bits.push(`${r.upkeepPending} waiting ${r.upkeepPending === 1 ? 'its' : 'their'} turn`);
   return `maintained: ${bits.join(', ') || 'nothing to do'}${r.errors ? `; ${r.errors} failed${renderFailures(r.errorList)}` : ''}`;

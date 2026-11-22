@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
-import { bashStage, stageOfTool, sessionFactory, detectLoops, mergeFactory, callCost, STAGES, REWORK_THRESHOLDS, verdictOf, renderFactory, weeklyTally, mergeWeekly, armTally, mergeArms, armRows, renderArms, ARMS, armsOf, trust, CLEARING_SINCE } from '../src/factory.js';
+import { bashStage, stageOfTool, sessionFactory, detectLoops, mergeFactory, callCost, STAGES, REWORK_THRESHOLDS, verdictOf, renderFactory, weeklyTally, mergeWeekly, armTally, mergeArms, armRows, renderArms, stageDetail, LOOP_KINDS, ARMS, armsOf, trust, CLEARING_SINCE } from '../src/factory.js';
 import { weekColumns } from '../src/report.js';
 
 const PRICE = { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25, cacheWrite1h: 2 };
@@ -284,4 +284,41 @@ test('trust is computed from the sides\' sizes and the spread of their session c
   v.arms.profile.shown.prs = { merged: 100, firstPass: 20, cost: 1000 }; v.arms.profile.holdout.prs = { merged: 8, firstPass: 1, cost: 50 };
   assert.equal(armRows(v, 'profile').rows.find(x => x.label === 'First-pass yield').verdict, 'flat');
   assert.ok(trust(side(400, 10, 1), side(400, 10, 1)).bandFor(100, 8) > trust(side(400, 10, 1), side(400, 10, 1)).band);
+});
+
+test('a stage as the chat is told it: its cost and rework against the bounds, its weeks, the loops on it, a feature\'s two sides, and where it is by repository', () => {
+  const stage = (key, cost, rework, total) => { const [, name, desc] = STAGES.find(([k]) => k === key); return { key, name, desc, cost, tokens: cost * 1e6, calls: 100, rework, reworkTokens: rework * 1e6, share: cost / total, reworkShare: cost ? rework / cost : null, verdict: verdictOf(cost ? rework / cost : null) }; };
+  const stages = (verify, rework) => STAGES.map(([k]) => k === 'verify' ? stage(k, verify, rework, verify + 120) : stage(k, 20, k === 'build' ? 2 : 0, verify + 120));
+  // twelve sessions a side, every one the same cost, so the difference is read at full trust
+  const sides = armTally(0.5), r = rw => ({ exchanges: 1, calls: 10, cost: 10, tokens: 1e7, loops: [], stages: Object.fromEntries(STAGES.map(([k]) => [k, k === 'verify' ? { cost: 10, tokens: 1e7, rework: rw, reworkTokens: rw * 1e6 } : { cost: 0, tokens: 0, rework: 0, reworkTokens: 0 }])) });
+  for (let i = 0; i < 12; i++) { sides.add({ profile: 'shown' }, r(2), `a${i}`); sides.add({ profile: 'holdout' }, r(5), `b${i}`); }
+  const week = (cost, rework) => ({ cost, tokens: cost * 1e6, calls: 10, rework, reworkTokens: rework * 1e6 });
+  const v = {
+    days: 42, sessions: 30, cost: 200, tokens: 2e8, calls: 700, rework: 42, reworkTokens: 42e6, reworkShare: 0.21, stages: stages(80, 40),
+    loops: [{ key: 'fix', ...LOOP_KINDS.fix, loops: 20, sessions: 10, cost: 30, tokens: 3e7, calls: 200, share: 0.15 }, { key: 'reread', ...LOOP_KINDS.reread, loops: 4, sessions: 2, cost: 1, tokens: 1e6, calls: 9, share: 0.005 }],
+    weekly: { columns: [{ t: Date.UTC(2026, 10, 2, 12) }, { t: Date.UTC(2026, 10, 9, 12) }], stages: { verify: [week(30, 9), week(50, 31)] }, loops: {} },
+    arms: sides.finish(), prs: { measured: 10, firstPass: 4, yield: 0.4, meanCostFirstPass: 5, meanCostLooped: 12 },
+  };
+  assert.deepEqual(stageDetail(v, 'verify'), [
+    'Verify, stage 5 of 7 (Prompts, Think, Explore, Build, Verify, Review, Merge): tests, builds and live probes.',
+    'Over the last 42 days, 30 sessions: it cost $80.0 at list prices, 40% of $200 in all, in 100 model calls.',
+    'Rework: $40.0 of that, 50%, was spent inside a loop, after something failed: bad. A stage is good at or under 10%, bad at or over 35%; over every stage it is 21%. By stage, the most rework first: Verify 50%, Build 10%, Prompts 0%, Think 0%, Explore 0%, Review 0%, Merge 0%.',
+    'By week, its cost then its rework share, the current week last: Nov 2 $30.0 30%; Nov 9 $50.0 62%.',
+    "Loops that leave or return to it. A loop's cost is every call inside it, whichever stage the call was in; what each loop put on this stage alone is not kept:",
+    `  Fix loop, Verify back to Build (a failing run to the run that passes): 20 loops in 10 sessions, $30.0, 15% of everything spent, $1.50 a loop. Found by: ${LOOP_KINDS.fix.rule}`,
+    // the clearing has no session on either side here, so it says nothing of the stage
+    'Memory profile: its rework share is 20% in the 12 sessions shown the profile against 50% in the 12 held out. Trust in that difference: good.',
+    'Merged pull requests: 4 of 10 went through with no loop (40%); one with no loop cost $5.00 on average, one with a loop $12.0.',
+  ]);
+  // a loop inside one stage is said so; a stage no loop touches says that; rework between the bounds is neither word
+  const explore = stageDetail(v, 'explore');
+  assert.ok(explore.includes(`  Re-read, inside Explore (a file read again): 4 loops in 2 sessions, $1.00, 1% of everything spent, $0.25 a loop. Found by: ${LOOP_KINDS.reread.rule}`));
+  assert.ok(stageDetail(v, 'think').includes('No loop detected in this window leaves or returns to it.'));
+  assert.match(stageDetail({ ...v, stages: stages(80, 16) }, 'verify')[2], /^Rework: \$16\.0 of that, 20%, was spent inside a loop, after something failed: between good and bad\./);
+  // over All repositories the ones that hold the stage's rework are named, the most first
+  const all = stageDetail(v, 'verify', { repos: [{ name: 'acme/web', factory: { stages: stages(20, 2) } }, { name: 'acme/api', factory: { stages: stages(60, 38) } }, { name: 'acme/idle', factory: { stages: stages(0, 0) } }] });
+  assert.equal(all.at(-2), 'By repository, the most rework first (2): acme/api $38.0 of $60.0, 63%; acme/web $2.00 of $20.0, 10%.');
+  // with nothing priced the figures are tokens; a stage the Factory does not have, or no view, is nothing
+  assert.equal(stageDetail({ ...v, cost: 0, arms: null, prs: null }, 'verify')[1], 'Over the last 42 days, 30 sessions: it cost 80.0M tokens, 40% of 200.0M tokens in all, in 100 model calls.');
+  assert.deepEqual([stageDetail(v, 'deploy'), stageDetail(null, 'verify'), stageDetail({}, 'verify')], [[], [], []]);
 });

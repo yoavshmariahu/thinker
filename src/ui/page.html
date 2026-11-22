@@ -278,6 +278,9 @@
     .fx-pop td.num { color: #111; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .72rem; }
     .fx-pop th.cur, .fx-pop td.num.cur { background: #fef9c3; }
     .fx-pop th.cur { border-radius: 4px 4px 0 0; } .fx-pop tr:last-child td.cur { border-radius: 0 0 4px 4px; }
+    /* "Chat about this", to the right of a clicked stage's trend: the chat opens with the stage in the prompt box as a card (chatAboutStage) */
+    .fx-chat { position: absolute; z-index: 6; border: 1px solid #111; background: #111; color: #fff; border-radius: 999px; padding: .28rem .75rem; font-size: .74rem; font-weight: 500; white-space: nowrap; cursor: pointer; box-shadow: 0 6px 18px rgba(0,0,0,.12); }
+    .fx-chat:hover { background: #333; }
     .fx-diff { display: grid; grid-template-columns: minmax(0, 1fr); margin-top: 1.6rem; }
     .fx-diff .fx-tbl td.on, .fx-diff .fx-tbl th.on { border-left: 1px solid #f0f0f0; }
     .fx-diff td.d { font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -541,7 +544,7 @@
 
         <div class="faq-item">
           <h3>Can Thinker cut what my agents load into every session?</h3>
-          <p>Yes. <code>thinker context</code> lists every section of your instruction files, every skill and every tool with what it costs a prompt and how many sessions it bore on. Thinker acts on the clearest of them itself, and Recent activity says what it did and what that saved: a section it compresses or removes is a pull request, so nothing in your team's file changes until you merge it. Tell it in the chat to do more, less or nothing.</p>
+          <p>Yes. <code>thinker context</code> lists every section of your instruction files, every skill and every tool with what it costs a prompt and how many sessions it bore on. Thinker makes the ones that clearly pay itself: each has to save $1 a day or more, and they go out together as one batch once they come to $5 a day, at most one batch a week in a repository. Skills it leaves alone. Recent activity has one line for a batch with what it saved; the sections it shortens or removes are one pull request, so nothing in your team's file changes until someone merges it. A week later it checks each change and takes back what did not pay. Tell it in the chat to change any of this.</p>
         </div>
 
         <div class="faq-item">
@@ -936,8 +939,8 @@ function renderSide(d) {
   const el = $('#side-body'), many = HREPO === 'all';
   const whose = x => many && x.repoName ? `<span>${esc(x.repoName)}</span>` : '';
   // one line on how thinker behaves here (the whole sentence on hover; it is changed by telling it, in the chat)
-  const how = { auto: 'Acting on its own for important things', ask: 'Waiting for your word', off: 'Switched off here', mixed: 'Behaves differently by repository' }[d.level] || '';
-  $('#side-status').innerHTML = `<span title="${esc(d.behaviorSaid)}">${esc(how)}</span>${d.level !== 'off' ? ` · looked ${esc(d.lastCheck ? sinceMeasured(Date.parse(d.lastCheck)) : 'not yet')}` : ''}${d.later ? ` · ${d.later} waiting ${d.later === 1 ? 'its' : 'their'} turn` : ''}${d.held ? ` · ${d.held} held back until you say` : ''}${d.looking ? ' · <span class="spinner"></span>looking…' : ''}`;
+  const how = { auto: 'Acting on its own, in batches', ask: 'Waiting for your word', off: 'Switched off here', mixed: 'Behaves differently by repository' }[d.level] || '';
+  $('#side-status').innerHTML = `<span title="${esc(d.behaviorSaid)}">${esc(how)}</span>${d.level !== 'off' ? ` · looked ${esc(d.lastCheck ? sinceMeasured(Date.parse(d.lastCheck)) : 'not yet')}` : ''}${(d.later || d.held) && d.summary ? ` · ${esc(d.summary.replace(/\.$/, ''))}` : ''}${d.looking ? ' · <span class="spinner"></span>looking…' : ''}`;
   // a line an action: what was done (a pull request's number is its link), what it came to (green for a saving, with a
   // light green highlight once it is measured; red where it measured as costing more), then when, where and by whom
   const impact = f => !f.impactSaid ? '' : `<div class="side-impact${f.impact?.kb ? ' measured' : f.impact?.perPrompt < 0 ? ' worse' : f.impact?.measured ? ' measured' : ''}">${esc(f.impactSaid)}</div>`;
@@ -958,17 +961,32 @@ function renderSide(d) {
 // kind of thing, in their own words (chat.js reads the card with the message). It comes off with its corner cross,
 // Escape, or Backspace in an empty box.
 let CHAT_REF = null;
-const refCard = (x, sent) => `<div class="chat-ref${sent ? ' sent' : ''}"><div class="side-text">${esc(x.text)}</div>${x.impactSaid ? `<div class="side-impact soft">${esc(x.impactSaid)}</div>` : ''}<div class="side-meta">${x.at ? `<span>${esc(upWhen(x.at))}</span>` : ''}${x.repoName ? `<span>${esc(x.repoName)}</span>` : ''}${x.title ? `<span>“${esc(x.title)}”</span>` : ''}${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">open the pull request</a>` : ''}</div>${sent ? '' : '<button class="chat-ref-x" type="button" data-ref-x aria-label="Take the card off">&times;</button>'}</div>`;
+const refCard = (x, sent) => `<div class="chat-ref${sent ? ' sent' : ''}"><div class="side-text">${esc(x.text)}</div>${x.impactSaid ? `<div class="side-impact soft">${esc(x.impactSaid)}</div>` : ''}<div class="side-meta">${x.kind === 'stage' ? '<span>Factory</span>' : ''}${x.at ? `<span>${esc(upWhen(x.at))}</span>` : ''}${x.repoName ? `<span>${esc(x.repoName)}</span>` : ''}${x.title ? `<span>“${esc(x.title)}”</span>` : ''}${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">open the pull request</a>` : ''}</div>${sent ? '' : '<button class="chat-ref-x" type="button" data-ref-x aria-label="Take the card off">&times;</button>'}</div>`;
 function renderAttach() {
   const el = $('#chat-attach');
   el.innerHTML = CHAT_REF ? refCard(CHAT_REF, false) : '';
   el.querySelector('[data-ref-x]')?.addEventListener('click', dropCard);
-  $('#chat-input').placeholder = CHAT_REF ? 'Ask about this, or say you want more or less like it' : 'Ask what it did, or tell it how to behave';
+  $('#chat-input').placeholder = CHAT_REF?.kind === 'stage' ? 'Ask about this stage, or how to improve it' : CHAT_REF ? 'Ask about this, or say you want more or less like it' : 'Ask what it did, or tell it how to behave';
 }
 function dropCard() { CHAT_REF = null; renderAttach(); $('#chat-input').focus(); }
 function attachCard(kind, x) {
   if (!x) return;
   CHAT_REF = { kind, id: x.id || '', text: x.text, impactSaid: x.impactSaid || '', at: x.at, repo: x.repo || (HREPO === 'all' ? '' : HREPO), repoName: x.repoName || '', url: x.url || '', title: x.title || '' };
+  renderAttach(); $('#chat-input').focus();
+}
+// The Factory's "Chat about this" (fxPop): a new chat opens, as New chat starts one, on the repository the Factory was
+// on, with the stage in the prompt box as a card, as a line of the side is. The card says which stage (`id`) and shows
+// the figures its card on the canvas shows; the chat is given what the Factory holds on that stage from the kept report
+// (chat.js:stageKnown, factory.js:stageDetail), so an answer is about the stage and how it might be improved.
+function chatAboutStage(s, dollars) {
+  const r = REPOS.find(x => x.id === REPO);
+  HREPO = r ? r.id : 'all';
+  // a conversation of its own, nothing said in it yet: the one last spoken in is not what opens (CHAT_READ), and a
+  // read of it still on its way is dropped (CLOAD)
+  CHAT_READ = true; ++CLOAD; CHAT_ID = null; CHAT_MSGS = [];
+  show('chat');
+  renderHistory();
+  CHAT_REF = { kind: 'stage', id: s.key, text: `${s.name} stage: ${s.desc}`, impactSaid: `${dollars ? money(s.cost) : `${fmt(s.tokens)} tokens`} · ${fxPct(s.share)} of all spend · ${fxPct(s.reworkShare)} of it rework · ${fmt(s.calls)} calls`, repo: r ? r.id : '', repoName: r ? r.name : 'All repositories' };
   renderAttach(); $('#chat-input').focus();
 }
 // the side is drawn again when what thinker did has moved (a check ran, a pull request merged), or while a look the
@@ -1174,9 +1192,11 @@ function fxDiff(v, stages, loops, dollars) {
 }
 // the trend: a small table under the card or pill that was clicked, the last four weeks, two rows; the same card again,
 // Escape or a click elsewhere closes it. It reads the view's `weekly` (factory.js:weeklyTally), as the command's table does.
+// To the right of a stage's trend, "Chat about this" (the owner, 2026-11-21): it comes and goes with the trend, and
+// opens the chat with the stage in the prompt box (chatAboutStage). A loop's trend has none.
 let FX_POP = null;
 const fxWk = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-function fxPopClose() { FX_POP?.pop.remove(); FX_POP = null; }
+function fxPopClose() { FX_POP?.pop.remove(); FX_POP?.chat?.remove(); FX_POP = null; }
 function fxPop(kind, id, anchor, stages, loops, dollars) {
   const key = `${kind}:${id}`; if (FX_POP?.key === key) { fxPopClose(); return; }
   fxPopClose();
@@ -1194,15 +1214,21 @@ function fxPop(kind, id, anchor, stages, loops, dollars) {
   const pop = document.createElement('div'); pop.className = 'fx-pop'; pop.setAttribute('role', 'tooltip');
   pop.innerHTML = `<table><thead><tr><th>${esc(title)}</th>${cols.map((c, i) => `<th class="num${i === n - 1 ? ' cur' : ''}">${esc(fxWk(c.t))}</th>`).join('')}</tr></thead><tbody>${rows.map(([l, vs]) => `<tr><td>${esc(l)}</td>${vs.map((x, i) => `<td class="num${i === n - 1 ? ' cur' : ''}">${esc(x)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
   canvas.appendChild(pop);
+  const stage = kind === 'stage' ? stages.find(s => s.key === id) : null;
+  let chat = null;
+  if (stage) { chat = document.createElement('button'); chat.type = 'button'; chat.className = 'fx-chat'; chat.textContent = 'Chat about this'; chat.onclick = () => { fxPopClose(); chatAboutStage(stage, dollars); }; canvas.appendChild(chat); }
   // under the card; a pill is drawn translated by half its size, so its box is around its offset point
   const pill = anchor.classList.contains('fx-pill');
   const top = pill ? anchor.offsetTop + anchor.offsetHeight / 2 + 8 : anchor.offsetTop + anchor.offsetHeight + 8;
   let left = pill ? anchor.offsetLeft - pop.offsetWidth / 2 : anchor.offsetLeft;
-  left = Math.max(4, Math.min(left, canvas.clientWidth - pop.offsetWidth - 4));
+  // the button keeps its place at the trend's right, so the pair is what stays inside the canvas
+  const beside = chat ? chat.offsetWidth + 8 : 0;
+  left = Math.max(4, Math.min(left, canvas.clientWidth - pop.offsetWidth - beside - 4));
   pop.style.left = `${left}px`; pop.style.top = `${top}px`;
-  FX_POP = { pop, key };
+  if (chat) { chat.style.left = `${left + pop.offsetWidth + 8}px`; chat.style.top = `${top + (pop.offsetHeight - chat.offsetHeight) / 2}px`; }
+  FX_POP = { pop, chat, key };
 }
-document.addEventListener('click', e => { if (FX_POP && !e.target.closest('.fx-pop, .fx-stage, .fx-pill, #fx-rows tr')) fxPopClose(); });
+document.addEventListener('click', e => { if (FX_POP && !e.target.closest('.fx-pop, .fx-chat, .fx-stage, .fx-pill, #fx-rows tr')) fxPopClose(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && FX_POP) fxPopClose(); });
 let FX_CARDS = {}, FX_LOOPS = {}, FX_RO = null;
 // the loops table, with the two sides' loops per session when a diff is chosen

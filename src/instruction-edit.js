@@ -49,10 +49,12 @@ Write terse markdown: short bullets, no preamble. Keep the heading line exactly 
 export const COMPRESS_KEEP = 0.3;
 
 // The proposed text of the section, without writing anything.
-export async function proposeSection(store, text, id, action, { completeFn = complete, model } = {}) {
+export async function proposeSection(store, text, id, action, { completeFn = complete, model, restoreText } = {}) {
   const loc = locate(text, id);
   if (!loc) return { error: `no section "${id}" in the file` };
   const old = loc.lines.slice(loc.start, loc.end).join('\n').replace(/\n+$/, '');
+  // restore: the section's own earlier text, given by the caller (context-suggest.js:restoreSection); no model call
+  if (action === 'restore') return restoreText == null ? { error: `nothing kept to restore "${id}" from` } : restoreText.trim() === old.trim() ? { error: `"${id}" is already as it was` } : { loc, old, next: String(restoreText).replace(/\n+$/, '') };
   if (action === 'remove') return { loc, old, next: loc.hasChildren ? loc.lines[loc.start] : '' };
   if (action !== 'compress') return { error: `unknown action ${action}` };
   const ask = prompt => completeFn({ system: COMPRESS_SYSTEM, prompt, model: model || store.config().distillModel || DEFAULT_DISTILL_MODEL, maxTokens: 4000, thinkingTokens: 0, accounting: { store, phase: 'manual', purpose: 'instruction-compress' } });
@@ -99,6 +101,9 @@ function wholeFile(f) {
 // The diff of a change to one or several sections, in one file or several (the model's calls side by side for
 // compress), kept for `applyEdit` under `key` (the id of a single section, else "bulk"). Writes nothing.
 export async function previewEdit(store, ids, action, opts = {}) {
+  // opts.actions: { id: 'compress' | 'remove' } where the sections of one change differ (a batch of thinker's own,
+  // context-suggest.js:startSectionJob `each`); a section not named there takes `action`
+  const actOf = id => opts.actions?.[id] || action;
   ids = [...new Set((Array.isArray(ids) ? ids : String(ids).split(',')).map(s => String(s).trim()).filter(Boolean))];
   if (!ids.length) return { error: 'no section chosen' };
   // opts.texts: the files' text from elsewhere than the working tree (the base branch, instruction-pr.js:baseTexts), so
@@ -117,12 +122,14 @@ export async function previewEdit(store, ids, action, opts = {}) {
       // the file is the section: removed, it is deleted; compressed, its front matter is kept
       const { fm, body } = wholeFile(f);
       let next = '';
-      if (action === 'compress') { const p = await proposeSection(store, `## ${f.file}\n\n${body}`, slug(f.file), action, opts); if (p.error) return p; next = p.next.replace(/^## .*\n+/, ''); modelTokens += p.tokens || 0; }
-      out.push({ file: f.file, from: sha(f.text), text: action === 'remove' ? null : `${fm}${next}\n`, edits: null });
+      const act = actOf(items[0].id);
+      if (act === 'compress') { const p = await proposeSection(store, `## ${f.file}\n\n${body}`, slug(f.file), act, opts); if (p.error) return p; next = p.next.replace(/^## .*\n+/, ''); modelTokens += p.tokens || 0; }
+      else if (act !== 'remove') return { error: `unknown action ${act}` };
+      out.push({ file: f.file, from: sha(f.text), text: act === 'remove' ? null : `${fm}${next}\n`, edits: null });
       sections.push({ id: items[0].id, file: f.file, title: f.file, diff: lineDiff(body, next), tokensBefore: tok(body), tokensAfter: tok(next) });
       continue;
     }
-    const props = await Promise.all(items.map(x => proposeSection(store, f.text, x.bare, action, opts)));
+    const props = await Promise.all(items.map(x => proposeSection(store, f.text, x.bare, actOf(x.id), { ...opts, restoreText: opts.restore?.[x.id] })));
     const bad = props.find(p => p.error); if (bad) return where ? { error: `${bad.error.replace(" in the file", ` in ${f.file}`)}${where}` } : bad;
     // every location is in the original text and sections do not overlap: replaced from the last one up
     const lines = f.text.split('\n');
@@ -134,7 +141,7 @@ export async function previewEdit(store, ids, action, opts = {}) {
   const key = ids.length === 1 ? ids[0] : 'bulk';
   const edits = readEdits(store);
   const base = opts.base?.commit ? { commit: opts.base.commit, branch: opts.base.branch } : undefined;
-  edits[key] = { files: out, action, ids, at: new Date().toISOString(), base, sections: sections.map(x => ({ id: x.id, file: x.file, title: x.title, tokensBefore: x.tokensBefore, tokensAfter: x.tokensAfter })) };
+  edits[key] = { files: out, action, ids, at: new Date().toISOString(), base, ...(opts.note ? { note: String(opts.note) } : {}), sections: sections.map(x => ({ id: x.id, file: x.file, title: x.title, tokensBefore: x.tokensBefore, tokensAfter: x.tokensAfter })) };
   writeEdits(store, edits);
   const names = out.map(x => x.file);
   return { key, action, base, file: names.length === 1 ? names[0] : `${names.length} files`, files: names, sections, title: sections[0].title, diff: sections.length === 1 ? sections[0].diff : null,
