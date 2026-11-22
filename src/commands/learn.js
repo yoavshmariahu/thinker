@@ -58,6 +58,11 @@ export async function runMaintain(ctx, { quiet, dry }) {
   const r = await maintain(store, repo, { dry });
   // the Context tab's report made again while nobody waits for it (context-snapshot.js); no model call
   if (!dry && !r.skipped && process.env.THINKER_TEST !== '1') { try { (await import('../context-snapshot.js')).refreshSnapshots(store); } catch {} }
+  // and the Report, the Factory with it (report-snapshot.js:refreshReport: one run at a time a checkout, and nothing
+  // is read where nothing it rests on has moved). Until 2026-11-22 only the page or `thinker report` ever made one,
+  // so an install whose person opened neither had none -- and the chat's Factory, the measured effect of thinker's
+  // own changes (the week-on check reads it) and the telemetry's Factory blocks all read the kept report.
+  if (!dry && !r.skipped && process.env.THINKER_TEST !== '1') { try { (await import('../report-snapshot.js')).refreshReport(store); } catch {} }
   if (!quiet || (process.env.THINKER_LLM === 'session' && r.errors)) out(renderMaintain(r));
   if (process.env.THINKER_LLM === 'session' && r.errors) process.exitCode = 1;
 }
