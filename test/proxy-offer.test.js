@@ -5,9 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { proxyOffer, proxyOfferDue, proxyOfferPending, answerProxyOffer, offerState, olderThan, FIXED_IN, FIX_PR, ANSWER_DAYS } from '../src/proxy-offer.js';
 
-// A machine whose proxy state and route are the test's own. Its config says `cut: true` because this question
-// is a promise that old results will start leaving long sessions, and the cutting is off by default since
-// 2026-11-19 (proxy.js:PROXY_DEFAULTS): with it off nothing is asked at all, which is the last case below.
+// A machine whose proxy state and route are the test's own. Its config names `cut` because this question is a
+// promise that old results will start leaving long sessions: with the cutting switched off for the machine
+// (proxy.js:PROXY_DEFAULTS, on by default since 2026-11-22) nothing is asked at all, which is the last case below.
 function machine({ service = {}, shell = null, cut = true } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-offer-'));
   const home = path.join(root, 'thinker');

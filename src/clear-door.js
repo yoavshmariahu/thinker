@@ -42,20 +42,21 @@ export const NEVER = Number.MAX_SAFE_INTEGER;
 // path and not a heredoc (the 2026-11-04 measurement that removed input cutting still holds there): none of the
 // three is in the stamp of a saving made here.
 //
-// `cut` is the proxy's one switch over all of it (proxy.js:PROXY_DEFAULTS), and off since 2026-11-19: this door
-// clears nothing either, because the two may not hold two policies -- and a desktop session is where most of the
-// clearing on this machine happened, so leaving it on would have left the measurement exactly as unreadable as
-// it was. `desktop: false` still turns this door off by itself, with the proxy's cutting on.
+// `cut` is the proxy's one switch over all of it (proxy.js:PROXY_DEFAULTS): on by default since 2026-11-22, as it
+// was before 2026-11-19, and with `cut: false` in the machine config this door clears nothing either, because the
+// two may not hold two policies -- a desktop session is where most of the clearing on the owner's machine happened,
+// so a switch one door kept would leave the measurement unreadable. `desktop: false` still turns this door off by
+// itself, with the proxy's cutting on.
 export function desktopPolicy(config) {
   const p = config?.proxy ?? {};
   const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
   return {
-    cut: p.cut === true,
+    cut: p.cut !== false,
     keepMin: num(p.keepMin, PROXY_DEFAULTS.keepMin),
     clearAtLeast: num(p.clearAtLeast, PROXY_DEFAULTS.clearAtLeast),
     trigger: num(p.trigger, PROXY_DEFAULTS.trigger),
     holdout: Math.min(1, Math.max(0, num(p.holdout, SERVICE_HOLDOUT))),
-    auto: p.cut === true && p.desktop !== false,
+    auto: p.cut !== false && p.desktop !== false,
     clearDeep: p.clearDeep !== false,
   };
 }

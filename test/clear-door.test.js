@@ -64,26 +64,28 @@ test('a rung stops the clear at the newest results the decision chose', () => {
   assert.equal(clearPlan(messages, { keepMin: 0 }).cleared, 6, 'no depth is every eligible result');
 });
 
-// Cutting off is the default and this door is half of it: the desktop app is where most of this machine's
-// clearing happened, so a switch the proxy honoured and the mod did not would have changed nothing.
-test('with nothing configured this door clears nothing, and says which policy answered', () => {
-  const off = desktopPolicy(null);
+// The switch is the proxy's and this door is half of it: the desktop app is where most of the owner's clearing
+// happened, so a switch the proxy honoured and the mod did not would change nothing. On by default since 2026-11-22.
+test('with nothing configured this door clears as the proxy cuts; switched off it clears nothing, and says which policy answered', () => {
+  assert.deepEqual(desktopPolicy(null), DEFAULTS, 'an unconfigured machine is the policy itself');
+  assert.equal(clearAnswer({ op: 'start', session: 's' }, { config: null }).auto, true);
+  const OFF = { proxy: { cut: false } }, off = desktopPolicy(OFF);
   assert.deepEqual(off, { ...DEFAULTS, cut: false, auto: false });
   assert.equal(stampOf(off), `v${VERSION}-off`, 'a row made while cutting was off names that and not the guards it never consulted');
-  assert.equal(clearAnswer({ op: 'start', session: 's' }, { config: null }).auto, false);
-  const due = clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 300000, messages: long() }, { config: null });
+  assert.equal(clearAnswer({ op: 'start', session: 's' }, { config: OFF }).auto, false);
+  const due = clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 300000, messages: long() }, { config: OFF });
   assert.equal(due.clear, false, 'a conversation well past the trigger with five results to take is left alone');
   assert.equal(due.reason, 'off');
   assert.equal(due.askAt, NEVER, 'and the mod is told not to come back on the context alone');
   // a clear the person asks for by hand is still theirs to ask for
-  assert.equal(clearAnswer({ op: 'decide', from: 'manual', session: 's', messages: long() }, { config: null }).clear, true);
+  assert.equal(clearAnswer({ op: 'decide', from: 'manual', session: 's', messages: long() }, { config: OFF }).clear, true);
   // `desktop: false` goes on turning this door off by itself, with the proxy's cutting on
   assert.equal(desktopPolicy({ proxy: { cut: true, desktop: false } }).auto, false);
 });
 
 test('the policy is the proxy\'s unless the machine config says otherwise, and its stamp is this release\'s', () => {
-  assert.deepEqual(DEFAULTS, { cut: true, keepMin: PROXY_DEFAULTS.keepMin, clearAtLeast: PROXY_DEFAULTS.clearAtLeast, trigger: PROXY_DEFAULTS.trigger, holdout: 0.25, auto: true, clearDeep: true });
-  assert.deepEqual(desktopPolicy({ proxy: { cut: true, trigger: 90000, holdout: 0, desktop: false, keepMin: 'x' } }), { ...DEFAULTS, trigger: 90000, holdout: 0, auto: false });
+  assert.deepEqual(DEFAULTS, { cut: true, keepMin: PROXY_DEFAULTS.keepMin, clearAtLeast: PROXY_DEFAULTS.clearAtLeast, trigger: PROXY_DEFAULTS.trigger, holdout: 0, auto: true, clearDeep: true });
+  assert.deepEqual(desktopPolicy({ proxy: { cut: true, trigger: 90000, holdout: 0.25, desktop: false, keepMin: 'x' } }), { ...DEFAULTS, trigger: 90000, holdout: 0.25, auto: false });
   // The mod never sees the request: it places no breakpoint, leaves out no thinking and takes no call text, so a
   // saving made here is named without them and never pooled with the proxy's.
   assert.equal(stampOf(DEFAULTS), `v${VERSION}-t140k-f8k-p${PAYBACK}-deep`);
@@ -205,7 +207,7 @@ test('decide: nothing below the trigger, the deepest rung that repays past it, a
   // a machine whose config moved the trigger is answered by the config in force now, not at the session's start
   assert.equal(clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 300000, messages }, { config: { proxy: { cut: true, trigger: 400000 } } }).askAt, 400000);
   // a session this door does not clear by itself is told not to come back on the context alone
-  for (const [ev, config, reason] of [[{ baseUrl: 'http://localhost:9' }, ON, 'proxied'], [{}, { proxy: { cut: true, desktop: false } }, 'off'], [{}, { proxy: { cut: true, holdout: 1 } }, 'holdout'], [{ test: true }, ON, 'test'], [{}, {}, 'off']]) {
+  for (const [ev, config, reason] of [[{ baseUrl: 'http://localhost:9' }, ON, 'proxied'], [{}, { proxy: { cut: true, desktop: false } }, 'off'], [{}, { proxy: { cut: true, holdout: 1 } }, 'holdout'], [{ test: true }, ON, 'test'], [{}, { proxy: { cut: false } }, 'off']]) {
     const a = clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 300000, messages, ...ev }, { config });
     assert.equal(a.clear, false, reason);
     assert.equal(a.askAt, NEVER, reason);
@@ -248,10 +250,12 @@ test('`thinker hook clear` answers one line of JSON from any folder, and reads t
     assert.equal(r.stdout.trim().split('\n').length, 1, 'one line');
     return JSON.parse(r.stdout);
   };
-  // an unconfigured machine cuts nothing (2026-11-19), which is what a desktop session asks this and is told
+  // a machine that switched the cutting off cuts nothing, which is what a desktop session asks this and is told
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { cut: false } }));
   assert.deepEqual(ask({ op: 'start', session: 's' }), { auto: false, policy: `v${VERSION}-off` });
   assert.equal(ask({ op: 'decide', from: 'auto', session: 's', tokens: 300000, messages: long() }).reason, 'off');
-  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify(ON));
+  // an unconfigured one clears (2026-11-22): the file gone is the default
+  fs.rmSync(path.join(home, 'config.json'));
   assert.deepEqual(ask({ op: 'start', session: 's' }), { auto: true, policy: stampOf(DEFAULTS) });
   const due = ask({ op: 'decide', from: 'auto', session: 's', tokens: 300000, messages: long() });
   assert.equal(due.clear, true);

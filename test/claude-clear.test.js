@@ -47,7 +47,7 @@ const modConst = (s, name) => {
 //   honoured - the key is in this door's policy, at the proxy's default (`value` where it differs by design)
 //   exempt   - why the key has no desktop meaning; a sentence, not a word
 const DESKTOP_POLICY = {
-  // the one switch over the rest, off since 2026-11-19: this door clears nothing while the proxy cuts nothing
+  // the one switch over the rest, on by default since 2026-11-22: switched off, this door clears nothing while the proxy cuts nothing
   cut: { honoured: true },
   trigger: { honoured: true },
   clearAtLeast: { honoured: true },
@@ -99,7 +99,7 @@ test('every key of the proxy\'s clearing policy reaches the desktop door, or say
   }
   // and a config that moves a key moves this door with it
   assert.equal(desktopPolicy({ proxy: { trigger: 90000, clearAtLeast: 20000, keepMin: 5, clearDeep: false } }).trigger, 90000);
-  assert.deepEqual(desktopPolicy({ proxy: { clearAtLeast: 20000, keepMin: 5, clearDeep: false, desktop: false } }), { cut: false, keepMin: 5, clearAtLeast: 20000, trigger: PROXY_DEFAULTS.trigger, holdout: SERVICE_HOLDOUT, auto: false, clearDeep: false });
+  assert.deepEqual(desktopPolicy({ proxy: { clearAtLeast: 20000, keepMin: 5, clearDeep: false, desktop: false } }), { cut: true, keepMin: 5, clearAtLeast: 20000, trigger: PROXY_DEFAULTS.trigger, holdout: SERVICE_HOLDOUT, auto: false, clearDeep: false });
 });
 
 // An open session keeps the mod it loaded at its start, for days (claude-card.js: the folder is named by its bytes

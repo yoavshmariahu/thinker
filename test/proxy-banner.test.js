@@ -48,10 +48,11 @@ test('a switch that is off is not mentioned at all, so the sentence is never a l
   assert.match(held, /15% of sessions held out/, 'a holdout a person set is said in whole percent');
 });
 
-// What a person actually reads on this machine since 2026-11-19: the banner may not go on describing a trigger
+// What a person reads on a machine that switched the cutting off: the banner may not go on describing a trigger
 // and a floor that decide nothing, and it has to say what the proxy is still there for.
 test('with the cutting off the banner says that, and names no guard', () => {
-  const text = proxyBanner(proxyConfig({}, {}), 1234);
+  assert.doesNotMatch(proxyBanner(proxyConfig({}, {}), 1234), /Cutting is off/, 'an unconfigured machine cuts (2026-11-22), and its banner describes the policy');
+  const text = proxyBanner(proxyConfig({ 'no-cut': true }, {}), 1234);
   assert.match(text, /Cutting is off: nothing is removed from a prompt\./);
   assert.match(text, /measures what it cost/, 'what it is still doing, which is why it is still running');
   assert.doesNotMatch(text, /140000|clears tool results|held out/, 'no guard and no holdout: none of them decided this');
