@@ -541,3 +541,39 @@ export function renderArms(v, feature) {
   for (const r of t.rows) { const d = r.diff; out.push(r.label.padEnd(26) + f(r.on, r.kind).padStart(14) + f(r.off, r.kind).padStart(14) + (d == null ? '–' : `${d > 0 ? '+' : ''}${Math.round(100 * d)}%${r.verdict === 'flat' ? ' ~' : r.verdict === 'good' ? ' ✓' : ' ✗'}`).padStart(15) + (r.note ? `   ${r.note}` : '')); }
   return out;
 }
+
+// What the Factory holds on one stage, a fact a line (chat.js, for a stage the person attached to a message with the
+// Factory tab's "Chat about this"): what the stage is and what it cost, how much of that was rework and against which
+// bounds, the last four weeks, every loop that leaves or returns to it with the rule that finds it, the stage on a
+// feature's two sides with how far that difference can be trusted, and the pull requests' first-pass yield. The figures
+// are the view's own in renderFactory's words, so the chat says no number the tab does not show. `repos`: over All
+// repositories, each repository's own view ({ name, factory }), so the ones holding most of the stage's rework are
+// named: that is where a look at it would begin.
+export function stageDetail(v, key, { repos = [] } = {}) {
+  const i = STAGE_KEYS.indexOf(key), s = v?.stages?.find(x => x.key === key);
+  if (i < 0 || !s) return [];
+  const dollars = v.cost > 0, amt = (c, t) => dollars ? money(c) : `${k(t)} tokens`, nameOf = id => STAGES.find(([x]) => x === id)?.[1] || id;
+  const out = [`${s.name}, stage ${i + 1} of ${STAGES.length} (${STAGES.map(([, n]) => n).join(', ')}): ${s.desc}.`];
+  out.push(`Over the last ${v.days} days, ${v.sessions} sessions: it cost ${amt(s.cost, s.tokens)}${dollars ? ' at list prices' : ''}, ${pct(s.share)} of ${amt(v.cost, v.tokens)} in all, in ${k(s.calls)} model calls.`);
+  const ranked = v.stages.filter(x => x.reworkShare != null).sort((a, b) => b.reworkShare - a.reworkShare);
+  out.push(s.reworkShare == null ? 'Rework: none measured.'
+    : `Rework: ${amt(s.rework, s.reworkTokens)} of that, ${pct(s.reworkShare)}, was spent inside a loop, after something failed: ${s.verdict === 'mid' ? 'between good and bad' : s.verdict}. A stage is good at or under ${pct(REWORK_THRESHOLDS.good)}, bad at or over ${pct(REWORK_THRESHOLDS.bad)}; over every stage it is ${pct(v.reworkShare)}. By stage, the most rework first: ${ranked.map(x => `${x.name} ${pct(x.reworkShare)}`).join(', ')}.`);
+  const cols = (v.weekly?.columns || []).slice(-4), skip = (v.weekly?.columns?.length || 0) - cols.length;
+  if (cols.length) {
+    const wk = t => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const cells = (v.weekly.stages[key] || []).slice(skip);
+    out.push(`By week, its cost then its rework share, the current week last: ${cols.map((c, j) => { const x = cells[j] || {}, base = dollars ? x.cost : x.tokens, rw = dollars ? x.rework : x.reworkTokens; return `${wk(c.t)} ${amt(x.cost || 0, x.tokens || 0)} ${base > 0 ? pct(rw / base) : '–'}`; }).join('; ')}.`);
+  }
+  const touching = (v.loops || []).filter(L => L.from === key || L.to === key);
+  out.push(touching.length ? "Loops that leave or return to it. A loop's cost is every call inside it, whichever stage the call was in; what each loop put on this stage alone is not kept:" : 'No loop detected in this window leaves or returns to it.');
+  for (const L of touching) out.push(`  ${L.name}, ${L.from === L.to ? `inside ${nameOf(L.from)}` : `${nameOf(L.from)} back to ${nameOf(L.to)}`} (${L.sub}): ${L.loops} loops in ${L.sessions} sessions, ${amt(L.cost, L.tokens)}, ${pct(L.share)} of everything spent${L.loops ? `, ${amt(L.cost / L.loops, L.tokens / L.loops)} a loop` : ''}. Found by: ${L.rule}`);
+  for (const feature of Object.keys(ARMS)) {
+    const t = armRows(v, feature), row = t?.rows.find(r => r.group === 'stages' && r.key === key), n = t?.rows[0];
+    if (!row || !n?.on || !n?.off || row.on == null || row.off == null) continue;
+    out.push(`${t.name}: its rework share is ${pct(row.on)} in the ${n.on} sessions ${t.onLabel} against ${pct(row.off)} in the ${n.off} ${t.offLabel}. Trust in that difference: ${TRUST_WORDS[t.trust.level]}${t.trust.level !== 'none' && row.verdict === 'flat' ? '; it is within what two random samples of these sessions would show' : ''}.`);
+  }
+  const by = repos.map(x => ({ name: x.name, s: x.factory?.stages?.find(z => z.key === key) })).filter(x => x.s).map(x => ({ ...x, base: dollars ? x.s.cost : x.s.tokens, rw: dollars ? x.s.rework : x.s.reworkTokens })).filter(x => x.base > 0).sort((a, b) => b.rw - a.rw || b.base - a.base);
+  if (by.length > 1) out.push(`By repository, the most rework first (${by.length}${by.length > 5 ? ', the first 5 shown' : ''}): ${by.slice(0, 5).map(x => `${x.name} ${amt(x.s.rework, x.s.reworkTokens)} of ${amt(x.s.cost, x.s.tokens)}, ${pct(x.rw / x.base)}`).join('; ')}.`);
+  if (v.prs?.measured) out.push(`Merged pull requests: ${v.prs.firstPass} of ${v.prs.measured} went through with no loop (${pct(v.prs.yield)})${v.prs.meanCostFirstPass != null && v.prs.meanCostLooped != null ? `; one with no loop cost ${money(v.prs.meanCostFirstPass)} on average, one with a loop ${money(v.prs.meanCostLooped)}` : ''}.`);
+  return out;
+}

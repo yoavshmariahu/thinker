@@ -229,3 +229,45 @@ test('with no model to call from here the message waits for the app\'s own sessi
   assert.equal((await chatSend('   ', { repos: [api], home: bare, completeFn: fn })).error, 'nothing was said');
   assert.ok(CHAT.keep >= CHAT.shown);
 });
+
+test('a stage of the Factory attached to a message: the model is told which stage and what the kept report holds on it, for one repository or every one', async () => {
+  const { STAGES, LOOP_KINDS, verdictOf } = await import('../src/factory.js');
+  const { writeReport, readReport } = await import('../src/report-snapshot.js');
+  const { REPORT_WEEKS } = await import('../src/report.js');
+  const { home, repos } = machine(['api', 'web']);
+  const [api, web] = repos;
+  // the report kept for the page, as `thinker report` leaves it: Verify with its rework in a fix loop
+  const kept = (verify, rework) => { const total = verify + 60; return { factory: { days: 42, from: 0, to: 1, sessions: 10, conversations: 10, cost: total, tokens: 0, calls: 70, priced: true, unpriced: [], rework, reworkTokens: 0, reworkShare: rework / total, prs: null, weekly: null, arms: null,
+    stages: STAGES.map(([key, name, desc]) => { const cost = key === 'verify' ? verify : 10, rw = key === 'verify' ? rework : 0; return { key, name, desc, cost, tokens: 0, calls: 10, rework: rw, reworkTokens: 0, share: cost / total, reworkShare: rw / cost, verdict: verdictOf(rw / cost) }; }),
+    loops: [{ key: 'fix', ...LOOP_KINDS.fix, loops: 8, sessions: 4, cost: rework, tokens: 0, calls: 40, share: rework / total }] } }; };
+  // the card as the page sends it from the Factory: which stage, the figures its card showed, the repository it was on
+  const card = { kind: 'stage', id: 'verify', text: 'Verify stage: tests, builds and live probes', impactSaid: '$40.0 · 40% of all spend · 50% of it rework · 10 calls', repo: api.id, repoName: api.name, at: '2026-01-01T00:00:00.000Z', url: 'https://example.com/x', junk: { a: 1 } };
+  assert.deepEqual(refOf(card), { kind: 'stage', id: 'verify', text: card.text, impactSaid: card.impactSaid, repo: api.id, repoName: 'acme/api' });
+  // a stage the Factory does not have is no card; an activity id on a stage card names nothing
+  assert.equal(refOf({ kind: 'stage', id: 'deploy', text: 'Deploy stage' }), null); assert.equal(refOf({ kind: 'stage', id: 'h:p1', text: 'x' }), null); assert.equal(refOf({ kind: 'stage', text: 'x' }), null);
+  // no report kept yet: the card's own words, said as all there is, and nothing is made to answer
+  const bare = model({ reply: 'I have only what the page showed.', actions: [] });
+  await chatReply('what is this?', { repos, about: api.id, ref: card, home, completeFn: bare });
+  assert.match(bare.asked[0].prompt, /THE PERSON ATTACHED THIS STAGE OF THE FACTORY TO THEIR MESSAGE; "this" and "it" in what they say mean it:\n- Verify, over acme\/api · Verify stage: tests, builds and live probes \[\$40\.0 · 40% of all spend · 50% of it rework · 10 calls\] \(the Factory has no report kept here yet: these are the figures the page showed, and there is nothing more to go on\)\n\nTHE PERSON NOW SAYS:\nwhat is this\?\n/);
+  assert.equal(readReport(api.store), null, 'a message never makes the report');
+  writeReport(api.store, REPORT_WEEKS, kept(40, 20)); writeReport(web.store, REPORT_WEEKS, kept(20, 2));
+  const fn = model({ reply: 'Half of what Verify costs in api is rework, and it comes back through fix loops.', actions: [] }, { reply: 'It was about Verify.', actions: [] }, { reply: 'Most of it is in api.', actions: [] });
+  const r = await chatSend('how do I improve this?', { repos, about: api.id, ref: card, home, completeFn: fn });
+  // told which stage "this" is and what the Factory holds on it, in the figures the tab shows; never as a line of what thinker did
+  const p = fn.asked[0].prompt;
+  assert.match(p, /THE PERSON ATTACHED THIS STAGE OF THE FACTORY TO THEIR MESSAGE; "this" and "it" in what they say mean it:\n- Verify, over acme\/api\nWHAT YOU KNOW ABOUT IT:\n- Verify, stage 5 of 7 \(Prompts, Think, Explore, Build, Verify, Review, Merge\): tests, builds and live probes\.\n- Over the last 42 days, 10 sessions: it cost \$40\.0 at list prices, 40% of \$100 in all, in 10 model calls\.\n- Rework: \$20\.0 of that, 50%, was spent inside a loop, after something failed: bad\. /);
+  assert.match(p, /\n- Loops that leave or return to it\.[^\n]*\n {2}Fix loop, Verify back to Build \(a failing run to the run that passes\): 8 loops in 4 sessions, \$20\.0, 20% of everything spent, \$2\.50 a loop\. Found by: A test or build program /);
+  assert.doesNotMatch(p, /THIS LINE OF WHAT YOU DID|cannot be taken back from here|By repository/);
+  assert.match(CHAT_SYSTEM, /When a stage of the Factory is attached to their message, answer about that stage from the figures under WHAT YOU KNOW ABOUT IT\./);
+  assert.match(CHAT_SYSTEM, /The figures show where, not why: a cause they do not show is not known, and you say so in a few words instead of guessing\. You read no session from here\./);
+  // the card stays on the message: the page draws it over the words, the command names it, and the next turn is told
+  assert.deepEqual(r.messages.at(-2).ref, refOf(card));
+  assert.match(renderChat(r.messages).join('\n'), /^ {2}\[about: Verify stage: tests, builds and live probes {2}\$40\.0 · 40% of all spend · 50% of it rework · 10 calls\]\nyou: how do I improve this\?\nthinker: Half of what Verify costs/);
+  await chatSend('what was that about?', { repos, about: api.id, home, completeFn: fn });
+  assert.match(fn.asked[1].prompt, /THE PERSON: \(about this stage of the Factory: Verify stage: tests, builds and live probes\) how do I improve this\?\n/);
+  assert.doesNotMatch(fn.asked[1].prompt, /THE PERSON ATTACHED THIS STAGE/, 'a message with no card has none');
+  // from All repositories the card names none: every kept report merged as the tab merges them, and where the rework is
+  await chatSend('where is it worst?', { repos, ref: { ...card, repo: '', repoName: 'All repositories' }, home, completeFn: fn });
+  assert.match(fn.asked[2].prompt, /mean it:\n- Verify, over every repository\nWHAT YOU KNOW ABOUT IT:\n[^\n]*\n- Over the last 42 days, 20 sessions: it cost \$60\.0 at list prices, 33% of \$180 in all, in 20 model calls\.\n- Rework: \$22\.0 of that, 37%, /);
+  assert.match(fn.asked[2].prompt, /\n- By repository, the most rework first \(2\): acme\/api \$20\.0 of \$40\.0, 50%; acme\/web \$2\.00 of \$20\.0, 10%\.\n/);
+});
