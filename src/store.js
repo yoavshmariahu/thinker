@@ -124,11 +124,29 @@ export function isScratchCheckout(repo) {
 // What a repository logged locally before the log was shared is moved into the machine's
 // log, once: the local file is renamed first, so two processes cannot both move it. It is
 // kept under state/, which every checkout already keeps out of commits.
+//
+// Three things it must never do, each of which it did on 2026-11-21 and between them took a machine's whole
+// usage log (39,000 rows, ten weeks; all but a quarter of an hour of it was read back out of the memory of a
+// page server that happened to be running). A telemetry report was being built against a copy of the machine's
+// logs, with THINKER_HOME on the copy. The copy named the person's home directory as a checkout, since sessions
+// had run there, and for that checkout `.thinker` is not a cache: it is the machine's own home, and its
+// `log.jsonl` is the machine's log. So the real log was "adopted" into the copy. The next run did it again to
+// the log the hooks had started in its place, and the rename wrote that over the first.
+//
+//   - A store opened to look at another checkout (`readonly`) moves nothing. Reading is not adopting.
+//   - A machine's log is never a checkout's local log, whatever THINKER_HOME says today (machineLog).
+//   - What was moved before is never written over: a second file gets a name of its own.
+const machineLog = file => {
+  const homes = [os.homedir()];
+  try { homes.push(os.userInfo().homedir); } catch {}   // the account's, where $HOME has been pointed elsewhere
+  return homes.some(h => h && path.resolve(file) === path.resolve(h, '.thinker', 'log.jsonl'));
+};
 export function adoptLocalLog(store) {
   const main = logFile(store), local = path.join(store.dir, 'log.jsonl');
   // only into the machine's own log, not one that THINKER_LOG names
-  if (process.env.THINKER_LOG || !main || main === local || !fs.existsSync(local)) return;
-  const moved = path.join(store.dir, 'state', 'log-before-shared.jsonl');
+  if (process.env.THINKER_LOG || !main || main === local || store.readonly || machineLog(local) || !fs.existsSync(local)) return;
+  let moved = path.join(store.dir, 'state', 'log-before-shared.jsonl');
+  for (let n = 2; fs.existsSync(moved); n++) moved = path.join(store.dir, 'state', `log-before-shared.${n}.jsonl`);
   try { fs.mkdirSync(path.dirname(moved), { recursive: true }); fs.renameSync(local, moved); } catch { return; }
   try {
     const lines = fs.readFileSync(moved, 'utf8').split('\n').filter(Boolean).map(l => { try { const e = JSON.parse(l); return JSON.stringify(e.repo ? e : { t: e.t, repo: store.repo, origin: repoId(store.repo), ...e }); } catch { return null; } }).filter(Boolean);

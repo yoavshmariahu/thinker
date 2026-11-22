@@ -922,6 +922,7 @@ show first. A worker inside one native call cannot be interrupted; the job then 
 - Log keeps first 200 chars of each request (`op: request`; `orient` rows from before 2026-11-08 count as requests too).
 - `thinker usage [--here] [--days n] [--json]`: requests, sessions, agents, what learning spent. The savings are the clearing's (`thinker savings`, the Report).
 - MUST NOT show dollar costs or estimate cost from tokens outside `prices.js`'s doors. Provider-reported cost is data only.
+- **A read never moves a log (MANDATORY, 2026-11-21).** `store.js:adoptLocalLog` moves a checkout's old local log into the machine's, and on that day it moved the machine's own: a report was built against a copy of the logs with `THINKER_HOME` on the copy, the copy named the person's home directory as a checkout, and `~/.thinker/log.jsonl` was taken for that checkout's local log. A second run wrote the moved file over. So: a `readonly` store adopts nothing, `~/.thinker/log.jsonl` is never a local log whatever `THINKER_HOME` says, and a moved log gets a name of its own (`log-before-shared.<n>.jsonl`). To measure against real data, read it in place, or set `THINKER_LOG` beside `THINKER_HOME` on the copy.
 
 ## The session profile (2026-11-07, `src/profile.js`; on by default since 2026-11-08)
 
