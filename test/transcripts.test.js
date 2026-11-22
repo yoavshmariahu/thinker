@@ -515,3 +515,35 @@ test('Gemini chats carry the conversation\'s cost and per-call rewrites', () => 
   assert.equal(r.carried.prompts, 2 * est('where is x')); assert.equal(r.carried.agentText, est('looking')); assert.equal(r.carried.agentCalls, est({ path: '/r/src/x.py' })); assert.equal(r.carried.thinking, 0);
   assert.deepEqual(r.rewrites.causes.first, { n: 1, fresh: 25000, write: 0, write1h: 0 }); assert.equal(r.rewrites.calls, 2); assert.equal(Object.values(r.rewrites.causes).reduce((a, v) => a + v.n, 0), 1);
 });
+
+// What a harness note costs is what the agent sent (transcripts.js:noteTokens, 2026-11-21, the owner's ask). Read from
+// Claude Code 2.1.330: a hook's attachment is rendered from `content` alone, and the row on disk also carries the
+// command that ran -- for the inline shell wrapper an agent-aware terminal installs, a few thousand characters of it on
+// every tool call, having printed nothing. Sized whole, this machine's harness notes read 95k tokens a prompt where 11k
+// had been sent, 89% of the figure that one hook.
+test('a harness note costs what the agent sent: a hook that printed nothing costs nothing', () => {
+  const wrapper = `if [ -z "\${HOME-}" ]; then ${'printf \'{}\\n\'; '.repeat(900)}fi`; // the inline shell a terminal wires in
+  const usage = { input_tokens: 10, cache_read_input_tokens: 40_000, cache_creation_input_tokens: 0, output_tokens: 5 };
+  const f = write([
+    { type: 'user', cwd: '/r', message: { content: 'go' } },
+    // the profile thinker itself serves: printed, so it is context and is counted
+    { type: 'attachment', attachment: { type: 'hook_success', hookName: 'UserPromptSubmit', hookEvent: 'UserPromptSubmit', content: 'P'.repeat(4_000), stdout: 'P'.repeat(4_000), stderr: '', exitCode: 0, command: 'node /t/cli.js hook prompt --client claude' } },
+    // the terminal's hook: its stdout is the hook protocol's own `{}`, nothing is shown, and the command is not context
+    { type: 'attachment', attachment: { type: 'hook_success', hookName: 'PostToolBatch', hookEvent: 'PostToolBatch', content: '', stdout: '{}\n', stderr: '', exitCode: 0, command: wrapper } },
+    { type: 'assistant', message: { id: 'm1', model: 'claude-opus-5-5', usage, content: [{ type: 'text', text: 'done' }] } },
+  ]);
+  const c = parseTranscript(f).carried;
+  assert.equal(c.notes, Math.ceil(JSON.stringify('P'.repeat(4_000)).length / 4), 'the hook that printed is counted by what it printed');
+  assert.ok(c.unsent > 3_000, `the wrapper's own text is kept apart, not charged: ${c.unsent}`);
+  assert.equal(c.unsentBy, 'PostToolBatch', 'and the hook that wrote the most of it is named');
+  // every other kind of attachment is still sized whole: the harness sends what it recorded
+  const g = write([
+    { type: 'user', cwd: '/r', message: { content: 'go' } },
+    { type: 'attachment', attachment: { type: 'environment', content: 'E'.repeat(4_000) } },
+    { type: 'assistant', message: { id: 'm2', model: 'claude-opus-5-5', usage, content: [{ type: 'text', text: 'done' }] } },
+  ], 'g.jsonl');
+  const c2 = parseTranscript(g).carried;
+  assert.ok(c2.notes > 1_000, `an environment note is context: ${c2.notes}`);
+  assert.equal(c2.unsent, 0);
+  assert.equal(c2.unsentBy, undefined, 'and nothing is named where nothing was left out');
+});

@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseTranscript } from './transcripts.js';
 
-const KEEP = 1000, VERSION = 14; // 14: a continued session's copied history is the original's (transcripts.js:continuations)
+const KEEP = 1000, VERSION = 15; // 15: a harness note is sized by what the agent sent, not by the transcript's whole row (transcripts.js:noteTokens)
 // what each level's cap leaves of an output, in tokens (diet.js:DIET_LEVELS outputChars / 4): the part of a
 // compressible tool's result past it is a saving at least (the other trims, round search hits and file windows, come on top);
 // an MCP server has the moderate level alone (diet.js:mcpLevel), so its high saving is its moderate one
@@ -95,6 +95,9 @@ const stateFile = store => path.join(store.dir, 'state', 'tool-outputs.json');
 // version 12, which also keeps `rewrites`, the prompt-cache rewrites by cause (transcripts.js:cacheRewrites), and the
 // session's `turns` beside the usage, so a session that reports no usage (Cursor) can still be estimated by its calls)
 // version 13 adds `cacheWrite1h`, the writes at the one-hour TTL, priced at twice the input (prices.js:writeCost)
+// version 15 sizes a harness note by what the agent sent rather than by the transcript's whole row
+// (transcripts.js:noteTokens), and keeps what that left out beside it (`unsent`, `unsentBy`), so every record made
+// before it is read again -- the figure it held was a hook's own command text, which no model ever saw.
 const usageOf = (st, carried, rewrites) => st && st.inputTokens != null ? { input: st.inputTokens, output: st.outputTokens ?? 0, cacheRead: st.cacheReadTokens ?? 0, cacheWrite: st.cacheWriteTokens ?? 0, cacheWrite1h: st.cacheWrite1hTokens ?? 0, turns: st.turns || 0, carried: carried || null, rewrites: rewrites || null } : null;
 // `onSession` is called with each session as it is passed, read or skipped (ui/scan-worker.js counts them for the page's progress)
 function sessionRecords(store, sessions, { levelAt = null, key = '', onSession } = {}) {

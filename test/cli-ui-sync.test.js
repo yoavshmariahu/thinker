@@ -394,6 +394,13 @@ test('the Report is `thinker report`: the weeks, parts, prices and trend rule, k
   for (const k of ['otherInput', 'output']) assert.match(read('report.js'), new RegExp(`key: '${k}', thresholds: true`));
   assert.doesNotMatch(read('report.js'), /TREND_MIN|TREND_BIG|▲/);
   // the decisions table is Recent activity's (historyFigure)
+  // What the hooks wrote down and the agent never sent is in no cell of the parts table (transcripts.js:noteTokens):
+  // the sentence under it is made once, in report.js, and carried on the view as `line`, so a later door prints the
+  // words the command prints rather than writing its own (2026-11-21; the Report page went with #901, so the command
+  // is the only door that says it today).
+  assert.match(read('report.js'), /export const notesUnsentLine = u =>/);
+  assert.match(read('report.js'), /line: notesUnsentLine\(u\)/);
+  assert.match(read('report.js'), /v\.notesUnsent\) L\.push\(`  \$\{v\.notesUnsent\.line\}`\)/);
   assert.match(read('ui/page.html'), /historyFigure\(hs, \{ many, caption: 'Decisions'/);
   // the decisions tables show 20 rows a page
   assert.match(read('ui/page.html'), /const TABLE_PAGE = 20;/);
