@@ -976,15 +976,16 @@ const TRIM = [['workingOn', 3], ['skills', 3], ['howWeWork', 4]];
 // its answer broke the rule, the agent removed a table in 5 of 5 cases and still missed the word count in 16 of
 // 20, landing ~12 words over. The count is an anchor; only the table half is enforceable.
 export const ANSWER_WORDS = Object.freeze({ min: 20, max: 2000 });
-/** The person's answer-length setting: the repository's `style.answerWords`, else the machine's. Null when unset. */
-export function answerStyle(store) {
+/** The person's answer-length setting: the repository's `style.answerWords`, else the machine's. Null when unset.
+ *  `home`: whose machine config to read (the chat and the upkeep settings pass one; the default is this machine's). */
+export function answerStyle(store, { home } = {}) {
   const pick = c => {
     const n = Number(c?.style?.answerWords);
     return Number.isFinite(n) && n >= ANSWER_WORDS.min && n <= ANSWER_WORDS.max ? Math.round(n) : null;
   };
   let repo = null, machine = null;
   try { repo = pick(store.config()); } catch {}
-  try { machine = pick(readMachineConfig()); } catch {}
+  try { machine = pick(readMachineConfig(home)); } catch {}
   return { words: repo ?? machine };
 }
 /** The pinned lines the block carries ahead of the compiled ones. One wording, measured; never reworded. */

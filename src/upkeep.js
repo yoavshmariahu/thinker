@@ -52,7 +52,7 @@ import { readMachineConfig, updateMachineConfig } from './repo-switch.js';
 import { keptRows, inputRateHere } from './report-snapshot.js';
 import { withEffects } from './report.js';
 import { delegationBySession, delegationDetail } from './report-savings.js';
-import { readProfile } from './profile.js';
+import { readProfile, answerStyle, ANSWER_WORDS } from './profile.js';
 import { clearingRows, compressionDir } from './compression.js';
 import { proxyLogFile } from './proxy-service.js';
 import { sessionKey } from './usage.js';
@@ -88,6 +88,9 @@ const short = (s, n = 160) => { s = String(s || '').replace(/\s+/g, ' ').trim();
 export const BEHAVIOR = {
   level: 'auto', sweep: true, prs: true, remove: true, tools: true, skills: false,
   minPerDay: 1, batchPerDay: 5, batchEveryDays: 7, followUp: true, followUpDays: 7, sweepEveryDays: 1, sweepMin: 3, sweepMinMb: 500,
+  // the two that are read from where their own part of thinker keeps them (`SETTINGS` below, `get`), never from the
+  // upkeep block: on until that part says otherwise, and `null` for one the person has not set at all
+  delegation: true, answerWords: null,
 };
 const num = (min, max) => v => { const n = Number(v); return Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : undefined; };
 // dollars, to the cent ("$2", "0.50")
@@ -109,17 +112,34 @@ export const SETTINGS = {
   sweepEveryDays: { read: num(1, 90), about: 'days between sweeps in one repository' },
   sweepMin: { read: num(1, 100), about: 'how many merged worktrees and branches make a sweep worth doing by itself' },
   sweepMinMb: { read: num(1, 100_000), about: 'or how many megabytes they hold' },
+  // Two switches on the other work thinker does for them, which do not live under `upkeep` and are the machine's
+  // alone: each says where it is read and written (`get`, `write`), so the chat is one place for everything a person
+  // tells thinker to stop or change ("read the files yourself", "keep answers under 60 words") and nobody has to find
+  // a config key. The upkeep block never holds them, whatever a config file says (`settingsOf` skips them).
+  delegation: {
+    read: bool, about: 'whether a big read or a whole-suite test run may be handed to a cheaper agent (the machine\'s; how big is steered, not set)',
+    get: ({ home }) => delegateConfig({ home }).enabled,
+    write: (v, { home }) => updateMachineConfig(home, cfg => ({ ...cfg, delegate: { ...(cfg.delegate && typeof cfg.delegate === 'object' ? cfg.delegate : {}), enabled: v } })),
+  },
+  answerWords: {
+    read: num(ANSWER_WORDS.min, ANSWER_WORDS.max), about: `how long an answer their coding agents should give, in words (${ANSWER_WORDS.min}-${ANSWER_WORDS.max}); the rule is served to every session and expect about a tenth more than the number`,
+    get: ({ store, home }) => answerStyle(store, { home }).words,
+    write: (v, { home }) => updateMachineConfig(home, cfg => ({ ...cfg, style: { ...(cfg.style && typeof cfg.style === 'object' ? cfg.style : {}), answerWords: v } })),
+  },
 };
 const settingsOf = c => {
   if (c === false) return { level: 'off' };
   const out = {};
-  if (c && typeof c === 'object') for (const [k, s] of Object.entries(SETTINGS)) { if (k in c) { const v = s.read(c[k]); if (v !== undefined) out[k] = v; } }
+  if (c && typeof c === 'object') for (const [k, s] of Object.entries(SETTINGS)) { if (s.get || !(k in c)) continue; else { const v = s.read(c[k]); if (v !== undefined) out[k] = v; } }
   return out;
 };
-// The behaviour in force in a repository: the defaults, the machine's settings over them, the repository's over those.
+// The behaviour in force in a repository: the defaults, the machine's settings over them, the repository's over those,
+// and the two settings read from where their own part of thinker keeps them (null when that part has none set).
 export function behaviorOf(store, { home = thinkerHome() } = {}) {
   const machine = settingsOf(readMachineConfig(home).upkeep), repo = settingsOf(store?.config().upkeep);
-  return { ...BEHAVIOR, ...machine, ...repo, set: { machine, repo } };
+  const b = { ...BEHAVIOR, ...machine, ...repo, set: { machine, repo } };
+  for (const [k, s] of Object.entries(SETTINGS)) if (s.get) { try { b[k] = s.get({ store, home }) ?? null; } catch { b[k] = null; } }
+  return b;
 }
 // One setting changed, for the machine or for one repository. Returns what it is now, in words, or what was wrong.
 export function setBehavior(store, key, value, { scope = 'machine', home = thinkerHome() } = {}) {
@@ -127,6 +147,12 @@ export function setBehavior(store, key, value, { scope = 'machine', home = think
   if (!s) return { error: `there is no setting called ${key}` };
   const v = s.read(value);
   if (v === undefined) return { error: `${key} cannot be ${JSON.stringify(value)} (${s.about})` };
+  // a switch on another part of thinker: written where that part reads it, and never for one repository
+  if (s.write) {
+    s.write(v, { home });
+    try { store?.log({ op: 'upkeep-set', key, scope: 'machine' }); } catch {}
+    return { key, value: v, scope: 'machine', said: `${key} is now ${v} on this machine` };
+  }
   const merge = cur => ({ ...(cur && typeof cur === 'object' ? cur : {}), [key]: v });
   if (scope === 'repo') {
     if (!store) return { error: 'no repository to set it for' };

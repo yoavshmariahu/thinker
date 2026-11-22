@@ -321,7 +321,10 @@ test('conversations: a message goes on in the one last spoken in, a new one star
   // one named is gone on with, whichever was spoken in last; one that is not kept starts a new one
   const c = await chatSend('and what else?', { chat: 'first', repos, home, completeFn: fn, now: t0 + 120_000 });
   assert.equal(c.chat, 'first'); assert.equal(c.messages.length, 6);
-  assert.doesNotMatch(fn.asked[2].prompt, /ask me before you put up a pull request/);
+  // what was said in another conversation is never in this one's history: the others are named above it, by their
+  // first words and the last thing each side said, so the person may refer back to one (`earlierLines`)
+  assert.doesNotMatch(fn.asked[2].prompt.split('THE CONVERSATION SO FAR:')[1], /ask me before you put up a pull request/);
+  assert.match(fn.asked[2].prompt, /EARLIER CONVERSATIONS, newest first \(1; not this one[^\n]*\):\n- 1 min ago · "ask me before you put up a pull request" · 2 messages ·[^\n]* you last said: "I will ask first\."/);
   const gone = await chatSend('still there?', { chat: 'nosuchchat', repos, home, completeFn: fn, now: t0 + 180_000 });
   assert.notEqual(gone.chat, 'nosuchchat'); assert.equal(gone.messages.length, 2);
   // the history: a row a conversation by the first thing the person said in it, newest first by when it was last spoken in
@@ -357,4 +360,131 @@ test('a message that waited is answered in its own conversation, and only the co
   await chatSend('one more', { chat: 'long', repos: [], home, completeFn: say, now: 30_000 });
   const after = readChat({ home });
   assert.equal(after.length, CHAT.keep); assert.equal(after.at(-1).text, 'ok'); assert.equal(after[0].text, 'line 12');
+});
+
+// --- what thinker knows about itself ---------------------------------------------------------------------------
+// The chat is the only place a person asks how any of this works, so the seed prompt carries the mechanisms and the
+// context carries their live settings, the profile the sessions are served, and the Factory as the kept report
+// measured it. One model call a message: the chat looks nothing up and measures nothing while it answers.
+const profileOf = (store, p) => { const d = path.join(store.localDir, 'profile'); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, 'profile.json'), JSON.stringify(p)); };
+const FACTORY = now => ({
+  days: 42, from: now - 42 * DAY, to: now, sessions: 61, conversations: 61, calls: 2431, cost: 214, tokens: 98_000_000, priced: true, unpriced: [],
+  stages: [
+    { key: 'explore', name: 'Explore', cost: 74, tokens: 40_000_000, calls: 900, rework: 9, reworkTokens: 5_000_000, share: 0.34, reworkShare: 0.12, verdict: 'mid' },
+    { key: 'build', name: 'Build', cost: 52, tokens: 20_000_000, calls: 600, rework: 21, reworkTokens: 9_000_000, share: 0.24, reworkShare: 0.41, verdict: 'bad' },
+  ],
+  loops: [{ key: 'fix', name: 'Fix loop', sub: 'a failing run to the run that passes', loops: 34, sessions: 12, cost: 21, tokens: 3_000_000, share: 0.1 }],
+  rework: 38, reworkTokens: 14_000_000, reworkShare: 0.18, thresholds: { good: 0.1, bad: 0.35 },
+  prs: { merged: 14, measured: 12, firstPass: 8, yield: 8 / 12, meanCost: 15.2, meanCostFirstPass: 9, meanCostLooped: 24, rows: [] },
+});
+
+test('the seed prompt says how thinker works, and the context carries the live settings, the profile and the Factory', async () => {
+  const { home, repos } = machine(['api']);
+  const [api] = repos;
+  const now = Date.UTC(2026, 10, 21, 12);
+  const { writeReport } = await import('../src/report-snapshot.js');
+  profileOf(api.store, { version: 4, compiledAt: new Date(now - 3 * 3600_000).toISOString(), window: { sessions: 212, observations: 480 }, sections: { workingOn: [{ id: 'w1', text: 'The context cutting is off while it is rethought' }], howWeWork: [{ id: 'h1', text: 'Keep every reply to about 60 words' }], skills: [] } });
+  writeReport(api.store, 6, { factory: FACTORY(now) }, { now });
+  // what thinker is and how each thing it does saves: in the system prompt, so a question about it needs no lookup
+  for (const re of [/WHAT YOU DO, so that you can explain it/, /You learn how they work/, /hand expensive reading to cheaper agents/, /pointing the model at the copy it holds/, /keep their context lean/, /The Factory is how you read their sessions as a pipeline/, /priced at the published list rates/]) assert.match(CHAT_SYSTEM, re);
+  for (const k of Object.keys(SETTINGS)) assert.match(CHAT_SYSTEM, new RegExp(`\\n- ${k}: `), `the model is told what ${k} is`);
+  const fn = model({ reply: 'The reading is the biggest part.', actions: [] });
+  await chatSend('how do you actually save me money?', { repos, about: api.id, home, completeFn: fn, now });
+  const { prompt } = fn.asked[0];
+  // the handoffs as they are set now, read from the machine's own config (delegate.js), and the person's answer rule
+  assert.match(prompt, /HANDING WORK TO CHEAPER AGENTS: on\. A read of a file of 4k tokens or more goes to the session's own subagent on claude-haiku-5-5, a whole test suite's run to claude-haiku-5-5; a read of a file already in that session's context is answered with a pointer to the copy it holds\./);
+  assert.match(prompt, /ANSWER LENGTH: not set by them, so the compile writes its own line about it\./);
+  // the profile their sessions are served, as they are served it
+  assert.match(prompt, /WHAT YOU LEARNED ABOUT THEM: the profile you serve to their sessions in acme\/api, from 212 sessions, compiled 3 h ago\./);
+  assert.match(prompt, /- Keep every reply to about 60 words/);
+  // the Factory from the report kept in the checkout: nothing is measured while the chat answers
+  assert.match(prompt, /THE FACTORY in acme\/api, the last 42 days as the kept report measured them \(just now\): \$214 over 61 sessions and 2431 model calls, 18% of it rework \(a stage is good at 10% or less, bad at 35% or more\)\./);
+  assert.match(prompt, /- Stages, costliest first: Explore \$74.0 \(34% of the cost, 12% of it rework: mid\) · Build \$52.0 \(24% of the cost, 41% of it rework: bad\)/);
+  assert.match(prompt, /- Work done twice, costliest first: Fix loop \$21.0 over 34 in 12 sessions \(a failing run to the run that passes\)/);
+  assert.match(prompt, /- Pull requests merged in the window: 14, 8 of the 12 whose sessions were read went through without rework \(67%\), \$15.2 each \(\$9.00 first time, \$24.0 when they looped\)\./);
+  // a repository with neither says so, rather than leaving the model to guess
+  const bare = machine(['web']);
+  const two = model({ reply: 'Not yet.', actions: [] });
+  await chatSend('what do you know about me?', { repos: bare.repos, home: bare.home, completeFn: two, now });
+  assert.match(two.asked[0].prompt, /WHAT YOU LEARNED ABOUT THEM: nothing yet in acme\/web\./);
+  assert.match(two.asked[0].prompt, /THE FACTORY: not measured yet in acme\/web\./);
+});
+
+test('the switches on the work inside the sessions are the chat\'s to set, and are the machine\'s wherever they were asked for', async () => {
+  const { home, repos } = machine(['api', 'web']);
+  const [api] = repos;
+  const { delegateConfig } = await import('../src/delegate.js');
+  const { answerStyle } = await import('../src/profile.js');
+  const fn = model({ reply: "I'll read the files myself here, and keep answers short.", actions: [{ type: 'set', repo: 'r1', key: 'delegation', value: 'off' }, { type: 'set', key: 'answerWords', value: '60' }] });
+  const r = await chatSend('read the files yourself in api, and keep answers under 60 words', { repos, about: api.id, home, completeFn: fn });
+  // neither lives under `upkeep`, and neither is a repository's: the code says the machine, whatever the model asked for
+  assert.deepEqual(r.messages.at(-1).did, [{ type: 'set', ok: true, text: 'delegation is now off on this machine' }, { type: 'set', ok: true, text: 'answerWords is now 60 on this machine' }]);
+  const cfg = JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8'));
+  assert.deepEqual([cfg.delegate, cfg.style, cfg.upkeep], [{ enabled: false }, { answerWords: 60 }, undefined]);
+  assert.equal(delegateConfig({ home }).enabled, false);
+  assert.equal(answerStyle(api.store, { home }).words, 60);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(api.store.dir, 'config.json'), 'utf8')).delegate, undefined, 'nothing was written for the repository');
+  // read back on the next message: the settings line, and the handoffs said as off
+  const next = model({ reply: 'They are off.', actions: [] });
+  await chatSend('are you still handing my reads over?', { repos, about: api.id, home, completeFn: next });
+  assert.match(next.asked[0].prompt, /; delegation off; answerWords 60\n/);
+  assert.match(next.asked[0].prompt, /HANDING WORK TO CHEAPER AGENTS: off: every read and test run stays with the person's own model\./);
+  assert.match(next.asked[0].prompt, /ANSWER LENGTH: under 60 words, and no table unless they ask for one\./);
+  // a value the setting cannot take is refused in the code's words, and nothing is written
+  const bad = model({ reply: 'Doing it.', actions: [{ type: 'set', key: 'answerWords', value: '5' }, { type: 'set', key: 'delegation', value: 'sometimes' }] });
+  const no = await chatSend('answers of five words please', { repos, home, completeFn: bad });
+  assert.deepEqual(no.messages.at(-1).did.map(d => d.ok), [false, false]);
+  assert.equal(answerStyle(api.store, { home }).words, 60);
+});
+
+test('the other conversations are named so they can be referred back to, and the open one is not among them', async () => {
+  const { home, repos } = machine(['api']);
+  const t0 = Date.UTC(2026, 10, 20, 9);
+  const fn = model({ reply: 'I removed nine merged worktrees, 1.2 GB.', actions: [] }, { reply: 'The reading is the biggest part of it.', actions: [] }, { reply: 'As I said before, the reading.', actions: [] });
+  const first = await chatSend('what did you do to my worktrees?', { chat: 'new', repos, home, completeFn: fn, now: t0 });
+  await chatSend('how do you save me money?', { chat: 'new', repos, home, completeFn: fn, now: t0 + 3600_000 });
+  await chatSend('and which part was biggest again?', { repos, home, completeFn: fn, now: t0 + 2 * 3600_000 });
+  const { prompt } = fn.asked[2];
+  assert.match(prompt, /EARLIER CONVERSATIONS, newest first \(1; not this one -- they may refer back to one\):\n- 2 h ago · "what did you do to my worktrees\?" · 2 messages · they last said: "what did you do to my worktrees\?" · you last said: "I removed nine merged worktrees, 1.2 GB."/);
+  assert.doesNotMatch(prompt, /how do you save me money\?" · 2 messages/);
+  assert.equal(chatList(readChat({ home })).filter(c => c.id === first.chat).length, 1);
+});
+
+// The ten things a person says to thinker, one of each kind it is for: how it works, what it knows, what it did,
+// the switches on its own work, steering, the Factory, and a look now. Each is answered from what the model was
+// shown -- nothing is looked up -- and what changes is the code's, said in the code's own words.
+test('ten things a person says: each is answered from what the model was shown, and the code carries out what changes', async () => {
+  const { home, repos } = machine(['api', 'web']);
+  const [api] = repos;
+  const now = Date.UTC(2026, 10, 21, 12);
+  const { writeReport } = await import('../src/report-snapshot.js');
+  profileOf(api.store, { version: 4, compiledAt: new Date(now - 4 * 3600_000).toISOString(), window: { sessions: 212, observations: 480 }, sections: { workingOn: [{ id: 'w1', text: 'The delegation trigger: a read of 4k tokens is handed over' }], howWeWork: [{ id: 'h1', text: 'Answer from free local data before proposing a paid run' }], skills: [{ id: 's1', skill: 'code-review', text: 'run before every pull request' }] } });
+  writeReport(api.store, 6, { factory: FACTORY(now) }, { now });
+  const says = [
+    ['how do you actually save me money?', /WHAT YOU DID, newest first/, { reply: 'Mostly by handing the reading over.', actions: [] }, []],
+    ['what do you know about how I work?', /WHAT YOU LEARNED ABOUT THEM: the profile you serve/, { reply: 'That you answer from local data first.', actions: [] }, []],
+    ['where is my rework coming from?', /- Stages, costliest first: Explore/, { reply: 'Build: 41% of its cost is rework.', actions: [] }, []],
+    ['what did you do lately?', /WHAT YOU DID, newest first/, { reply: 'Nothing in the last two weeks.', actions: [] }, []],
+    ['keep answers under 60 words', /ANSWER LENGTH: not set by them/, { reply: "I'll pin that for every session.", actions: [{ type: 'set', key: 'answerWords', value: '60' }] }, [[true, 'answerWords is now 60 on this machine']]],
+    ['read the files yourself, stop handing my reads to a cheap model', /HANDING WORK TO CHEAPER AGENTS: on\./, { reply: "I'll stop handing reads over.", actions: [{ type: 'set', key: 'delegation', value: 'false' }] }, [[true, 'delegation is now off on this machine']]],
+    ['hand reads over less readily', /delegation \(work a session handed to cheaper agents\)/, { reply: "I'll only hand over the bigger ones.", actions: [{ type: 'steer', kind: 'delegation', direction: 'less' }] }, [[true, 'a read is now handed to a cheaper agent from 8k tokens on this machine (it was 4k)']]],
+    ['no more pull requests in web', /\[r2\] acme\/web/, { reply: "I'll stop putting them up there.", actions: [{ type: 'set', repo: 'r2', key: 'prs', value: 'false' }] }, [[true, 'prs is now off in acme/web']]],
+    ['ask me first from now on', /level: auto: make the changes worth making by itself/, { reply: "I'll wait for your word.", actions: [{ type: 'set', key: 'level', value: 'ask' }] }, [[true, 'level is now ask on this machine']]],
+    ['look at api again now', /\[r1\] acme\/api \(the one they are looking at\)/, { reply: 'Looking now.', actions: [{ type: 'look', repo: 'r1' }] }, [[true, 'looked at acme/api again: nothing is waiting']]],
+  ];
+  for (const [say, shown, answer, did] of says) {
+    const fn = model(answer);
+    const r = await chatSend(say, { chat: 'new', repos, about: api.id, home, completeFn: fn, now });
+    const { system, prompt } = fn.asked[0];
+    assert.equal(system, CHAT_SYSTEM);
+    assert.match(system + '\n' + prompt, shown, `what ${JSON.stringify(say)} needs was in front of the model`);
+    assert.match(prompt, new RegExp(`THE PERSON NOW SAYS:\\n${say.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n`));
+    assert.deepEqual((r.messages.at(-1).did || []).map(d => [d.ok, d.text]), did, say);
+  }
+  // what the ten left behind: the machine's settings, the one repository's, and nothing else
+  const cfg = JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8'));
+  assert.deepEqual([cfg.delegate, cfg.style, cfg.upkeep], [{ enabled: false, threshold: 8000 }, { answerWords: 60 }, { level: 'ask' }]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(repos[1].store.dir, 'config.json'), 'utf8')).upkeep, { prs: false });
+  assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(path.join(api.store.dir, 'config.json'), 'utf8'))), ['version'], 'the repository in view was not written to');
+  assert.equal(chatList(readChat({ home })).length, says.length);
 });

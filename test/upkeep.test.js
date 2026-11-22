@@ -138,6 +138,17 @@ test('how thinker behaves: it does its work itself unless told otherwise, the ma
   assert.equal(behaviorSaid(b), 'Thinker acts on its own here: it removes merged worktrees and branches; shortens or removes instruction sections nobody needs in a pull request and switches off tools nobody calls, but only what saves $1.00 a day or more, together in one batch once that comes to $5.00 a day, at most every 7 days. 7 days after a change takes effect it checks it, and takes back what did not pay.');
   assert.doesNotMatch(behaviorSaid({ ...b, followUp: false }), /takes back what did not pay/);
   assert.match(behaviorSaid({ ...b, remove: false, tools: false, skills: true }), /it removes merged worktrees and branches; shortens instruction sections nobody needs in a pull request and switches off skills nobody calls, but only/);
+  // two of them are not the upkeep block's: the handoffs to cheaper agents (delegate.js) and how long an answer the
+  // person asked their agents for (profile.js), each read and written where that part of thinker keeps it, and the
+  // machine's alone however they are asked for
+  assert.deepEqual([b.delegation, b.answerWords], [true, null]);
+  assert.equal(setBehavior(r.store, 'delegation', 'off', { scope: 'repo' }).said, 'delegation is now false on this machine');
+  assert.equal(setBehavior(r.store, 'answerWords', '60').said, 'answerWords is now 60 on this machine');
+  assert.deepEqual([behaviorOf(r.store).delegation, behaviorOf(r.store).answerWords], [false, 60]);
+  const machineCfg = JSON.parse(fs.readFileSync(path.join(HOME, 'config.json'), 'utf8'));
+  assert.deepEqual([machineCfg.delegate, machineCfg.style, machineCfg.upkeep], [{ enabled: false }, { answerWords: 60 }, undefined]);
+  assert.deepEqual(behaviorOf(r.store).set, { machine: {}, repo: {} }, 'neither was written into an upkeep block');
+  assert.match(setBehavior(r.store, 'answerWords', '5').error, /answerWords cannot be "5"/);
   // the machine's wish, then one repository's over it
   assert.equal(setBehavior(r.store, 'batchEveryDays', '30').said, 'batchEveryDays is now 30 on this machine');
   assert.equal(setBehavior(r.store, 'prs', 'off', { scope: 'repo' }).said, 'prs is now false in this repository');
