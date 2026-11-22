@@ -718,7 +718,7 @@ test('the page opens on the chat with Recent activity beside it: `thinker chat` 
   assert.match(read('commands/activity.js'), /upkeepCheck\(store, \{ act: !flags\.look \}\)/);
   const { behaviorOf, upkeepView, upkeepCheck, BEHAVIOR } = await import('../src/upkeep.js');
   // by itself, only what clearly pays, in batches: the defaults both doors describe (the owner's answers, 2026-11-21)
-  assert.deepEqual([BEHAVIOR.level, BEHAVIOR.prs, BEHAVIOR.remove, BEHAVIOR.sweep, BEHAVIOR.tools, BEHAVIOR.skills, BEHAVIOR.minPerDay, BEHAVIOR.batchPerDay, BEHAVIOR.batchEveryDays], ['auto', true, true, true, true, false, 1, 5, 7]);
+  assert.deepEqual([BEHAVIOR.level, BEHAVIOR.prs, BEHAVIOR.remove, BEHAVIOR.tools, BEHAVIOR.skills, BEHAVIOR.minPerDay, BEHAVIOR.batchPerDay, BEHAVIOR.batchEveryDays], ['auto', true, true, true, false, 1, 5, 7]);
   assert.match(read('cli.js'), /worth \$1 a day or more, together in one batch once they come to \$5 a day, at most one\s+batch a repository a week/);
 
   // on the wire, over a home of its own: a pull request in review is a line with its link and what it is expected to
@@ -738,7 +738,7 @@ test('the page opens on the chat with Recent activity beside it: `thinker chat` 
   assert.deepEqual(lines(shown), lines(printed));
   assert.deepEqual([shown.summary, shown.lastCheck, shown.behaviorSaid, shown.level, shown.later, shown.held], [printed.summary, printed.lastCheck, printed.behaviorSaid, 'auto', 0, 0]);
   assert.deepEqual([shown.pending, shown.notes, shown.items], [undefined, undefined, undefined], 'nothing listed for the person to work through');
-  for (const route of ['do', 'leave', 'undo', 'look']) assert.equal((await ui.post(`/api/upkeep/${route}`, { repo: '', id: 'sweep' })).status, 404);
+  for (const route of ['do', 'leave', 'undo', 'look']) assert.equal((await ui.post(`/api/upkeep/${route}`, { repo: '', id: 'batch' })).status, 404);
   // the chat: the message is answered, what it changed is said by the server, and the side says the same
   assert.deepEqual(await ui.get('/api/chat'), { chat: null, messages: [], chats: [] });
   const said = await ui.post('/api/chat', { message: 'ask me before you do anything', repo: '' });

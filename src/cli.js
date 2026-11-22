@@ -167,10 +167,9 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  figure by a feature's two sides, the sessions it reached against the ones held out from it
   activity [run [--look]] [--all] [--json]
                                  Recent activity in the terminal, as it runs down the left of the page's chat: a line an action
-                                 with what it came to (-10k tokens per prompt, $45/day; disk freed), and for a pull request its
+                                 with what it came to (-10k tokens per prompt, $45/day), and for a pull request its
                                  link while it is in review and after; under them a line a session, what it handed to cheaper
-                                 agents and what that saved. Thinker does its work itself: between sessions it looks at
-                                 what the coding agents left behind, removes merged worktrees and branches, and makes the
+                                 agents and what that saved. Thinker does its work itself: between sessions it makes the
                                  changes \`thinker context\` lists that clearly pay -- a section of the instruction file
                                  nobody needs shortened or removed, a tool or MCP server nobody calls switched off -- each
                                  worth $1 a day or more, together in one batch once they come to $5 a day, at most one
@@ -190,7 +189,7 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
   settings [set <id> <value>] [--json]
                                  how thinker works on this machine, set by hand, as on the page's Settings tab: what it
                                  may change on its own (automatic, suggest only, off; instruction files, tools and MCP
-                                 servers, skills, merged worktrees), what is handed to a cheaper model (big reads,
+                                 servers, skills), what is handed to a cheaper model (big reads,
                                  whole-suite test runs, from what size, on which model), learning from sessions and the
                                  profile, what it tells you, and what leaves the machine. A setting sits under the one
                                  it depends on and is not shown while that one is off; its value is kept for when it is

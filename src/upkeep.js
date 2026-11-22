@@ -10,7 +10,6 @@
 // (profile.js). Nothing is replayed and nothing is judged twice.
 //
 // What a check looks for (CHORES):
-//   sweep     worktrees and branches whose work is merged (upkeep-sweep.js)
 //   context   the context changes `thinker context` lists (context-suggest.js:currentChanges): a section of an
 //             instruction file nobody needs is shortened or removed in a pull request, a tool or an MCP server nobody
 //             calls is switched off or made a reference. One computation with the command: every decision is kept in
@@ -36,13 +35,15 @@
 //     still in review. The line about it carries its link. A section is never rewritten in the working tree.
 //   - A week into its effect (`followUpDays`) each change of a batch is checked, and what backfired is taken back
 //     and not tried again (`followUp`): a tool switched back on, a section put back by a pull request of its own.
-//   - A sweep of three things or 500 MB, at most one a repository a day, as before.
 // The settings are `upkeep: { … }` in <THINKER_HOME>/config.json for the machine and in .thinker/config.json for
 // one repository (which wins); `upkeep: false` is `level: off`. The chat writes them (setBehavior).
+//
+// Until 2026-11-22 a check also removed merged worktrees and branches by itself (the sweep, upkeep-sweep.js); taken
+// out on the owner's call. A sweep it made before is still a line of the activity, and `upkeepUndo` says how to bring
+// a branch of it back by hand.
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { findMess, sweep, unsweep, SWEEP } from './upkeep-sweep.js';
 import { currentChanges, decidedKeys, allChanges, pickChanges, approveChanges, dismissChanges, changeHistory, retryJob, revertDecision, restoreSection, VIA, SUGGEST } from './context-suggest.js';
 import { lastSnapshot } from './context-snapshot.js';
 import { rateOf } from './context-view.js';
@@ -80,14 +81,13 @@ export const UPKEEP = {
 };
 const DAY = 86_400_000;
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-const size = kb => !kb ? '' : kb >= 1048576 ? `${(kb / 1048576).toFixed(1)} GB` : kb >= 1024 ? `${Math.round(kb / 1024)} MB` : `${kb} KB`;
 const short = (s, n = 160) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
 
 // --- how it behaves ------------------------------------------------------------------------------------------
 // Each setting with what it may be, and the words the chat and the command say it in.
 export const BEHAVIOR = {
-  level: 'auto', sweep: true, prs: true, remove: true, tools: true, skills: false,
-  minPerDay: 1, batchPerDay: 5, batchEveryDays: 7, followUp: true, followUpDays: 7, sweepEveryDays: 1, sweepMin: 3, sweepMinMb: 500,
+  level: 'auto', prs: true, remove: true, tools: true, skills: false,
+  minPerDay: 1, batchPerDay: 5, batchEveryDays: 7, followUp: true, followUpDays: 7,
   // the two that are read from where their own part of thinker keeps them (`SETTINGS` below, `get`), never from the
   // upkeep block: on until that part says otherwise, and `null` for one the person has not set at all
   delegation: true, answerWords: null,
@@ -99,7 +99,6 @@ const bool = v => v === true || /^(true|on|yes)$/i.test(String(v)) ? true : v ==
 const oneOf = (...xs) => v => xs.includes(String(v).toLowerCase()) ? String(v).toLowerCase() : undefined;
 export const SETTINGS = {
   level: { read: oneOf('auto', 'ask', 'off'), about: 'auto: make the changes worth making by itself; ask: do nothing until told to in the chat; off: stop looking' },
-  sweep: { read: bool, about: 'whether it may remove merged worktrees and branches by itself' },
   prs: { read: bool, about: 'whether it may put up a pull request that shortens or removes a section of an instruction file' },
   remove: { read: bool, about: 'whether such a pull request may remove a section outright; off, it only shortens' },
   tools: { read: bool, about: 'whether it may switch off, or make a reference of, a tool or an MCP server nobody calls' },
@@ -109,9 +108,6 @@ export const SETTINGS = {
   batchEveryDays: { read: num(1, 90), about: 'least days between batches in one repository' },
   followUp: { read: bool, about: 'whether it checks each change once it has been in effect a while, and takes back by itself what did not pay' },
   followUpDays: { read: num(1, 90), about: 'days a change is in effect before that check' },
-  sweepEveryDays: { read: num(1, 90), about: 'days between sweeps in one repository' },
-  sweepMin: { read: num(1, 100), about: 'how many merged worktrees and branches make a sweep worth doing by itself' },
-  sweepMinMb: { read: num(1, 100_000), about: 'or how many megabytes they hold' },
   // Two switches on the other work thinker does for them, which do not live under `upkeep` and are the machine's
   // alone: each says where it is read and written (`get`, `write`), so the chat is one place for everything a person
   // tells thinker to stop or change ("read the files yourself", "keep answers under 60 words") and nobody has to find
@@ -167,12 +163,12 @@ export function setBehavior(store, key, value, { scope = 'machine', home = think
 }
 // "More like this" and "less like this" (the owner, 2026-11-21: a person "can steer future decisions about things like
 // that"): how readily thinker does one kind of thing, moved one step. A step halves or doubles the bar -- the dollars
-// a day a change must save, the size a sweep must be -- so two words from the person are a definite change they are
+// a day a change must save, the size a read must be to be handed over -- so two words from the person are a definite change they are
 // told the size of, and never a number the model picked. `changes` is every change to what loads into a prompt (a
 // batch, a pull request, a tool: `prs` and `tools` are the same bar by the names single lines carry). `delegation` is
 // the delegation trigger's own setting (delegate.js: the size a read must be to be handed to a cheaper agent), which
 // is the machine's alone.
-export const STEER = { kinds: ['changes', 'prs', 'tools', 'sweep', 'delegation'], delegation: { min: 2000, max: 64_000 }, minPerDay: { min: 0.25, max: 64 } };
+export const STEER = { kinds: ['changes', 'prs', 'tools', 'delegation'], delegation: { min: 2000, max: 64_000 }, minPerDay: { min: 0.25, max: 64 } };
 const half = (n, min) => Math.max(min, Math.round(n / 2)), twice = (n, max) => Math.min(max, n * 2);
 export function steerBehavior(store, kind, direction, { scope = 'machine', home = thinkerHome() } = {}) {
   const more = direction === 'more';
@@ -188,13 +184,6 @@ export function steerBehavior(store, kind, direction, { scope = 'machine', home 
   }
   const b = behaviorOf(scope === 'repo' ? store : null, { home });
   const set = (key, value) => setBehavior(store, key, value, { scope, home });
-  if (kind === 'sweep') {
-    if (!b.sweep) { if (!more) return { error: `thinker already does none of that ${where}` }; const r = set('sweep', true); return r.error ? r : { said: `thinker does that again ${where}` }; }
-    const n = more ? half(b.sweepMin, 1) : twice(b.sweepMin, 100), mb = more ? half(b.sweepMinMb, 50) : twice(b.sweepMinMb, 100_000);
-    if (n === b.sweepMin && mb === b.sweepMinMb) return { error: `a sweep is already ${more ? 'as ready' : 'as rare'} as thinker will go` };
-    const r = [set('sweepMin', n), set('sweepMinMb', mb)].find(x => x.error);
-    return r || { said: `merged worktrees and branches are now removed from ${plural(n, 'thing')} or ${mb} MB ${where} (it was ${b.sweepMin} or ${b.sweepMinMb} MB)` };
-  }
   if ((kind === 'prs' || kind === 'tools') && !b[kind]) { if (!more) return { error: `thinker already does none of that ${where}` }; const r = set(kind, true); return r.error ? r : { said: `thinker does that again ${where}` }; }
   // changes, prs, tools: the dollars a day a change must save, halved for more of them and doubled for fewer
   const next = more ? Math.max(STEER.minPerDay.min, Math.round(b.minPerDay * 50) / 100) : Math.min(STEER.minPerDay.max, b.minPerDay * 2);
@@ -207,15 +196,15 @@ export function behaviorSaid(b) {
   if (b.level === 'off') return 'Thinker is not looking after this repository (upkeep is off).';
   if (b.level === 'ask') return 'Thinker does nothing here until you tell it to.';
   const cuts = [b.prs ? (b.remove ? 'shortens or removes instruction sections nobody needs in a pull request' : 'shortens instruction sections nobody needs in a pull request') : '', b.tools ? 'switches off tools nobody calls' : '', b.skills ? 'switches off skills nobody calls' : ''].filter(Boolean);
-  const does = [b.sweep ? 'removes merged worktrees and branches' : '', cuts.length ? `${cuts.join(' and ')}, but only what saves ${formatDollars(b.minPerDay)} a day or more, together in one batch once that comes to ${formatDollars(b.batchPerDay)} a day, at most every ${plural(b.batchEveryDays, 'day')}` : ''].filter(Boolean);
+  const does = [cuts.length ? `${cuts.join(' and ')}, but only what saves ${formatDollars(b.minPerDay)} a day or more, together in one batch once that comes to ${formatDollars(b.batchPerDay)} a day, at most every ${plural(b.batchEveryDays, 'day')}` : ''].filter(Boolean);
   return does.length ? `Thinker acts on its own here: it ${does.join('; ')}.${cuts.length && b.followUp ? ` ${plural(b.followUpDays, 'day')} after a change takes effect it checks it, and takes back what did not pay.` : ''}` : 'Thinker may act on its own here, but every kind of action is switched off.';
 }
 
 // --- what it remembers ---------------------------------------------------------------------------------------
 const stateFile = store => path.join(store.dir, 'state', 'upkeep.json');
 export function readUpkeep(store) {
-  try { const j = JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); return { lastCheck: j.lastCheck || null, items: j.items || [], seen: j.seen || {}, dismissed: j.dismissed || {}, done: j.done || [], kept: j.kept || null, followed: j.followed || {} }; }
-  catch { return { lastCheck: null, items: [], seen: {}, dismissed: {}, done: [], kept: null, followed: {} }; }
+  try { const j = JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); return { lastCheck: j.lastCheck || null, items: j.items || [], seen: j.seen || {}, dismissed: j.dismissed || {}, done: j.done || [], followed: j.followed || {} }; }
+  catch { return { lastCheck: null, items: [], seen: {}, dismissed: {}, done: [], followed: {} }; }
 }
 function writeJson(f, v) {
   const tmp = `${f}.${process.pid}.${randomBytes(3).toString('hex')}`;
@@ -234,52 +223,6 @@ function writeUpkeep(store, st) {
 // Each: `find` (a check's look, kept), `live` (read fresh every time, cheap, never kept), `still` (whether a kept
 // item is still true), `act`, and where leaving a thing alone is more than forgetting it, `dismiss`. An item says
 // whether it is `important` (worth doing) and which setting lets thinker do it (`allow`).
-const messLines = mess => {
-  const rows = [...mess.worktrees.map(w => `${path.basename(w.path)} · worktree on ${w.branch} · ${w.why}${w.kb ? ` · ${size(w.kb)}` : ''}`), ...mess.branches.map(b => `${b.name} · branch · ${b.why}`)];
-  return rows.length > SWEEP.listed ? [...rows.slice(0, SWEEP.listed), `and ${rows.length - SWEEP.listed} more`] : rows;
-};
-const messKb = mess => mess.worktrees.reduce((a, x) => a + (x.kb || 0), 0);
-const messTitle = mess => {
-  const w = mess.worktrees.length, b = mess.branches.length, kb = messKb(mess);
-  const what = [w ? plural(w, 'merged worktree') : '', b ? plural(b, w ? 'branch' : 'merged branch', w ? 'branches' : 'merged branches') : ''].filter(Boolean).join(' and ');
-  return `${what} can go${kb ? ` · ${size(kb)}` : ''}`;
-};
-const sweepChore = {
-  id: 'sweep',
-  find(store, opts) {
-    const found = (opts.fns?.findMess || findMess)(store, { now: opts.now }), kept = readUpkeep(store).kept;
-    // what the person had put back after a sweep is theirs to keep
-    const mess = { worktrees: found.worktrees.filter(w => !kept?.worktrees?.includes(w.path) && !kept?.branches?.includes(w.branch)), branches: found.branches.filter(b => !kept?.branches?.includes(b.name)) };
-    const n = mess.worktrees.length + mess.branches.length;
-    if (!n) return [];
-    const b = opts.behavior;
-    return [{ id: 'sweep', chore: 'sweep', kind: 'do', allow: 'sweep', important: n >= b.sweepMin || messKb(mess) >= b.sweepMinMb * 1024, title: messTitle(mess), detail: 'Their work is on the default branch already, so nothing is lost by removing them, and each can be put back.', lines: messLines(mess), action: { label: 'Remove them' }, data: { worktrees: mess.worktrees, branches: mess.branches } }];
-  },
-  // a worktree or a branch somebody removed by hand since the check leaves the list; an empty list leaves it altogether
-  still(store, item) {
-    const repo = store.home || store.repo;
-    const worktrees = (item.data?.worktrees || []).filter(w => fs.existsSync(w.path));
-    const branches = (item.data?.branches || []).filter(b => fs.existsSync(path.join(repo, '.git', 'refs', 'heads', ...b.name.split('/'))) || packed(repo, b.name));
-    if (!worktrees.length && !branches.length) return null;
-    const mess = { worktrees, branches };
-    return worktrees.length === item.data.worktrees.length && branches.length === item.data.branches.length ? item : { ...item, title: messTitle(mess), lines: messLines(mess), data: mess };
-  },
-  act(store, item, opts) {
-    const r = (opts.fns?.sweep || sweep)(store, item.data, { now: opts.now });
-    const w = r.worktrees.length, b = r.branches.length;
-    if (!w && !b) return { error: `nothing could be removed: ${r.skipped[0]?.why || 'everything changed since the last check'}` };
-    const left = r.skipped.length ? `; ${plural(r.skipped.length, 'thing')} left where ${r.skipped.length === 1 ? 'it was' : 'they were'} (${short(r.skipped[0].why, 60)})` : '';
-    return { said: `Removed ${[w ? plural(w, 'merged worktree') : '', b ? plural(b, w ? 'branch' : 'merged branch', w ? 'branches' : 'merged branches') : ''].filter(Boolean).join(' and ')}${left}`, ...(r.kb ? { impact: { kb: r.kb } } : {}), undo: { kind: 'sweep', branches: r.branches, worktrees: r.worktrees } };
-  },
-  undo(store, undo) {
-    const r = unsweep(store, undo);
-    const n = r.branches.length + r.worktrees.length;
-    if (!n) return { error: `nothing could be put back: ${r.failed[0]?.why || 'nothing was taken'}` };
-    return { said: `Put back ${[r.branches.length ? plural(r.branches.length, 'branch', 'branches') : '', r.worktrees.length ? plural(r.worktrees.length, 'worktree') : ''].filter(Boolean).join(' and ')}${r.failed.length ? `; ${r.failed.length} could not be (${short(r.failed[0].why, 60)})` : ''}` };
-  },
-};
-function packed(repo, name) { try { return fs.readFileSync(path.join(repo, '.git', 'packed-refs'), 'utf8').includes(` refs/heads/${name}\n`); } catch { return false; } }
-
 const viewOf = store => lastSnapshot(store, SUGGEST.days)?.view || null;
 // What a change wastes a day here, in dollars: the tokens that went on it unused over the report's window, at what an
 // input token cost here (context-view.js:rateOf, the Report's rule), a day of that window. null where nothing is priced.
@@ -386,11 +329,11 @@ const waitingChore = {
     return r.error ? { error: r.error } : { said: r.said, kept: true };
   },
 };
-export const CHORES = [waitingChore, sweepChore, contextChore, rulesChore];
+export const CHORES = [waitingChore, contextChore, rulesChore];
 const choreOf = id => CHORES.find(c => c.id === id);
 
 // --- acting by itself ----------------------------------------------------------------------------------------
-const OFF_WHY = { sweep: 'sweeps are switched off here', prs: 'pull requests are switched off here', remove: 'it may shorten a section here but not remove one', tools: 'switching tools is switched off here', skills: 'skills are left alone unless you say otherwise' };
+const OFF_WHY = { prs: 'pull requests are switched off here', remove: 'it may shorten a section here but not remove one', tools: 'switching tools is switched off here', skills: 'skills are left alone unless you say otherwise' };
 // whether the settings let thinker do an item by itself at all (a removal is a pull request too)
 const allowed = (b, it) => Boolean(b[it.allow]) && (it.allow !== 'remove' || Boolean(b.prs));
 const lastBatch = store => Math.max(0, ...readUpkeep(store).done.filter(d => d.kind === 'batch').map(d => Date.parse(d.at)));
@@ -415,8 +358,8 @@ export function batchOf(store, b, { now = Date.now(), items } = {}) {
 
 // Whether thinker may do an item now, and if not, why (`why`), and whether it is only waiting its turn (`later`):
 // the level, the setting for its kind, then its turn -- a context change goes with the batch (`batch`: the batch as
-// already worked out, by a caller asking about several), a sweep at most so often. What the person tells it to do in
-// the chat is held to none of this.
+// already worked out, by a caller asking about several). What the person tells it to do in the chat is held to none
+// of this.
 export function mayAct(store, item, b, { now = Date.now(), batch } = {}) {
   if (!item.important || !item.action || !item.allow) return { ok: false };
   if (b.level !== 'auto') return { ok: false, why: 'you asked to be asked first' };
@@ -424,9 +367,6 @@ export function mayAct(store, item, b, { now = Date.now(), batch } = {}) {
   const wait = why => ({ ok: false, later: true, why });
   if (item.chore === 'waiting') return item.data.tries >= UPKEEP.retries ? { ok: false, why: `it failed ${item.data.tries} times` } : now - Date.parse(item.data.failedAt) < DAY ? wait('it is tried again a day after it failed') : { ok: true };
   if (item.chore === 'context') { const bt = batch || batchOf(store, b, { now }); return bt.ok ? { ok: true } : { ok: false, ...(bt.later ? { later: true } : {}), why: bt.why || 'not now' }; }
-  const mine = readUpkeep(store).done.filter(d => d.by === 'thinker' && !d.undoneAt);
-  const last = chore => Math.max(0, ...mine.filter(d => d.chore === chore).map(d => Date.parse(d.at)));
-  if (item.allow === 'sweep' && now - last('sweep') < b.sweepEveryDays * DAY) return wait(`one sweep every ${plural(b.sweepEveryDays, 'day')} here`);
   return { ok: true };
 }
 
@@ -559,7 +499,7 @@ export async function upkeepCheck(store, { now = Date.now(), fns = {}, act = tru
   writeUpkeep(store, st);
   const did = [];
   if (act && b.level === 'auto') {
-    // a failed change of its own tried again, a sweep: each on its own turn
+    // a failed change of its own, tried again on its own turn
     for (const it of openItems(store, { now, b })) {
       if (it.chore === 'context' || !mayAct(store, it, b, { now }).ok) continue;
       const r = await upkeepDo(store, it.id, { now, by: 'thinker', fns, home });
@@ -578,7 +518,7 @@ export async function upkeepCheck(store, { now = Date.now(), fns = {}, act = tru
   store.log({ op: 'upkeep', did: did.length, pending: pending.length || undefined, level: b.level, acted: Boolean(act), chores: Object.fromEntries(CHORES.map(c => [c.id, did.filter(d => choreOfItem(d.id) === c.id).length]).filter(([, n]) => n)), ...(errors.length ? { errors: errors.length } : {}) });
   return { did, pending: pending.length, errors };
 }
-const choreOfItem = id => id === 'sweep' ? 'sweep' : id === 'batch' || id.startsWith('change:') ? 'context' : id.startsWith('wait:') ? 'waiting' : id.startsWith('rule:') ? 'rules' : 'other';
+const choreOfItem = id => id === 'batch' || id.startsWith('change:') ? 'context' : id.startsWith('wait:') ? 'waiting' : id.startsWith('rule:') ? 'rules' : 'other';
 
 // --- what is not done yet ------------------------------------------------------------------------------------
 const ORDER = { pr: 1, do: 2, note: 3 };
@@ -660,8 +600,8 @@ export function upkeepDismiss(store, ref, { now = Date.now(), fns = {}, home = t
   store.log({ op: 'upkeep-dismiss', chore: it.chore, kind: it.kind });
   return { said: `${it.title}: left alone for the next ${plural(UPKEEP.dismissDays, 'day')}` };
 }
-// Take back something that was done, by the id the activity carries: a sweep is put back (`<id>`), a decision is
-// reverted where its history is kept (`h:<id>`, context-suggest.js:revertDecision -- a tool turned back on, an open
+// Take back something that was done, by the id the activity carries: a decision is reverted where its history is
+// kept (`h:<id>`, context-suggest.js:revertDecision -- a tool turned back on, an open
 // pull request closed, a merged one reverted by another), a whole batch each of its changes in turn (`b:<id>`).
 // What the person took back is not done again: its change is left alone as if they had said so.
 const leaveAlone = (store, keys, now) => { const st = readUpkeep(store); for (const k of keys) st.dismissed[`change:${k}`] = new Date(now).toISOString(); writeUpkeep(store, st); };
@@ -695,17 +635,15 @@ export async function upkeepUndo(store, id, { now = Date.now(), fns = {} } = {})
   const st = readUpkeep(store), e = st.done.find(d => d.id === id);
   if (!e) return { error: 'no such action' };
   if (e.undoneAt) return { error: 'already taken back' };
-  const c = choreOf(e.chore);
-  if (!e.undo || !c?.undo) return { error: 'this one cannot be taken back' };
-  let r; try { r = c.undo(store, e.undo); } catch (err) { r = { error: short(err.message || err, 200) }; }
-  if (r.error) return { error: r.error };
-  e.undoneAt = new Date(now).toISOString();
-  // ... and what was put back stays: those branches and worktrees are never swept again
-  if (e.undo.kind === 'sweep') st.kept = { branches: [...new Set([...(st.kept?.branches || []), ...(e.undo.branches || []).map(b => b.name)])], worktrees: [...new Set([...(st.kept?.worktrees || []), ...(e.undo.worktrees || []).map(w => w.path)])] };
-  writeUpkeep(store, st);
-  store.log({ op: 'upkeep-undo', chore: e.chore });
-  return { said: r.said };
+  // only a sweep ever carried an undo of its own, and thinker no longer removes worktrees or branches (2026-11-22):
+  // what one took is the person's to bring back, and the record still says how
+  return { error: e.undo?.kind === 'sweep' ? sweptBack(e) : 'this one cannot be taken back' };
 }
+// A sweep made before 2026-11-22, for somebody who wants a branch of it back: the names and the commits it kept.
+const sweptBack = d => {
+  const bs = (d.undo?.branches || []).slice(0, 20);
+  return `thinker no longer removes worktrees or branches, and does not put them back${bs.length ? `: ${bs.map(b => `git branch ${b.name} ${b.sha}`).join('; ')} brings ${bs.length === 1 ? 'it' : 'each'} back` : ''}`;
+};
 
 // --- what was done -------------------------------------------------------------------------------------------
 const dayKey = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -716,7 +654,6 @@ const dayKey = t => { const d = new Date(t); return `${d.getFullYear()}-${String
 // input token costs here (report-snapshot.js:inputRateHere, the Report's rate), and are left out where nothing is priced.
 export function impactSaid(i) {
   if (!i) return '';
-  if (i.kb) return `${size(i.kb)} freed`;
   if (!i.perPrompt) return '';
   const saved = i.perPrompt > 0, day = i.perDay != null && Math.abs(i.perDay) >= 0.005 ? ` · ${formatDollars(Math.abs(i.perDay))}/day${saved ? '' : ' more'}` : '';
   // `wait`: the part of it that is not in effect until a pull request merges (a batch: its tools are, its sections are not)
@@ -777,7 +714,7 @@ export function upkeepFeed(store, { now = Date.now(), days = UPKEEP.feedDays, lo
   const done = readUpkeep(store).done;
   for (const d of done) {
     if (Date.parse(d.at) < since || d.kept) continue;
-    out.push(line({ id: `d:${d.id}`, at: d.at, kind: 'did', ...(d.chore === 'sweep' ? { steer: 'sweep' } : d.chore === 'follow' ? { steer: 'changes' } : {}), text: d.said, by: d.by, ...(d.url ? { url: d.url } : {}), ...(d.undo && !d.undoneAt ? { undo: d.id } : {}), ...(d.undoneAt ? { undone: true } : {}) }, d.undoneAt ? null : d.impact));
+    out.push(line({ id: `d:${d.id}`, at: d.at, kind: 'did', ...(d.chore === 'follow' ? { steer: 'changes' } : {}), text: d.said, by: d.by, ...(d.url ? { url: d.url } : {}), ...(d.undo && !d.undoneAt ? { undo: d.id } : {}), ...(d.undoneAt ? { undone: true } : {}) }, d.undoneAt ? null : d.impact));
   }
   let history = []; try { history = changeHistory(store, { now }); } catch {}
   if (history.length) {
@@ -915,12 +852,7 @@ export function upkeepDetail(store, id, { now = Date.now(), log, report, compres
     const d = readUpkeep(store).done.find(x => x.id === id.slice(2));
     if (!d) return out;
     out.push(`${d.said}, on ${dateSaid(d.at)}, ${d.by === 'thinker' ? 'by thinker itself at one of its checks' : 'on the person\'s word in the chat'}.`);
-    for (const w of d.undo?.worktrees || []) out.push(`  A worktree: ${path.basename(w.path)}, on the branch ${w.branch}.`);
-    const bare = (d.undo?.branches || []).filter(b => !(d.undo.worktrees || []).some(w => w.branch === b.name));
-    if (bare.length) out.push(`  Branches with no worktree: ${bare.map(b => b.name).slice(0, 20).join(', ')}.`);
-    if (d.chore === 'sweep') out.push('Why: each one\'s work was already on the default branch, by its history or by a merged pull request with that exact commit, it had no uncommitted or untracked files, nobody was working in it, and it had not changed in a day.');
-    if (d.impact?.kb) out.push(`What it freed: ${size(d.impact.kb)} of disk.`);
-    out.push(d.undoneAt ? 'It was put back, and those are never removed again.' : d.undo ? `It can be put back: each branch at its commit, and the worktrees on them (undo id ${d.id}).` : 'It cannot be taken back from here.');
+    out.push(d.undo?.kind === 'sweep' ? `${sweptBack(d)[0].toUpperCase()}${sweptBack(d).slice(1)}.` : 'It cannot be taken back from here.');
   } else if (id.startsWith('s:')) {
     let d = null;
     try {

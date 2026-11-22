@@ -160,8 +160,8 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
       try { const { scheduleContainersOffer } = await (fns.containers ? { scheduleContainersOffer: fns.containers } : import('./containers-offer.js')); const c = scheduleContainersOffer(store, { now }); if (c) r.containerFound = c.name || c.id; } catch (e) { failed('containers', e); }
     }
     // 4. (the weekly context suggestion ran here until 2026-11-21; thinker makes those changes itself now, in step 5)
-    // 5. upkeep (upkeep.js): what the agents left behind here, and what clearly pays for thinker to do by itself --
-    // remove merged worktrees and branches, and send the context changes worth making as one batch (a pull request for
+    // 5. upkeep (upkeep.js): what clearly pays for thinker to do by itself -- the context changes worth making, sent
+    // as one batch (a pull request for
     // its sections, its tools switched) once enough has piled up. No model call. What it did is said once at the end of a
     // turn (maintenanceNotice: the owner's answer, 2026-11-21, "Recent activity plus one line in a session"), and
     // kept under Recent activity.
