@@ -15,7 +15,7 @@ import type { Register } from 'claude-code'
 
 export type Tool = { name: string; calls: number; tokens: number }
 export type Saving = { saved: number; requests: number; uses: number; tools: Tool[] }
-export type Note = { id: string; title: string; lines: string[]; more?: string; version?: string }
+export type Note = { id: string; title: string; lines: string[]; more?: string; version?: string; page?: string }
 export type Card = { tail: string; at: number; prompts?: number; compression?: Saving; update?: Note }
 // the kept ledger, as src/accountant.js writes it
 export type Cell = { cost: number; tokens: number; unpricedTokens?: number }
@@ -223,16 +223,59 @@ async function noticeShown($: any): Promise<void> {
 // Code and can import nothing from thinker. Once per note, keyed on the note's own id, and never where
 // the notices are off -- a person who asked thinker to be quiet did not ask for release notes.
 export const UPDATE_NOTE: Note = {
-  id: '2026-11-profile-factory',
+  id: '2026-11-agent',
   title: 'What changed',
   lines: [
-    'Thinker builds a memory profile — what you are working on and how you like to work, distilled from your sessions and loaded at the top of each new one.',
-    'Knowledge notes are removed: hit rates were low across many users.',
-    'New Factory tab: the breakdown of your software factory, and which parts spend the most tokens or rework.',
+    'Thinker is now an agent that constantly improves your harness and instruction files!',
+    'Chat with thinker in {chat} to learn about how it works and steer it as you like.',
+    'Look at your factory page {factory} and click on a stage to tell thinker to improve it based on your recent history.',
+    'More coming soon.',
   ],
-  more: 'See it: thinker ui',
+  more: 'Open the dashboard any time: thinker ui',
 }
 export const NOTE_KEY = 'update-note'
+
+
+// Where a line's `{chat}` and `{factory}` go, as src/update-note.js:noteLinks fills them: the place on the
+// local page while one runs for this machine, the command that opens it where none could be started.
+export const noteLinks = (page?: string) => (page
+  ? { chat: `${page}#tab=chat`, factory: `${page}#tab=factory` }
+  : { chat: 'the dashboard (run: thinker ui)', factory: '(run: thinker ui --tab factory)' })
+// a line as the pieces the card draws: its words, and each place on the page as a link of its own
+export function noteParts(line: string, page?: string): { text: string; href?: string }[] {
+  const links = noteLinks(page) as Record<string, string>
+  return line.split(/(\{(?:chat|factory)\})/).filter(Boolean).map(t => {
+    const to = /^\{(chat|factory)\}$/.exec(t)
+    return to ? { text: links[to[1]], ...(page ? { href: links[to[1]] } : {}) } : { text: t }
+  })
+}
+// thinker's CLI, read off the prompt hook thinker wrote into Claude Code's settings: the copy the hooks run
+// (the clearing mod finds it the same way, claude-clear:cliOf)
+export const cliOf = (settings: any): string | null => {
+  for (const g of settings?.hooks?.UserPromptSubmit || []) for (const h of g?.hooks || []) {
+    const hit = /^node "([^"]+[\\/]cli\.js)" hook prompt\b/.exec(String(h?.command || ''))
+    if (hit) return hit[1]
+  }
+  return null
+}
+// The page the note's links open, put up first: `thinker ui --ensure` answers with the address of the page
+// running for this machine and starts one in the background where none runs (context-suggest.js:ensureUi),
+// since the mod can start nothing that outlives its own call. No CLI found, none started in time, or an
+// answer that is not the page's own address: the card names the command instead.
+export const PAGE_TIMEOUT_MS = 8_000
+async function notePage($: any): Promise<string | undefined> {
+  try {
+    let cli = (await $.env.get('THINKER_CLI')) || null
+    if (!cli) {
+      const dir = (await $.env.get('CLAUDE_CONFIG_DIR')) || `${await $.env.get('HOME')}/.claude`
+      cli = cliOf(JSON.parse(String(await $.fs.read(`${dir}/settings.json`))))
+    }
+    if (!cli) return undefined
+    const r = await $.process.run(['node', cli, 'ui', '--ensure'], { timeoutMs: PAGE_TIMEOUT_MS })
+    const url = String(r.stdout || '').trim().split('\n').pop() || ''
+    return r.exitCode === 0 && /^http:\/\/127\.0\.0\.1:\d+\/$/.test(url) ? url : undefined
+  } catch { return undefined }
+}
 
 const MAX_CARDS = 300
 export const tailOf = (text: string) => text.replace(/\s+/g, ' ').trim().slice(-160)
@@ -290,7 +333,8 @@ export const register: Register = on => {
       // once whichever door it comes through.
       if (tail && (await noticeOn($)) && (await $.store.get(NOTE_KEY).catch(() => null)) !== UPDATE_NOTE.id) {
         await $.store.set(NOTE_KEY, UPDATE_NOTE.id).catch(() => {})
-        const card: Card = { tail, at: Date.now(), update: { ...UPDATE_NOTE, version } }
+        const page = await notePage($)
+        const card: Card = { tail, at: Date.now(), update: { ...UPDATE_NOTE, version, ...(page ? { page } : {}) } }
         cards = [...(await load($)).filter(c => c.tail !== tail), card].slice(-MAX_CARDS)
         await $.store.set('cards', cards).catch(() => {})
         await markSession($)
@@ -338,14 +382,15 @@ export const register: Register = on => {
     const tail = tailOf(e.props.text)
     const card = tail ? (await load($)).find(c => c.tail === tail) : undefined
     if (!card?.compression && !card?.update) return drawn
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Text, Link } = $.ui.resolve(e)
+    const page = card.update?.page
     return (
       <Box flexDirection="column">
         {drawn}
         {card.update ? (
           <Box flexDirection="column" borderStyle="round" paddingX={1} marginTop={1}>
             <Text><Text bold>🧠 Thinker{card.update.version ? ` v${card.update.version}` : ''}</Text><Text dimColor> · {card.update.title}</Text></Text>
-            {card.update.lines.map((l, i) => <Text key={i} dimColor>• {l}</Text>)}
+            {card.update.lines.map((l, i) => <Text key={i} dimColor>• {noteParts(l, page).map((p, j) => p.href ? <Link key={j} href={p.href} /> : p.text)}</Text>)}
             {card.update.more ? <Text dimColor>{card.update.more}</Text> : null}
           </Box>
         ) : null}
