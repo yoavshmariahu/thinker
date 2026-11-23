@@ -64,6 +64,7 @@ import { traceFile } from './transcripts.js';
 import { shellRead } from './shell-read.js';
 import { keepPatterns, keepMatcher, namedIn } from './keep.js';
 import { compactionsSince } from './compactions.js';
+import { hostedModel, hostedCanRead, runHosted } from './hosted.js';
 export { shellRead };
 
 // the mark the mod leaves for each session it decides reads in (<THINKER_HOME>/state/claude-delegate/<session>)
@@ -111,6 +112,10 @@ export const DELEGATE_DEFAULTS = Object.freeze({
                       // model (EXPLORER_FAMILIES); `delegate: { families: false }` keeps it on the session's model
   handoffsPerTurn: 5, // reads handed over per turn (the owner's call, 2026-11-15; 1 until then). A file is handed
                       // over once a turn and a suite run once a turn whatever this says (see `decide`)
+  hosted: null,       // a read is run by thinker itself, in OpenCode, on one of thinker's hosted models (hosted.js):
+                      // `delegate: { hosted: "<model id>" }`. Off, and with no default model, until one has been
+                      // measured as an explorer on real handoffs. It needs the machine's API key and the org's
+                      // credits; where either is missing the read goes to the host's own subagent as before.
   timeoutMs: 240_000, // a fallback subagent run past this is abandoned and the read allowed
   agentHooks: [],     // Claude Code's agent hooks (`agentHookEntries`): the mechanism without a rule to fire it
   reportLines: 25,
@@ -622,11 +627,14 @@ function pointAtCopy({ ev, state, session, cwd, cfg = DELEGATE_DEFAULTS, log = (
   return held ? null : denial({ kind: 'repeat', files: read.files, cwd });
 }
 
-async function handoffCall({ ev, state, session, cwd, cfg = DELEGATE_DEFAULTS, log = () => {}, run = runSubagent, lastPrompt = () => ({}), readCap = 0, client = 'claude', verifier = false, read, suite }) {
+async function handoffCall(opts) {
+  const { ev, state, session, cwd, cfg = DELEGATE_DEFAULTS, log = () => {}, run = runSubagent, hosted = runHosted, lastPrompt = () => ({}), readCap = 0, client = 'claude', verifier = false, read, suite } = opts;
   if (!read && !suite) return null;
   // inside a subagent nothing is delegated: those reads *are* the delegation
   if (fromSubagent(ev, client)) return null;
-  const exec = executionFor(client, suite ? 'verify' : 'explore', cfg, { lead: ev.model, verifier });
+  let exec = executionFor(client, suite ? 'verify' : 'explore', cfg, { lead: ev.model, verifier });
+  // a file the hosted run would refuse (outside the project, an `.env`) is the host's own subagent's to read
+  if (exec.hosted && !hostedCanRead(read ? read.files : [], cwd)) exec = executionFor(client, 'explore', { ...cfg, hosted: null }, { lead: ev.model, verifier });
   const handoff = exec.mode === 'handoff';
   // which door decided this call: the host's own (the mod, which runs the subagent) or the settings hook. Two
   // of them ask about one call, and before `noteDecided` the pair was two rows a reader could not tell apart.
@@ -679,7 +687,7 @@ async function handoffCall({ ev, state, session, cwd, cfg = DELEGATE_DEFAULTS, l
   }
   const held = heldOut(session, cfg.holdout);
   const files = read ? read.files : [];
-  const row = { op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name, files: (read ? read.files : [suite]).map(f => path.relative(cwd || '', f) || f), tokens: d.tokens, held, mode: exec.mode, via };
+  const row = { op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name, files: (read ? read.files : [suite]).map(f => path.relative(cwd || '', f) || f), tokens: d.tokens, held, mode: exec.mode, via, ...(exec.hosted ? { hosted: true } : {}) };
   if (held) { log(row); return null; }
   // the turn's handoff of this kind has already been made: the call goes through, and the row says which one
   // let it through. `after: 'handoff'` is this file's own report already in the lead's hands, so it is the one
@@ -712,12 +720,20 @@ async function handoffCall({ ev, state, session, cwd, cfg = DELEGATE_DEFAULTS, l
     return JSON.stringify({ ...JSON.parse(words), thinkerRun: hostRunOrder({ exec, lead: ev.model, kind: d.kind, files, cwd, brief, label, pinned: pinnedTo }) });
   }
   if (cached) { log({ ...row, cached: true }); return denial({ kind: d.kind, report: cached, files, cwd, model: modelFor(d.kind, cfg) }); }
-  const r = await run({ kind: d.kind, brief, cwd, cfg });
-  if (r.error) { log({ ...row, error: r.error, ms: r.ms }); return null; }
+  const r = exec.hosted
+    ? await hosted({ brief, cwd, cfg, system: EXPLORER_PROMPT.replace('{N}', String(cfg.reportLines)) })
+    : await run({ kind: d.kind, brief, cwd, cfg });
+  if (r.error) {
+    log({ ...row, error: r.error, ms: r.ms });
+    // A hosted model that could not take the read -- no key, no credits, no OpenCode on the machine, a run that
+    // failed -- is not a reason for the lead to read the file: the read goes where it went before this was set,
+    // to the host's own subagent. The row above says why, and the one that follows is the handoff's own.
+    return exec.hosted ? handoffCall({ ...opts, cfg: { ...cfg, hosted: null } }) : null;
+  }
   state.update(st => { if (!st.delegate || st.delegate.prompt !== prompt) st.delegate = { prompt, reports: {}, handoffs: {} }; st.delegate.reports[d.key] = r.report; });
   if (d.kind === 'explore') state.update(st => noteFiring(st, { t: Date.now(), tokens: d.tokens, files }));
   log({ ...row, model: r.model, usage: r.usage, cost: r.cost, ms: r.ms, reportChars: r.report.length, subagent: r.sessionId });
-  return denial({ kind: d.kind, report: r.report, files, cwd, model: r.model });
+  return denial({ kind: d.kind, report: r.report, files, cwd, model: exec.hosted ? r.model.split('/').pop() : r.model });
 }
 
 // ---- the hosts, their door, and their own subagent ----
@@ -917,6 +933,9 @@ export function executionFor(client, kind, cfg = DELEGATE_DEFAULTS, { lead = nul
   // An exploration on a gateway goes to the lead's family's cheap model (EXPLORER_FAMILIES). A suite run there
   // stays on the session's model: no pair was measured for it.
   const pair = kind !== 'verify' && sub?.families && cfg.families !== false ? explorerFor(lead) : null;
+  // A read on one of thinker's hosted models is thinker's own run, on any host: asked for by name, so it comes
+  // before the host's subagent, which is where the read goes if the hosted run cannot be made (handoffCall).
+  if (kind !== 'verify' && hostedModel(cfg)) return { mode: 'report', hosted: true, model: hostedModel(cfg) };
   if (cfg.handoff && agent) return { mode: 'handoff', tool: sub.tool, alias: sub.alias, param: sub.param, ...(sub.fields ? { fields: sub.fields } : {}), agent: pair ? pair.agent : agent, ...(pair ? { model: pair.model, family: pair.family } : {}), ...(pinned ? { pinned: true } : {}) };
   if (cfg.fallback) return { mode: 'report' };
   return { mode: 'none', reason: agent ? 'handoff-off' : 'no-native-subagent' };
@@ -932,7 +951,7 @@ export function hostEvent(client, ev) {
 }
 
 /** The PreToolUse hook's body, over the repository's store and the session's state file. */
-export async function preToolHook({ ev: raw, store, session, cwd, cfg = delegateConfig(), run, client = 'claude', verifier = client === 'claude' && claudeVerifierReady() }) {
+export async function preToolHook({ ev: raw, store, session, cwd, cfg = delegateConfig(), run, hosted, client = 'claude', verifier = client === 'claude' && claudeVerifierReady() }) {
   if (!cfg.enabled || !HOSTS[client]) return null;
   // Claude Code's mod asks for itself, from inside the harness, and runs the subagent (`host_runs`,
   // claude-clear:delegateCall). In a session it marked, the settings hook's copy of the same call stands down,
@@ -949,7 +968,7 @@ export async function preToolHook({ ev: raw, store, session, cwd, cfg = delegate
   // own `toolu_*`, one to a call. Devin's is not: its CLI 3000.11.234 sent `read:0#99f0` for every read of a
   // session, so there an id says nothing about which call this is.
   if (client === 'claude' && ev.tool_use_id) { let decided = false; state.update(st => { decided = noteDecided(st, ev.tool_use_id); }); if (decided) return null; }
-  return delegateTool({ ev, state, session, cwd, cfg, run, client, verifier, readCap: HOSTS[client].readCap, log: row => store.log(row),
+  return delegateTool({ ev, state, session, cwd, cfg, run, hosted, client, verifier, readCap: HOSTS[client].readCap, log: row => store.log(row),
     // where the context starts again (compactions.js): a copy from before a compaction is no longer in the
     // model's context, so nothing may be pointed at it. Only read when a pointer is about to go out, and only
     // the bytes the transcript has grown by since the last look.

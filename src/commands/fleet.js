@@ -1,6 +1,9 @@
 // `thinker config set|unset api-key` and `thinker status`: the fleet's two doors on a machine (fleet.js).
 // `fleet-report` is the hook's own: the one process left waiting to send at the five-minute mark.
+// `status` also says what the org has left for thinker's hosted models (hosted.js), where the endpoint
+// answers: the balance is the server's own figure, read now, and nothing here computes one.
 import { setFleetKey, unsetFleetKey, fleetStatus, sendFleetReport } from '../fleet.js';
+import { hostedCredits } from '../hosted.js';
 
 async function configCommand({ pos = [], out }) {
   const [verb, name, value] = pos;
@@ -15,11 +18,14 @@ async function configCommand({ pos = [], out }) {
 
 async function statusCommand({ flags = {}, out }) {
   const status = await fleetStatus();
-  if (flags.json) { out(JSON.stringify(status, null, 2)); return; }
+  const credits = status.mode === 'fleet' ? await hostedCredits({ fresh: true }) : null;
+  const known = credits && !credits.error ? { balanceUsd: credits.balance, grantedUsd: credits.granted, spentUsd: credits.spent } : null;
+  if (flags.json) { out(JSON.stringify({ ...status, ...(known ? { credits: known } : {}) }, null, 2)); return; }
   if (status.mode === 'local') { out(`mode     local (${status.reason})\nmachine  ${status.machineId}`); return; }
   out([`mode     fleet (API key from ${status.keyFrom === 'env' ? 'THINKER_API_KEY' : 'thinker config'})`,
     `org      ${status.orgName || 'unknown'}`, `machine  ${status.machineId}`,
-    `fleet    ${status.reachable ? 'reachable' : status.reason === 'invalid-key' ? 'API key invalid or revoked, running locally' : 'unreachable, running locally'}`].join('\n'));
+    `fleet    ${status.reachable ? 'reachable' : status.reason === 'invalid-key' ? 'API key invalid or revoked, running locally' : 'unreachable, running locally'}`,
+    ...(known ? ['credits  $' + known.balanceUsd.toFixed(2) + ' for thinker\'s hosted models'] : [])].join('\n'));
 }
 
 async function fleetReportCommand({ flags = {} }) {
