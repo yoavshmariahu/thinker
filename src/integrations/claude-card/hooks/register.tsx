@@ -233,7 +233,43 @@ export const UPDATE_NOTE: Note = {
   ],
   more: 'Open the dashboard any time: thinker ui',
 }
+// Which notes this machine has been shown: `<thinker home>/state/update-notes.json`, `{ shown: { <note id>: <when> } }`,
+// the one record both doors read and add to (src/update-note.js holds the same rule for the Stop hook). It is a
+// set that is only ever added to, never the one id of the last note said. That was the fault of 2026-11-22: the
+// record was this mod's own store key holding one id, and an open session keeps the mod it loaded at its start
+// (claude-card.js), so after an update a session still running the copy before it found a newer id there, drew
+// its own old note again and put its id back, and the next new session drew the new note again -- the two traded
+// places at every turn for as long as both were open. A record no copy takes an id out of cannot be traded.
+//
+// NOTE_KEY is that old store key. It is read once more, as what a copy before this one left (its own id there
+// means this note was said), and never written: the copies before this one still compare it to their own id,
+// and a write here would have every session open on an older note draw it again.
 export const NOTE_KEY = 'update-note'
+export const NOTES_KEEP = 20
+const notesFile = async ($: any) => `${await thinkerHome($)}/state/update-notes.json`
+const oldNoteFile = async ($: any) => `${await thinkerHome($)}/state/update-note.json`   // the Stop hook's, one id, until 2026-11-22
+async function json($: any, file: string): Promise<any> {
+  try { return JSON.parse(String(await $.fs.read(file))) } catch { return null }
+}
+// Whether this note has been said on this machine, by either door or by a copy from before the shared record --
+// and what the older records knew is written into the shared one on the way, since an older copy still open can
+// put another id over its own at any turn.
+async function noteSaid($: any, id = UPDATE_NOTE.id): Promise<boolean> {
+  const shown: Record<string, string> = { ...((await json($, await notesFile($)))?.shown ?? {}) }
+  if (shown[id]) return true
+  const before = (await json($, await oldNoteFile($)))?.id === id
+    || (await $.store.get(NOTE_KEY).catch(() => null)) === id
+    || (await load($)).some(c => c.update?.id === id)
+  if (before) await markNote($, id, shown)
+  return before
+}
+async function markNote($: any, id = UPDATE_NOTE.id, shown?: Record<string, string>): Promise<void> {
+  try {
+    const all = { ...(shown ?? (await json($, await notesFile($)))?.shown ?? {}), [id]: new Date().toISOString() }
+    const kept = Object.fromEntries(Object.entries(all).slice(-NOTES_KEEP))
+    await $.fs.write(await notesFile($), JSON.stringify({ shown: kept }))
+  } catch {}
+}
 
 
 // Where a line's `{chat}` and `{factory}` go, as src/update-note.js:noteLinks fills them: the place on the
@@ -290,6 +326,8 @@ export const register: Register = on => {
   let held = 0
   // turns since the first one that saw the proxy clear anything in this session; -1 until then
   let sinceClear = -1
+  // the update note was drawn in this session
+  let noted = false
   cards = null
   line = ''
   version = ''
@@ -329,10 +367,14 @@ export const register: Register = on => {
       // What changed in thinker, once per machine, at the first turn that ends after the update. It
       // does not wait for the summary cadence and does not spend it: a release note is a one-off, and
       // a person who learns a week late what their agent has been doing has learnt it too late. The
-      // Stop hook leaves it to this card where the mod runs (commands/hooks.js:carded), so it is said
-      // once whichever door it comes through.
-      if (tail && (await noticeOn($)) && (await $.store.get(NOTE_KEY).catch(() => null)) !== UPDATE_NOTE.id) {
-        await $.store.set(NOTE_KEY, UPDATE_NOTE.id).catch(() => {})
+      // Stop hook leaves it to this card where the mod runs (commands/hooks.js:carded), and the two
+      // read one record (noteSaid), so it is said once whichever door it comes through.
+      if (tail && !noted && (await noticeOn($)) && !(await noteSaid($))) {
+        // marked before the page is put up, which can take seconds: two sessions ending a turn together
+        // would otherwise both find it unsaid. `noted` is the same guard inside this session, should the
+        // record's file not take the write: a note drawn at every turn is worse than one drawn per session.
+        noted = true
+        await markNote($)
         const page = await notePage($)
         const card: Card = { tail, at: Date.now(), update: { ...UPDATE_NOTE, version, ...(page ? { page } : {}) } }
         cards = [...(await load($)).filter(c => c.tail !== tail), card].slice(-MAX_CARDS)
