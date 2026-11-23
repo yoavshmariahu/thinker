@@ -167,3 +167,23 @@ served, and reads handed to a subagent, by size and model.
 
 **What is never sent:** prompts, completions, code, file paths, file contents, tool arguments or results, cache
 contents, environment variables.
+
+### Hosted models (off by default)
+
+thinker hands a big file read to a subagent and gives the main model its report instead of the file. That
+subagent is normally your agent's own, on your own provider. With an API key set, thinker can instead run it
+itself on an open model it serves, paid from your organisation's credits:
+
+```json
+{ "delegate": { "hosted": "deepseek-ai/DeepSeek-V4-Flash" } }
+```
+
+in `~/.thinker/config.json`, with a model id from the endpoint's list. It needs [OpenCode](https://opencode.ai)
+installed, which is what runs the subagent, and credits: `thinker status` shows what your organisation has
+left. Credits are not open yet, so today every organisation has none. Without credits, without OpenCode or
+when a run fails, the read goes to your agent's own subagent exactly as before.
+
+**This is the one setting that sends file contents off your machine through thinker.** The files of a
+delegated read go to thinker's inference endpoint and from there to the model's host (DeepInfra). The endpoint
+stores token counts, the model's name and the cost, and no text. The subagent can read, list and search files
+inside the project and can do nothing else: no shell, no edits, no network, no `.env` files.
