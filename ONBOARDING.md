@@ -19,7 +19,19 @@ and ranked on your machine; your configured agent writes them.
 
 ## After that
 
-You don't run thinker by hand:
+Open your local dashboard from any directory:
+
+```bash
+thinker ui
+```
+
+To open **View Report** directly in your browser:
+
+```bash
+thinker ui --tab report
+```
+
+Thinker also runs in the background:
 
 - **Thinker cuts what your agents load and never use, by itself**: a change
   has to save $1 a day or more, and the ones that do go out together as one

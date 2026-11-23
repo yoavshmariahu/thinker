@@ -3,6 +3,17 @@
 What thinker costs, what it saves, and how it learns from your sessions. Where the agents'
 context goes, and what is cut, is in [context cuts](context.md). Back to the [README](../README.md).
 
+## Open the dashboard report
+
+Run this in your terminal to open **View Report** in your browser:
+
+```bash
+thinker ui --tab report
+```
+
+Use `thinker ui` to open the dashboard's **Find Savings** tab. Both work from any directory and show
+the repositories on this machine. `thinker report` prints a report in the terminal instead.
+
 ## Usage and savings
 
 `thinker usage` summarizes the machine's log: the requests the hooks saw, the sessions, which agents made them, and
