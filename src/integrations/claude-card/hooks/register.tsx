@@ -1,6 +1,7 @@
 // The Claude Code side of thinker's card: what the context clearing saved, drawn under the answer once a
 // summary comes due. The card is kept by the end of that answer's text, so it is drawn again whenever the
-// transcript is, the session reopened included. `thinker connect` names this folder in CLAUDE_CODE_PLUGIN_DIRS
+// transcript is, the session reopened included. A release note is drawn the same way and kept nowhere: it is
+// shown once (takeNote). `thinker connect` names this folder in CLAUDE_CODE_PLUGIN_DIRS
 // (clients.js:claudeCardDir); a session this mod runs in is marked under thinker's home, and the
 // Stop hook leaves its own collapsed line out there (claude-card.js:claudeCardActive). Until 2026-11-08 the
 // card also listed the knowledge notes a turn was served; they went with the notes.
@@ -15,10 +16,14 @@ import type { Register } from 'claude-code'
 
 export type Tool = { name: string; calls: number; tokens: number }
 export type Saving = { saved: number; requests: number; uses: number; tools: Tool[] }
-// A card kept before 2026-11-23 may also hold an `update`: the release note ("What changed"), drawn once per
-// machine from 2026-11-10 until the owner had it removed. Nothing says one now and a kept one is not drawn again;
-// the copies of this mod still open in older sessions keep their own until those sessions end.
+// A card kept before 2026-11-23 may also hold an `update`: a release note as the copies of this mod drew it until
+// then, each from its own words and kept here, which is how one note came to be drawn again and again. A kept one
+// is never drawn; the release note has its own card now, kept nowhere (Note, below).
 export type Card = { tail: string; at: number; prompts?: number; compression?: Saving }
+// The release note ("What changed"), as `thinker hook note` hands it to the one call that takes it
+// (src/update-note.js): its lines already cut into words and links, so this mod holds no note of its own.
+export type NotePart = { text: string; href?: string }
+export type Note = { id: string; title: string; version?: string; more?: string; lines: NotePart[][] }
 // the kept ledger, as src/accountant.js writes it
 export type Cell = { cost: number; tokens: number; unpricedTokens?: number }
 export type Ledger = { at: number; day: string; version?: string; today: Cell; lifetime: Cell }
@@ -216,6 +221,39 @@ async function noticeShown($: any): Promise<void> {
   try { await $.fs.write(await noticeFile($), JSON.stringify({ at: new Date().toISOString(), prompts: 0 })) } catch {}
 }
 
+// The release note, shown once: right after an update that brought one, under the first answer of a session a
+// person is at (src/update-note.js holds the rule and the reasons). The update leaves the note armed in one file
+// under thinker's home. This mod carries no note and no record of one: where that file is there it asks thinker's
+// own CLI to take it, and the CLI gives the note to exactly one caller on the machine, ever. So a copy of this
+// mod left running in an old session can show nothing of its own, and nothing twice. Almost every turn stops at
+// the first line: one small read of a file that is not there, and no process started.
+export const NOTE_TIMEOUT_MS = 15_000   // the CLI may start the local page for the note's links first
+// thinker's CLI, read off the prompt hook thinker wrote into Claude Code's settings: the copy the hooks run
+// (the clearing mod finds it the same way, claude-clear:cliOf)
+export const cliOf = (settings: any): string | null => {
+  for (const g of settings?.hooks?.UserPromptSubmit || []) for (const h of g?.hooks || []) {
+    const hit = /^node "([^"]+[\\/]cli\.js)" hook prompt\b/.exec(String(h?.command || ''))
+    if (hit) return hit[1]
+  }
+  return null
+}
+async function takeNote($: any): Promise<Note | null> {
+  try {
+    if (!JSON.parse(String(await $.fs.read(`${await thinkerHome($)}/state/update-note-armed.json`)))?.id) return null
+  } catch { return null }
+  try {
+    let cli = (await $.env.get('THINKER_CLI')) || null
+    if (!cli) {
+      const dir = (await $.env.get('CLAUDE_CONFIG_DIR')) || `${await $.env.get('HOME')}/.claude`
+      cli = cliOf(JSON.parse(String(await $.fs.read(`${dir}/settings.json`))))
+    }
+    if (!cli) return null
+    const r = await $.process.run(['node', cli, 'hook', 'note', '--client', 'claude'], { stdin: '{}', timeoutMs: NOTE_TIMEOUT_MS })
+    const note = r.exitCode === 0 ? JSON.parse(String(r.stdout || '').trim().split('\n').pop() || 'null') : null
+    return note && typeof note.title === 'string' && Array.isArray(note.lines) ? note : null
+  } catch { return null }
+}
+
 const MAX_CARDS = 300
 export const tailOf = (text: string) => text.replace(/\s+/g, ' ').trim().slice(-160)
 let cards: Card[] | null = null
@@ -229,6 +267,11 @@ export const register: Register = on => {
   let held = 0
   // turns since the first one that saw the proxy clear anything in this session; -1 until then
   let sinceClear = -1
+  // The release note this session took, and the answer it is drawn under. It lives here and nowhere else: not in
+  // the store, so it is not drawn again in a session that reopens this transcript, or in any other.
+  let noted: { tail: string; note: Note } | null = null
+  // whether a person is at the prompt: a `-p` run or the SDK takes no note, since nobody would be shown it
+  let watched = false
   cards = null
   line = ''
   ledgerAt = -1
@@ -237,6 +280,7 @@ export const register: Register = on => {
   let surface = ''
   on('session.start', async ($, e, next) => {
     surface = e.surface
+    watched = e.isInteractive === true
     await markSession($)
     if (surface === 'desktop') {
       await $.command.register({ name: 'thinker-hide', description: 'Hide the thinker savings line under the prompt for today' })
@@ -264,6 +308,16 @@ export const register: Register = on => {
       if (state) sinceClear = sinceClear < 0 ? 0 : sinceClear + 1
       const compression = state && sinceClear >= TURNS_AFTER ? state : undefined
       const tail = tailOf(e.answer)
+      // It does not wait for the summary's cadence and does not spend it. Taken with the notices off it is not
+      // drawn: a person who asked thinker to be quiet did not ask for release notes, now or a month on.
+      if (tail && watched && !noted) {
+        const note = await takeNote($)
+        if (note && (await noticeOn($))) {
+          noted = { tail, note }
+          // the answer was drawn before the turn ended: draw it again, now with the note under it
+          $.ui.invalidate('ui.render')
+        }
+      }
       if (compression && tail) {
         if (!(await noticeDue($))) held++   // the saving comes with the next card
         else {
@@ -304,16 +358,26 @@ export const register: Register = on => {
     if (e.props.isSummary) return drawn
     const tail = tailOf(e.props.text)
     const card = tail ? (await load($)).find(c => c.tail === tail) : undefined
-    if (!card?.compression) return drawn
-    const { Box, Text } = $.ui.resolve(e)
+    const note = noted && noted.tail === tail ? noted.note : null
+    if (!card?.compression && !note) return drawn
+    const { Box, Text, Link } = $.ui.resolve(e)
     return (
       <Box flexDirection="column">
         {drawn}
-        <Box flexDirection="column" borderStyle="round" paddingX={1} marginTop={1}>
-          <Text><Text bold>🗜 Thinker</Text><Text dimColor> · {compressionHeader(card.compression)}</Text></Text>
-          <Text dimColor>• {card.compression.uses} tool {card.compression.uses === 1 ? 'result' : 'results'} cleared from the prompt</Text>
-          {compressionTools(card.compression) ? <Text dimColor>• out now: {compressionTools(card.compression)}</Text> : null}
-        </Box>
+        {note ? (
+          <Box flexDirection="column" borderStyle="round" paddingX={1} marginTop={1}>
+            <Text><Text bold>🧠 Thinker{note.version ? ` v${note.version}` : ''}</Text><Text dimColor> · {note.title}</Text></Text>
+            {note.lines.map((l, i) => <Text key={i} dimColor>• {l.map((p, j) => p.href ? <Link key={j} href={p.href} /> : p.text)}</Text>)}
+            {note.more ? <Text dimColor>{note.more}</Text> : null}
+          </Box>
+        ) : null}
+        {card?.compression ? (
+          <Box flexDirection="column" borderStyle="round" paddingX={1} marginTop={1}>
+            <Text><Text bold>🗜 Thinker</Text><Text dimColor> · {compressionHeader(card.compression)}</Text></Text>
+            <Text dimColor>• {card.compression.uses} tool {card.compression.uses === 1 ? 'result' : 'results'} cleared from the prompt</Text>
+            {compressionTools(card.compression) ? <Text dimColor>• out now: {compressionTools(card.compression)}</Text> : null}
+          </Box>
+        ) : null}
       </Box>
     )
   })

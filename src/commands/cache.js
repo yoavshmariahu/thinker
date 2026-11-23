@@ -44,9 +44,8 @@ async function uiCommand(ctx) {
   // the checkouts the page lists, looked for again (ui/server.js:refreshCheckouts); the page runs this in the background
   if (flags.refresh) { const cs = refreshCheckouts(store); if (!flags.quiet) out(`${cs.length} checkouts with a cache kept for the page.`); return; }
   // --ensure: the address of the machine's page on a line of its own, one started in the background where none runs
-  // (context-suggest.js:ensureUi). For a caller that can start nothing that outlives its own call, as a Claude Code
-  // mod cannot (the release note's card asked this for its links until 2026-11-23): it returns as soon as the page
-  // says where it is. Exit 1 and no line where none could be started.
+  // (context-suggest.js:ensureUi). For a caller that can start nothing that outlives its own call: it returns as
+  // soon as the page says where it is. Exit 1 and no line where none could be started.
   if (flags.ensure) { const { ensureUi } = await import('../context-suggest.js'); const url = ensureUi(store); if (url) out(url); else process.exitCode = 1; return; }
   const { box, c } = await import('../setup/ui.js');
   // --background (context-suggest.js:ensureUi): a page started for the machine without a terminal, its address in

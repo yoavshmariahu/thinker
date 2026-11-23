@@ -17,6 +17,7 @@ import { readLog } from '../usage.js';
 import { isTestMode } from '../test-mode.js';
 import { runAutomaticPrComments } from '../delivery-auto.js';
 import { recordRepair, repairAfterUpdate as rewireAfterUpdate } from '../environment-repair.js';
+import { armNote } from '../update-note.js';
 import { proxyOn, proxyUrl, wireAgents, restartService, disableProxyService, serviceState, enableProxyService, removedByHand, trackClaude, routeAppeared, standDown, replaceReason, isListening } from '../proxy-service.js';
 
 async function initCommand(ctx) {
@@ -44,6 +45,9 @@ async function connectCommand(ctx) {
     hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !flags['no-late'], mcp: !flags['no-mcp'],
     noTrust: Boolean(flags['no-trust']), yes: Boolean(flags.yes), proxy: !flags['no-proxy'], out,
   });
+  // the installer's last step: a new machine starts its record of releases here and is shown no note for this one;
+  // an install over an older copy is an update like any other (update-note.js:armNote)
+  armNote();
   out(`\n  thinker runs in every git repository on this machine: a cache starts with the first session there and grows from your sessions.`);
 }
 
@@ -193,6 +197,9 @@ async function rewireCommand(ctx) {
   }
   summary.ok = summary.errors.length === 0;
   if (!dry) {
+    // The release note, armed here and nowhere later (update-note.js): this is the step every updater ends with,
+    // run by the copy it just installed, so "right after an update" is this call. Run again by hand it arms nothing.
+    armNote();
     // This is intentionally in rewire, the entrypoint already launched by older releases.
     try { recordRepair(thinkerHome(), summary); }
     catch (e) { failed('repair status', e); summary.ok = false; }
