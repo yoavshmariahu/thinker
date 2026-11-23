@@ -291,9 +291,14 @@ test('authentication failures keep the message and expose recovery for the chose
     assert.equal(r.messages.filter(m => m.text === 'hello').length, 1);
     const failed = answer(r).failed;
     assert.ok(failed.startsWith(reason));
-    assert.ok(failed.includes('THINKER_LLM=<agent> thinker ui'));
-    for (const provider of ['codex', 'claude', 'cursor', 'gemini']) assert.ok(failed.includes(provider));
-    assert.ok(failed.includes('thinker chat "your message"'));
+    const recovery = answer(r).recovery;
+    assert.ok(recovery.ui);
+    assert.ok(recovery.cli);
+    assert.notEqual(recovery.ui, recovery.cli);
+    const terminal = renderChat(r.messages).join('\n');
+    assert.ok(terminal.includes(recovery.cli));
+    assert.ok(!terminal.includes(recovery.ui), 'terminal does not show page instructions');
+    assert.deepEqual(chatView({ home }).messages.at(-1).recovery, recovery);
     assert.equal(answer(r).pending, undefined);
     assert.equal(chatView({ home }).messages.at(-1).failed, failed, 'the page receives the full guidance');
     assert.ok(renderChat(r.messages).join('\n').includes(failed), 'the CLI receives the same guidance');

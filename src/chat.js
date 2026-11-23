@@ -499,12 +499,14 @@ export async function chatReply(text, { repos = [], about = null, ref = null, hi
   return { reply: cut(res.json?.reply || '', 6000) || (acted.length ? 'Done!' : 'Hmm, I\'m not sure what to say to that one. Ask me what I\'ve been up to, or how I decide what to change.'), did };
 }
 
-// The same recovery instructions reach the page, CLI history and server terminal. An installed CLI
-// is not proof of a usable login, nor evidence that it is the person's preferred coding agent.
+// Shared failure classification; each surface displays only its own recovery instruction.
 function chatFailure(e) {
-  const reason = String(e?.message || e).split('\n')[0].slice(0, 200);
-  if (!/failed to authenticate|OAuth.*expired|not logged in|no model available|authentication|unauthorized|invalid.*(?:api.?key|token)|token.*expired/i.test(reason)) return reason;
-  return `${reason}\n\nSign in to your agent's CLI, or switch agents:\n  THINKER_LLM=<agent> thinker ui\nReplace <agent> with codex, claude, cursor or gemini. Stop the server with Ctrl+C first, then reopen the page and resend.\nFor terminal chat, replace thinker ui with thinker chat "your message".`;
+  const failed = String(e?.message || e).split('\n')[0].slice(0, 200);
+  if (!/failed to authenticate|OAuth.*expired|not logged in|no model available|authentication|unauthorized|invalid.*(?:api.?key|token)|token.*expired/i.test(failed)) return { failed };
+  return { failed, recovery: {
+    ui: 'Sign in to your coding agent through your command line, then resend your message.',
+    cli: 'Sign in to your coding agent, then retry.',
+  } };
 }
 
 // Whether a model can be called from this process: an agent CLI or a key, or a queue's own provider.
@@ -526,9 +528,9 @@ export async function chatSend(text, { chat = null, repos = [], about = null, re
     let answer;
     try { const r = await chatReply(text, { repos, about, ref: card, history, chat: id, home, now, completeFn, have, fns }); answer = message('thinker', r.reply, { now, chat: id, did: r.did.length ? r.did : undefined }); }
     catch (e) {
-      const failed = chatFailure(e);
-      answer = message('thinker', '', { now, chat: id, failed });
-      if (failed.includes('\n\n') && !process.env.THINKER_QUIET) process.stderr.write(`[thinker] ${failed}\n`);
+      const failure = chatFailure(e);
+      answer = message('thinker', '', { now, chat: id, ...failure });
+      if (failure.recovery && !process.env.THINKER_QUIET) process.stderr.write(`[thinker] ${failure.failed}\n${failure.recovery.cli}\n`);
     }
     // read again before writing: another window may have added to the conversations while the model answered
     writeChat(home, [...readChat({ home }), mine, answer]);
@@ -554,7 +556,7 @@ export async function chatAnswerPending({ repos = [], home = thinkerHome(), now 
     if (!asked) patch = { pending: undefined, failed: 'the message this answers is gone' };
     else {
       try { const r = await chatReply(asked.text, { repos, about: asked.about || null, ref: asked.ref || null, history: mine.slice(0, Math.max(0, i - 1)), chat: chatId(wait), home, now, completeFn, have, fns }); patch = { text: r.reply, did: r.did.length ? r.did : undefined, pending: undefined }; }
-      catch (e) { patch = { pending: undefined, failed: chatFailure(e) }; }
+      catch (e) { patch = { pending: undefined, ...chatFailure(e) }; }
     }
     const cur = readChat({ home }), at = cur.findIndex(m => m.id === wait.id);
     if (at < 0) break;
@@ -574,7 +576,7 @@ export function renderChat(messages, { last = 10 } = {}) {
   const out = [];
   for (const m of messages.slice(-last)) {
     if (m.role === 'you' && m.ref) out.push(`  [about: ${m.ref.text}${m.ref.impactSaid ? `  ${m.ref.impactSaid}` : ''}]`);
-    out.push(`${m.role === 'you' ? 'you' : 'thinker'}: ${m.pending ? `(waiting to answer through your agent's session${m.via ? ` in ${m.via}` : ''})` : m.failed ? `(could not answer: ${m.failed})` : m.text}`);
+    out.push(`${m.role === 'you' ? 'you' : 'thinker'}: ${m.pending ? `(waiting to answer through your agent's session${m.via ? ` in ${m.via}` : ''})` : m.failed ? `(could not answer: ${m.failed})${m.recovery?.cli ? `\n${m.recovery.cli}` : ''}` : m.text}`);
     for (const d of m.did || []) out.push(`  ${d.ok ? '✓' : '✗'} ${d.text}`);
   }
   return out;
