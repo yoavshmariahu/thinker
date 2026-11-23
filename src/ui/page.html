@@ -175,67 +175,85 @@
     /* Factory (factory.js, as `thinker factory`): the summary strip, the pipeline canvas with the loops drawn above and
        below the stage cards, the loops table beside the details of what is selected, the pull requests by first pass */
     .fx-dot { color: #15803d; }
-    .fx-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: #fafafa; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
-    @media (max-width: 900px) { .fx-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    .fx-cell { padding: 1rem 1.3rem 1.05rem; border-right: 1px solid #e5e7eb; min-width: 0; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: .2rem 1rem; }
-    .fx-cell:last-child { border-right: 0; }
-    .fx-cell .lab { font-size: .8rem; color: #6b7280; grid-column: 1; }
-    .fx-cell .big { font-size: 1.85rem; font-weight: 700; letter-spacing: -.035em; line-height: 1.05; font-variant-numeric: tabular-nums; grid-column: 1; }
-    .fx-cell .big.bad { color: #b91c1c; } .fx-cell .big.good { color: #15803d; }
-    .fx-cell .sub { font-size: .76rem; color: #6b7280; grid-column: 1; }
-    .fx-cell .viz { grid-column: 2; grid-row: 1 / span 3; display: flex; align-items: center; gap: 5px; }
-    .fx-cell .viz i { width: 9px; height: 9px; border-radius: 50%; display: block; }
-    .fx-bar { grid-column: 2; grid-row: 1 / span 3; width: 70px; height: 6px; background: #e5e7eb; border-radius: 3px; position: relative; overflow: hidden; }
-    .fx-bar i { position: absolute; inset: 0 auto 0 0; background: #15803d; border-radius: 3px; }
-    .fx-bar.bad i { background: #b91c1c; } .fx-bar.mid i { background: #a16207; }
+    .fx-summary { font-size: 1rem; line-height: 2; margin: 0; color: #374151; }
+    .fx-summary mark { background: #e6f2e9; color: #166534; padding: .12rem .3rem; font: inherit; }
+    main:has(#tab-factory:not([hidden])) { max-width: 1680px; }
+    .modal-card.fx-drawer { position: fixed; inset: 0 0 0 auto; max-height: none; height: 100dvh; width: min(440px, 100%); max-width: none; border-radius: 0; }
+    #fx-overlay { justify-content: flex-end; padding: 0; background: none; backdrop-filter: none; pointer-events: none; }
+    #fx-overlay .fx-drawer { pointer-events: auto; box-shadow: -8px 0 24px rgba(0,0,0,.08); }
+    .fx-drawer .modal-body { padding: 1.2rem; }
+    .fx-history { margin-top: 1.5rem; }
+    .fx-history h3 { font-size: .85rem; margin-bottom: .6rem; }
+    .fx-history table { font-size: .8rem; }
+    .fx-history th, .fx-history td { padding: .6rem .4rem; }
+    .fx-history-chart { margin: 1rem 0; }
+    .fx-history-chart figcaption { font-size: .85rem; font-weight: 500; margin-bottom: .6rem; }
+    .fx-history-chart svg { width: 100%; height: auto; display: block; }
+    .fx-chart-note { color: #6b7280; font-size: .74rem; line-height: 1.5; margin-top: .5rem; }
+    .fx-history-wide { max-width: 760px; }
+    .fx-expand { margin-top: 1.25rem; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; background: #fff; }
+    .fx-expand > summary { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.2rem; cursor: pointer; list-style: none; font-size: 1rem; font-weight: 600; }
+    .fx-expand > summary::-webkit-details-marker { display: none; }
+    .fx-expand > summary::after { content: '+'; color: #6b7280; font-size: 1.3rem; font-weight: 400; }
+    .fx-expand[open] > summary::after { content: '−'; }
+    .fx-expand > summary small { display: block; margin-top: .25rem; color: #6b7280; font-size: .8rem; font-weight: 400; }
+    .fx-expand > summary:hover { background: #fafafa; }
+    .fx-expand-body { padding: 0 1.2rem 1.2rem; border-top: 1px solid #f0f0f0; }
+    .fx-more { margin-top: 1rem; border-top: 1px solid #e5e7eb; font-size: .85rem; }
+    .fx-more > summary { padding: .8rem 0; cursor: pointer; color: #4b5563; }
+    .fx-metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1.5rem; margin: .5rem 0 1rem; }
+    .fx-metrics-grid h3 { font-size: .86rem; margin-bottom: .6rem; }
+    .fx-metrics-grid dl { margin: 0; }
+    .fx-metrics-grid dl > div { display: flex; justify-content: space-between; gap: 1rem; margin: .45rem 0; font-size: .8rem; }
+    .fx-metrics-grid dt { color: #6b7280; }
+    .fx-metrics-grid dd { margin: 0; font-variant-numeric: tabular-nums; }
+    .fx-measured { font-size: .75rem; color: #6b7280; margin: .5rem 0; }
+    .fx-dicon svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .fx-panel { border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; overflow: hidden; margin-top: 1.6rem; }
     .fx-head { display: flex; align-items: center; gap: .7rem; padding: .75rem 1rem; border-bottom: 1px solid #f0f0f0; flex-wrap: wrap; }
     .fx-title { font-weight: 600; font-size: .95rem; }
     .fx-chip { font-size: .72rem; color: #444; background: #f3f4f6; border-radius: 6px; padding: .15rem .5rem; }
-    .fx-head .spacer, .fx-foot .spacer { flex: 1; }
-    .fx-foot { display: flex; align-items: center; gap: 1rem; padding: .6rem 1rem; border-top: 1px solid #f0f0f0; font-size: .78rem; color: #6b7280; flex-wrap: wrap; }
-    .fx-scroll { overflow-x: auto; background-color: #fff; background-image: radial-gradient(#d9dbe0 1px, transparent 1px); background-size: 18px 18px; }
+    .fx-head .spacer { flex: 1; }
+    .fx-scroll { overflow: visible; background: #fff; }
     .fx-canvas { position: relative; }
     .fx-canvas > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-    .fx-tag { position: absolute; left: 22px; top: 18px; font-size: .68rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #6b7280; display: flex; gap: .5rem; align-items: center; }
-    .fx-tag::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #15803d; }
     .fx-fwd { stroke: #b4b8c0; stroke-width: 1.5; fill: none; } .fx-fwd-dot, .fx-fwd-head { fill: #b4b8c0; }
     .fx-loop-path { fill: none; stroke-width: 2; transition: opacity .15s; }
     .fx-canvas.has-sel .fx-loop-g:not(.on) { opacity: .28; }
-    .fx-canvas.anim .fx-loop-path { stroke-dasharray: 6 6; animation: fxdash 1.2s linear infinite; }
-    .fx-canvas.anim .fx-fwd { stroke-dasharray: 4 6; animation: fxdash 1.2s linear infinite; }
-    @keyframes fxdash { to { stroke-dashoffset: -12; } }
-    @media (prefers-reduced-motion: reduce) { .fx-canvas.anim .fx-loop-path, .fx-canvas.anim .fx-fwd { animation: none; } }
-    .fx-stage { position: absolute; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: .8rem .85rem .7rem; cursor: pointer; text-align: left; transition: border-color .15s; box-shadow: 0 1px 2px rgba(0,0,0,.04); font: inherit; color: inherit; }
+    .fx-stage { position: absolute; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: .8rem .85rem .7rem; cursor: pointer; text-align: left; transition: border-color .15s; font: inherit; color: inherit; }
     .fx-stage:hover { border-color: #444; }
-    .fx-stage .row1 { display: flex; justify-content: space-between; align-items: center; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .66rem; color: #6b7280; letter-spacing: .04em; }
+    .fx-stage .row1 { display: flex; justify-content: flex-end; align-items: center; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .66rem; color: #6b7280; letter-spacing: .04em; }
     .fx-stage .lamp { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
     .fx-stage .name { font-size: 1rem; font-weight: 600; margin-top: .5rem; letter-spacing: -.01em; display: flex; align-items: center; gap: .45rem; }
     .fx-stage .name svg, .fx-dicon svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; color: #6b7280; }
     .fx-stage .calls { font-size: .74rem; color: #6b7280; margin-top: .15rem; font-variant-numeric: tabular-nums; }
-    .fx-stage .rows { margin-top: .6rem; padding-top: .55rem; border-top: 1px solid #f0f0f0; display: flex; flex-direction: column; gap: .3rem; }
+    .fx-stage .rows { margin-top: .6rem; display: flex; flex-direction: column; gap: .3rem; }
     .fx-stage .rows div { display: flex; justify-content: space-between; font-size: .72rem; color: #6b7280; }
     .fx-stage .rows b { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-weight: 500; color: #111; font-size: .72rem; }
     .fx-good { color: #15803d !important; } .fx-mid { color: #a16207 !important; } .fx-bad { color: #b91c1c !important; }
-    .fx-stage.on { background: #111; color: #fff; border-color: #111; }
-    .fx-stage.on .row1, .fx-stage.on .calls, .fx-stage.on .rows div, .fx-stage.on .name svg { color: #c9cbd1; }
-    .fx-stage.on .rows { border-top-color: rgba(255,255,255,.2); } .fx-stage.on .rows b { color: #fff; }
+    .fx-stage.on { background: #f4f7f5; border-color: #60816b; }
+    .fx-stage.on .row1, .fx-stage.on .calls, .fx-stage.on .rows div, .fx-stage.on .name svg { color: #6b7280; }
+    .fx-stage.on .rows b { color: #111; }
     .fx-stage .port { position: absolute; left: 50%; width: 7px; height: 7px; border-radius: 50%; background: #fff; border: 1.5px solid #b4b8c0; transform: translateX(-50%); }
     .fx-stage .port.t { top: -4px; } .fx-stage .port.b { bottom: -4px; }
-    .fx-pill { position: absolute; transform: translate(-50%, -50%); background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: .45rem .75rem .45rem .7rem; font-size: .76rem; display: grid; grid-template-columns: auto 1fr auto; gap: .1rem .7rem; align-items: center; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.04); white-space: nowrap; transition: border-color .15s, opacity .15s; font: inherit; color: inherit; }
+    .fx-pill { position: absolute; transform: translate(-50%, -50%); background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: .45rem .75rem .45rem .7rem; font-size: .76rem; display: grid; grid-template-columns: auto 1fr auto; gap: .1rem .7rem; align-items: center; cursor: pointer; white-space: nowrap; transition: border-color .15s, opacity .15s; font: inherit; color: inherit; }
     .fx-pill:hover, .fx-pill.on { border-color: var(--lc); }
     .fx-pill svg { width: 14px; height: 14px; stroke: var(--lc); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; grid-row: 1 / span 2; margin-right: .5rem; display: block; }
     .fx-pill .ln { font-weight: 600; color: var(--lc); font-size: .76rem; }
     .fx-pill .lp { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .74rem; color: var(--lc); font-weight: 600; }
     .fx-pill .ls { grid-column: 2 / span 2; color: #6b7280; font-size: .7rem; }
     .fx-canvas.has-sel .fx-pill:not(.on) { opacity: .45; }
-    .fx-legend { display: flex; gap: 1.2rem; align-items: center; font-size: .74rem; color: #6b7280; }
+    .fx-help { padding: .65rem 1rem; border-top: 1px solid #f0f0f0; font-size: .75rem; color: #6b7280; }
+    .fx-help summary { cursor: pointer; width: fit-content; }
+    .fx-help .fx-legend { margin-top: .8rem; }
+    .fx-help p { margin: .6rem 0 0; }
+    .fx-legend { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: center; font-size: .74rem; color: #6b7280; }
     .fx-legend span { display: inline-flex; align-items: center; gap: .4rem; }
     .fx-legend i.f { width: 18px; height: 0; border-top: 1.5px solid #b4b8c0; }
-    .fx-legend i.l { width: 14px; height: 9px; border: 1.5px solid #c2410c; border-bottom: 0; border-radius: 6px 6px 0 0; }
+    .fx-legend i.l { width: 14px; height: 9px; border: 1.5px solid #294f91; border-bottom: 0; border-radius: 6px 6px 0 0; }
     .fx-ghost { border: 1px solid #e5e7eb; background: #fff; border-radius: 6px; padding: .3rem .6rem; font-size: .74rem; color: #444; cursor: pointer; display: inline-flex; gap: .35rem; align-items: center; font: inherit; }
     .fx-ghost.on { background: #f3f4f6; color: #111; border-color: #444; }
-    .fx-two { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 1.2rem; align-items: start; margin-top: 1.6rem; }
+    .fx-two { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.2rem; align-items: stretch; margin-top: 1.6rem; }
     @media (max-width: 1000px) { .fx-two { grid-template-columns: 1fr; } }
     .fx-box { border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; overflow: hidden; }
     .fx-boxhead { padding: .95rem 1.1rem .8rem; display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
@@ -265,22 +283,16 @@
     .fx-drows b { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-weight: 500; color: #111; font-size: .8rem; white-space: nowrap; }
     .fx-dfoot { margin-top: .9rem; padding-top: .7rem; border-top: 1px solid #f0f0f0; display: flex; justify-content: space-between; gap: .6rem; font-size: .74rem; color: #6b7280; }
     .fx-dloops { margin-top: .8rem; display: flex; flex-wrap: wrap; gap: .35rem; }
-    .fx-dloops button { border: 1px solid #e5e7eb; background: #fff; border-radius: 999px; font-size: .72rem; padding: .15rem .55rem; cursor: pointer; display: inline-flex; gap: .35rem; align-items: center; font: inherit; }
+    .fx-dloops button { border: 1px solid #e5e7eb; background: #fff; border-radius: 999px; font-weight: 500; line-height: 1.4; font-family: inherit; font-size: .72rem; padding: .2rem .55rem; cursor: pointer; display: inline-flex; gap: .35rem; align-items: center; color: #475569; }
     .fx-dloops button i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
     .fx-first { color: #15803d; font-weight: 600; font-size: .78rem; }
     .fx-looped { color: #6b7280; font-size: .8rem; }
-    /* the trend: a small table under the card or pill that was clicked, the last four weeks (the owner, 2026-11-09: not a modal) */
-    .fx-pop { position: absolute; z-index: 6; background: #fff; border: 1px solid #111; border-radius: 8px; padding: .35rem .5rem; box-shadow: 0 6px 18px rgba(0,0,0,.12); font-size: .74rem; white-space: nowrap; }
-    .fx-pop table { width: auto; border-collapse: collapse; font-size: .74rem; }
-    .fx-pop th { font-size: .64rem; letter-spacing: .05em; padding: .2rem .45rem; border-bottom: 1px solid #e5e7eb; color: #6b7280; }
-    .fx-pop th:first-child { color: #111; text-transform: none; letter-spacing: 0; font-size: .74rem; }
-    .fx-pop td { padding: .25rem .45rem; border-bottom: 0; color: #6b7280; }
-    .fx-pop td.num { color: #111; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .72rem; }
-    .fx-pop th.cur, .fx-pop td.num.cur { background: #fef9c3; }
-    .fx-pop th.cur { border-radius: 4px 4px 0 0; } .fx-pop tr:last-child td.cur { border-radius: 0 0 4px 4px; }
-    /* "Chat about this", to the right of a clicked stage's trend: the chat opens with the stage in the prompt box as a card (chatAboutStage) */
-    .fx-chat { position: absolute; z-index: 6; border: 1px solid #111; background: #111; color: #fff; border-radius: 999px; padding: .28rem .75rem; font-size: .74rem; font-weight: 500; white-space: nowrap; cursor: pointer; box-shadow: 0 6px 18px rgba(0,0,0,.12); }
-    .fx-chat:hover { background: #333; }
+    @media (max-width: 1100px) {
+      .fx-canvas { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 2rem 1rem; padding: 1rem; width: auto !important; height: auto !important; }
+      .fx-stage .port { display: none; }
+      .fx-canvas .fx-stage { order: 1; position: relative; inset: auto !important; width: auto !important; }
+      .fx-canvas .fx-pill { order: 2; position: static; transform: none; grid-column: 1 / -1; justify-self: start; }
+    }
     .fx-diff { display: grid; grid-template-columns: minmax(0, 1fr); margin-top: 1.6rem; }
     .fx-diff .fx-tbl td.on, .fx-diff .fx-tbl th.on { border-left: 1px solid #f0f0f0; }
     .fx-diff td.d { font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -289,14 +301,44 @@
     .fx-trust { margin: 0 1.1rem .9rem; padding: .6rem .8rem; border-radius: 8px; font-size: .82rem; line-height: 1.5; border: 1px solid #e5e7eb; background: #fafafa; color: #444; }
     .fx-trust.none { background: #fee2e2; border-color: #fecaca; color: #991b1b; } .fx-trust.low { background: #fef9c3; border-color: #fde68a; color: #854d0e; } .fx-trust.good { background: #dcfce7; border-color: #bbf7d0; color: #166534; }
     .fx-d { font-size: .72rem; font-weight: 600; margin-left: .3rem; } .fx-d.good { color: #15803d; } .fx-d.bad { color: #b91c1c; } .fx-d.flat { color: #9ca3af; font-weight: 500; }
-    .fx-totals { position: absolute; right: 16px; bottom: 14px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: .45rem .7rem; font-size: .74rem; color: #6b7280; box-shadow: 0 1px 2px rgba(0,0,0,.04); white-space: nowrap; }
-    .fx-totals .two { display: grid; grid-template-columns: 1fr auto auto; gap: 0 .7rem; padding: .1rem 0; }
-    .fx-totals .two.head { color: #9ca3af; font-size: .66rem; text-transform: uppercase; letter-spacing: .05em; }
-    .fx-totals b { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-weight: 600; color: #111; font-variant-numeric: tabular-nums; text-align: right; }
-    .fx-totals b.off { color: #6b7280; font-weight: 500; }
+    .fx-totals { margin: .4rem 0 1rem; font-size: 1rem; line-height: 2; color: #374151; }
+    .fx-totals p { margin: .3rem 0; }
+    .fx-totals mark { background: #e6f2e9; color: #23633b; padding: .12rem .3rem; font: inherit; }
     .fx-stage .rows .two { display: grid; grid-template-columns: 1fr auto auto; gap: 0 .5rem; white-space: nowrap; }
     .fx-stage .rows .two b.off { color: #6b7280; }
-    .fx-stage.on .rows .two b.off { color: #c9cbd1; }
+    .fx-stage.on .rows .two b.off { color: #6b7280; }
+    /* Tables share readable headers, aligned values and a consistent row rhythm. */
+    #tab-factory .fx-tbl { margin-top: 1rem; }
+    #tab-factory .fx-tbl table { font-size: .85rem; line-height: 1.5; }
+    #tab-factory .fx-tbl th { position: static; text-transform: none; letter-spacing: normal; font-size: .8rem; color: #4b5563; font-weight: 600; background: #f7f8f8; border-top: 0; }
+    #tab-factory .fx-tbl :is(th, td) { padding: .85rem 1rem; height: 48px; vertical-align: middle; border-bottom: 1px solid #e9ecea; }
+    #tab-factory .fx-tbl :is(th, td):first-child { padding-left: .75rem; }
+    #tab-factory .fx-tbl :is(th, td):last-child { padding-right: .75rem; }
+    #tab-factory .fx-tbl .num { text-align: right; font-variant-numeric: tabular-nums; }
+    #tab-factory .fx-tbl tbody tr:last-child td { border-bottom: 0; }
+    #tab-factory .fx-tbl tbody tr:hover td { background: #f8faf9; }
+    #tab-factory .fx-tbl tr.lrow.on td { background: #edf3fd; }
+    #tab-factory .fx-tbl a { color: #245c46; text-decoration: underline; text-underline-offset: .2em; }
+    #tab-factory .fx-pr-title { display: block; max-width: 34rem; margin-top: .15rem; color: #374151; overflow-wrap: anywhere; }
+    #tab-factory .fx-repo { max-width: 16rem; overflow-wrap: anywhere; color: #6b7280; font-size: .8rem; }
+    #tab-factory .fx-loop-link { border: 0; padding: .2rem 0; background: transparent; color: var(--lc); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: .2em; cursor: pointer; }
+    #tab-factory .fx-tbl .fx-metric { padding: .15rem .35rem; font: inherit; font-variant-numeric: tabular-nums; }
+    #tab-factory .fx-expand-body > .fx-note { margin-top: .5rem; padding: .6rem 0 0; background: transparent; line-height: 1.5; }
+    #tab-factory .fx-expand-body > .fx-note::before { display: none; }
+    #tab-factory .fx-metrics-grid { margin-top: 1.2rem; gap: 2rem; }
+    #tab-factory .fx-metrics-grid dl > div { padding: .6rem 0; margin: 0; border-bottom: 1px solid #edf0ee; }
+    #tab-factory .fx-metrics-grid dd { text-align: right; white-space: nowrap; }
+    #tab-factory .fx-wide-table { min-width: 660px; }
+    /* Reserve accent color for selection and important values. */
+    #tab-factory { --fx-accent: #245c46; --fx-accent-tint: #e8f2ec; }
+    #tab-factory .fx-pill.on { background: var(--fx-accent-tint); border-color: var(--fx-accent); }
+    #tab-factory .fx-stage.on { background: var(--fx-accent-tint); border-color: var(--fx-accent); }
+    #tab-factory .fx-summary mark, #tab-factory .fx-totals mark { background: var(--fx-accent-tint); color: var(--fx-accent); }
+    #tab-factory .fx-totals mark.fx-repeat { background: #fff0df; color: #8a460f; }
+    #tab-factory .fx-pill .lp { color: var(--lc); background: var(--lbg); padding: .08rem .25rem; border-radius: 3px; }
+    #tab-factory .seg button.on { background: var(--fx-accent-tint); color: var(--fx-accent); }
+    #tab-factory :is(button, summary, select):focus-visible { outline: 2px solid var(--fx-accent); outline-offset: 3px; }
+    #tab-factory .fx-good, #tab-factory .fx-mid, #tab-factory .fx-bad { color: #4b5563 !important; }
     .savings-note { color: #777; font-size: .75rem; line-height: 1.6; margin: .85rem 0 0; }
     .ctx-figure { margin: 0.4rem 0 0; padding: 1rem 1.1rem 0.9rem; border: 1px solid #e5e7eb; border-radius: 12px; background: #fcfcfb; }
     @media (max-width: 1040px) { .ctx-figure { overflow-x: auto; } }
@@ -373,6 +415,8 @@
     @media (max-width: 760px) { .ctx-table td, .ctx-table th { white-space: normal; } .ctx-table td.ctx-name { min-width: 0; } }
     .ctx-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem 2rem; flex-wrap: wrap; margin-bottom: 1rem; }
     .ctx-top .controls { margin-top: 0; }
+    #tab-factory .ctx-top { margin-bottom: 0; }
+    #factory-body.section { margin-top: 1rem; }
     .btn { border: 1px solid #000; background: #000; color: #fff; padding: 0.45rem 0.95rem; font-size: 0.82rem; font-weight: 500; border-radius: 6px; cursor: pointer; transition: all 0.15s ease; line-height: 1.25; }
     .btn:hover { background: #222; }
     .btn.ghost { background: #fff; color: #111; border-color: #d4d4d8; }
@@ -551,8 +595,8 @@
         <symbol id="fxi-review" viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
         <symbol id="fxi-merge" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2.5"/><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M6 7.5v9M6 16c4 0 9-1 9.5-4"/></symbol>
       </defs></svg>
-      <div class="ctx-top"><div><div class="kicker">The big picture, down to the loop</div><h1>Software factory<span class="fx-dot">.</span></h1>
-      <p class="lede">How your agents move from first prompt to merged pull request, what each stage costs, and where work comes back round. <span class="muted" id="f-asof"></span></p></div></div>
+      <p class="fx-measured" id="fx-measured"></p>
+      <div class="ctx-top"><h1>Software factory</h1></div>
       <div id="factory-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the factory…</div></div>
     </section>
 
@@ -1051,7 +1095,7 @@ function attachCard(kind, x) {
   CHAT_REF = { kind, id: x.id || '', text: x.text, impactSaid: x.impactSaid || '', at: x.at, repo: x.repo || (HREPO === 'all' ? '' : HREPO), repoName: x.repoName || '', url: x.url || '', title: x.title || '' };
   renderAttach(); $('#chat-input').focus();
 }
-// The Factory's "Chat about this" (fxPop): a new chat opens, as New chat starts one, on the repository the Factory was
+// The Factory's "Chat about this" (stage details): a new chat opens, as New chat starts one, on the repository the Factory was
 // on, with the stage in the prompt box as a card, as a line of the side is. The card says which stage (`id`) and shows
 // the figures its card on the canvas shows; the chat is given what the Factory holds on that stage from the kept report
 // (chat.js:stageKnown, factory.js:stageDetail), so an answer is about the stage and how it might be improved.
@@ -1220,11 +1264,11 @@ $('#settings-body').addEventListener('change', e => { const s = e.target.closest
 // can never contradict the command. The canvas lays the detected loops out itself: shorter routes take the inner lanes,
 // sides alternate, a lane holds only loops whose spans and labels do not overlap, and loops sharing a stage edge spread
 // onto separate ports. A loop kind keeps one colour whatever its rank, so a filter never repaints the survivors.
-let FX = null, FX_FOR = null, FLOAD = 0, FX_SEL = null, FX_METRIC = 'stage', FX_ANIM = false, FX_DIFF = '';
+let FX = null, FX_FOR = null, FLOAD = 0, FX_SEL = null, FX_METRIC = 'stage', FX_DIFF = '';
 try { FX_DIFF = localStorage.getItem('fx-diff') || ''; } catch {}
 const FX_COLORS = { fix: ['#c2410c', '#ffedd5'], correction: ['#2563eb', '#dbeafe'], sentback: ['#6d28d9', '#ede9fe'], followup: ['#4d7c0f', '#ecfccb'], reread: ['#0d9488', '#ccfbf1'], reviewcatch: ['#be185d', '#fce7f3'] };
 const FX_MORE = [['#0369a1', '#e0f2fe'], ['#4d7c0f', '#ecfccb'], ['#9a3412', '#fed7aa'], ['#7e22ce', '#f3e8ff']];
-const fxColor = (key, i) => FX_COLORS[key] || FX_MORE[i % FX_MORE.length];
+const fxColor = key => key === 'correction' ? ['#294f91', '#edf3fd'] : ['#56645f', '#f3f4f6'];
 const fxVerdict = { good: 'good', mid: 'watch', bad: 'bad' };
 async function loadFactory() {
   scanProgress({ refreshing: true });
@@ -1246,45 +1290,46 @@ const fxPct = x => x == null ? '–' : `${Math.round(100 * x)}%`;
 function renderFactory(rv) {
   FX = rv;
   const v = rv.factory, el = $('#factory-body');
-  $('#f-asof').textContent = rv.asOf ? `measured ${Math.max(0, Math.round((Date.now() - rv.asOf) / 60000))} min ago${rv.refreshing ? ', updating…' : ''}` : '';
-  if (!v) { el.innerHTML = `<div class="empty">${rv.refreshing ? 'Reading the sessions…' : 'No factory view in the kept report yet: run thinker report --refresh.'}</div>`; return; }
+  if (!v) { $('#fx-measured').textContent = ''; el.innerHTML = `<div class="empty">${rv.refreshing ? 'Reading the sessions…' : 'No factory view in the kept report yet: run thinker report --refresh.'}</div>`; return; }
+  $('#fx-measured').innerHTML = `${esc(fxWk(v.from))} – ${esc(fxWk(v.to))} · ${v.days} days${rv.asOf ? ` · Last measured ${Math.max(0, Math.round((Date.now() - rv.asOf) / 60000))} min ago${rv.refreshing ? ' · Updating…' : ''}` : ''}`;
   const dollars = v.cost > 0, amt = (c, t) => dollars ? money(c) : `${fmt(t)} tok`;
   const stages = v.stages || [], loops = (v.loops || []).map((L, i) => ({ ...L, lc: fxColor(L.key, i)[0], lbg: fxColor(L.key, i)[1] }));
-  const idx = id => stages.findIndex(s => s.key === id);
-  const prs = v.prs, yv = prs?.yield == null ? null : prs.yield >= 0.6 ? 'good' : prs.yield >= 0.35 ? 'mid' : 'bad';
+  const prs = v.prs;
   const worst = stages.filter(s => s.reworkShare != null).sort((a, b) => b.reworkShare - a.reworkShare)[0];
   if (!FX_SEL || (FX_SEL.kind === 'stage' && !stages.some(s => s.key === FX_SEL.id)) || (FX_SEL.kind === 'loop' && !loops.some(L => L.key === FX_SEL.id))) FX_SEL = { kind: 'stage', id: (worst || stages[0])?.key };
   const html = `
-    <section class="fx-strip" aria-label="Summary">
-      <div class="fx-cell"><div class="lab">Sessions</div><div class="big">${fmt(v.sessions || 0)}</div><div class="sub">${fmt(v.calls || 0)} model calls over ${v.days} days${v.conversations > v.sessions ? `, ${fmt(v.conversations - v.sessions)} subagent conversations` : ''}</div></div>
-      <div class="fx-cell"><div class="lab">${dollars ? 'Cost at list prices' : 'Tokens'}</div><div class="big">${dollars ? money(v.cost) : fmt(v.tokens)}</div><div class="sub">${prs ? `${prs.merged} merged pull request${prs.merged === 1 ? '' : 's'}${prs.meanCost != null ? ` · ${money(prs.meanCost)} each` : ''}` : 'no pull requests read'}${v.unpriced?.length ? ` · unpriced: ${esc(v.unpriced.join(', '))}` : ''}</div></div>
-      <div class="fx-cell"><div class="lab">First-pass yield</div><div class="big ${yv || ''}">${prs?.yield == null ? '–' : `${Math.round(100 * prs.yield)}<span style="font-size:1.1rem">%</span>`}</div><div class="sub">${prs ? `${prs.firstPass} of ${prs.measured} merged with no loop${prs.meanCostFirstPass != null && prs.meanCostLooped != null ? ` · ${money(prs.meanCostFirstPass)} first pass, ${money(prs.meanCostLooped)} looped` : ''}` : '–'}</div>${prs?.yield != null ? `<div class="fx-bar ${yv}" aria-hidden="true"><i style="width:${Math.round(100 * prs.yield)}%"></i></div>` : ''}</div>
-      <div class="fx-cell"><div class="lab">Detected loops</div><div class="big">${String(loops.length).padStart(2, '0')}</div><div class="sub">${amt(v.rework, v.reworkTokens)} of rework · ${fxPct(v.reworkShare)} of all tokens spent after a failure</div><div class="viz" aria-hidden="true">${loops.map(L => `<i style="background:${L.lc}"></i>`).join('')}</div></div>
-    </section>
+    <p class="fx-summary" aria-label="Summary">Across <mark>${fmt(v.sessions || 0)} sessions</mark>, model usage totaled <mark>${dollars ? money(v.cost) : fmt(v.tokens) + ' tokens'}</mark>.${prs?.measured ? ` <mark>${fmt(prs.firstPass)} of ${fmt(prs.measured)} measured merged PRs</mark> had no detected repeat work.` : ' No merged PRs measured yet.'}${v.unpriced?.length ? ` <span class="muted">Unpriced: ${esc(v.unpriced.join(', '))}.</span>` : ''}</p>
+    <div class="fx-totals" id="fx-dock" aria-label="Overall usage metrics"></div>
     <section class="fx-panel" aria-label="Pipeline canvas">
-      <div class="fx-head"><span class="fx-title">Pipeline canvas</span><span class="fx-chip">${stages.length} stages</span><span class="fx-chip">${loops.length} loop kind${loops.length === 1 ? '' : 's'} detected</span><span class="spacer"></span>
+      <div class="fx-head"><span class="fx-title">Pipeline</span><span class="spacer"></span>
         <div class="seg small" id="fx-metric" role="tablist"><button data-m="stage" class="${FX_METRIC === 'stage' ? 'on' : ''}" role="tab">Stage metrics</button><button data-m="loop" class="${FX_METRIC === 'loop' ? 'on' : ''}" role="tab">Loop metrics</button></div>
         <select class="sel" id="fx-diff-sel" aria-label="See diff by" style="font-size:.76rem;padding:.25rem .5rem"><option value=""${FX_DIFF ? '' : ' selected'}>See diff by…</option><option value="profile"${FX_DIFF === 'profile' ? ' selected' : ''}>Memory profile</option><option value="compression"${FX_DIFF === 'compression' ? ' selected' : ''}>Compression</option></select>
-        <button class="fx-ghost${FX_ANIM ? ' on' : ''}" id="fx-anim" type="button" aria-pressed="${FX_ANIM}">Flow animation</button></div>
-      <div class="fx-scroll" id="fx-scroll"><div class="fx-canvas${FX_ANIM ? ' anim' : ''}" id="fx-canvas"><div class="fx-tag">Main pipeline · ${v.days} days</div><svg id="fx-wires"></svg><div class="fx-totals" id="fx-dock"></div></div></div>
-      <div class="fx-foot"><div class="fx-legend"><span><i class="f"></i>Forward flow</span><span><i class="l"></i>Loop: work that came back to an earlier stage after something failed</span></div><span class="spacer"></span><span>Click a stage or a loop for its last four weeks</span></div>
+        </div>
+      <div class="fx-scroll" id="fx-scroll"><div class="fx-canvas" id="fx-canvas"><svg id="fx-wires"></svg></div></div>
     </section>
+    <div class="modal-overlay" id="fx-overlay"><section class="modal-card fx-drawer" role="complementary" aria-label="Factory details" tabindex="-1"><div class="modal-header"><span class="modal-title">Details</span><button class="btn-close" type="button" aria-label="Close details">×</button></div><div class="modal-body"><div id="fx-details"></div><div id="fx-history" class="fx-history"></div></div></section></div>
     <div id="fx-diff"></div>
-    <section class="fx-two" aria-label="Loops and details">
-      <div class="fx-box">
-        <div class="fx-boxhead"><div><h2>Detected loops <span class="fx-count">${loops.length}</span></h2><p>Where work came back to an earlier stage after something failed, read from the sessions by code. A new kind appears here as soon as it is detected.</p></div><span class="muted" style="font-size:.76rem">A loop's cost is the calls it spans: the work spent after the failure</span></div>
-        <div id="fx-looptable"></div>
+    <details class="fx-expand" aria-label="Detected loops">
+      <summary><span>Detected loops <span class="muted">(${loops.length})</span><small>Where work returned to an earlier stage</small></span></summary>
+      <div class="fx-expand-body"><p class="fx-chart-note">A loop's usage is the calls it spans after a failure.</p><div id="fx-looptable"></div>
         <div class="fx-note">Each loop is a pattern read from the transcripts and the profile ledger, with the rule that found it on its details. No model judges them.</div>
       </div>
-      <div class="fx-box fx-details" id="fx-details"></div>
-    </section>
-    ${prs?.rows?.length ? `<section class="fx-box" style="margin-top:1.6rem" aria-label="First-pass yield">
-      <div class="fx-boxhead"><div><h2>First-pass yield</h2><p>Which merged pull requests went straight through, and which looped where. Newest first.</p></div></div>
-      <div class="fx-tbl"><table><thead><tr><th>Pull request</th>${rv.all ? '<th>Repository</th>' : ''}<th>Loops</th><th class="num">Sessions</th><th class="num">${dollars ? 'Cost' : '–'}</th><th class="num">Hours to merge</th></tr></thead><tbody>
-        ${prs.rows.slice(0, 20).map(r => `<tr><td class="pr">${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">#${r.number}</a>` : `#${r.number}`} ${esc(r.title || '')}</td>${rv.all ? `<td class="muted">${esc(r.repoName || r.repo || '')}</td>` : ''}<td>${!r.measured ? '<span class="muted">no transcript measured</span>' : r.firstPass ? '<span class="fx-first">first pass</span>' : `<span class="fx-looped">${Object.entries(r.loops).map(([k, n]) => `${n} ${esc((loops.find(L => L.key === k)?.name || k).toLowerCase())}`).join(', ')}</span>`}</td><td class="num">${r.sessions}</td><td class="num">${r.measured && dollars ? money(r.cost) : '–'}</td><td class="num">${r.hours == null ? '–' : r.hours.toFixed(1)}</td></tr>`).join('')}
+    </details>
+    ${prs?.rows?.length ? `<details class="fx-expand" aria-label="First-pass yield">
+      <summary><span>First-pass yield<small>Merged pull requests with and without repeat work</small></span></summary><div class="fx-expand-body">
+      <div class="fx-tbl"><table class="fx-wide-table" aria-label="Merged pull requests, newest first"><thead><tr><th scope="col">Pull request</th>${rv.all ? '<th scope="col">Repository</th>' : ''}<th scope="col">Repeat work</th><th scope="col" class="num">Sessions</th><th scope="col" class="num">Usage cost</th><th scope="col" class="num">Hours to merge</th></tr></thead><tbody>
+        ${prs.rows.slice(0, 20).map(r => `<tr><td class="pr">${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">#${r.number}</a>` : `#${r.number}`}<span class="fx-pr-title">${esc(r.title || '')}</span></td>${rv.all ? `<td class="fx-repo">${esc(r.repoName || r.repo || '')}</td>` : ''}<td>${!r.measured ? '<span class="muted">no transcript measured</span>' : r.firstPass ? '<span class="fx-first">No detected loops</span>' : `<span class="fx-looped">${Object.entries(r.loops).map(([k, n]) => `<span style="color:${fxColor(k)[0]}">${n} ${esc((loops.find(L => L.key === k)?.name || k).toLowerCase())}</span>`).join(', ')}</span>`}</td><td class="num">${r.sessions}</td><td class="num">${r.measured && dollars ? money(r.cost) : '–'}</td><td class="num">${r.hours == null ? '–' : r.hours.toFixed(1)}</td></tr>`).join('')}
       </tbody></table></div>
       ${prs.rows.length > 20 ? `<div class="fx-note">${prs.rows.length - 20} more in <code>thinker factory --json</code>.</div>` : ''}
-    </section>` : ''}
+    </div></details>` : ''}
+    <details class="fx-expand" data-tone="metrics"><summary><span>More metrics<small>Calls, rework and pull requests</small></span></summary><div class="fx-expand-body">
+      <div class="fx-metrics-grid">
+        <section><h3>Recorded activity</h3><dl><div><dt>Sessions</dt><dd>${fmt(v.sessions || 0)}</dd></div><div><dt>Model calls</dt><dd>${fmt(v.calls || 0)}</dd></div><div><dt>Subagent conversations</dt><dd>${fmt(Math.max(0, (v.conversations || 0) - (v.sessions || 0)))}</dd></div></dl></section>
+        <section><h3>Repeat work</h3><dl><div><dt>Detected loop types</dt><dd>${fmt(loops.length)}</dd></div><div><dt>Usage in detected loops</dt><dd>${amt(v.rework, v.reworkTokens)}</dd></div><div><dt>Share of total ${dollars ? 'usage cost' : 'tokens'}</dt><dd>${fxPct(v.reworkShare)}</dd></div></dl><p class="fx-chart-note">Included in total usage, not an extra charge. Loop totals can overlap; repeat work is not necessarily waste.</p></section>
+        <section><h3>Merged pull requests</h3><dl><div><dt>Merged</dt><dd>${prs ? fmt(prs.merged) : '–'}</dd></div><div><dt>Without detected loops</dt><dd>${prs ? `${fmt(prs.firstPass)} of ${fmt(prs.measured)} measured` : '–'}</dd></div><div><dt>First-pass yield</dt><dd>${fxPct(prs?.yield)}</dd></div><div><dt>Average usage per PR</dt><dd>${money(prs?.meanCost)}</dd></div><div><dt>Average: no loops</dt><dd>${money(prs?.meanCostFirstPass)}</dd></div><div><dt>Average: with loops</dt><dd>${money(prs?.meanCostLooped)}</dd></div></dl></section>
+      </div><p class="fx-chart-note">Dollars value recorded model usage at list prices; they are not your subscription bill or savings. PR averages cover measured merged PRs, not all sessions.</p>
+    </div></details>
+    <details class="fx-expand"><summary><span>Overall usage<small>Weekly usage graph and exact values</small></span></summary><div class="fx-expand-body fx-history-wide">${fxWeeklyChart(v.weekly?.columns, v.weekly?.totals, dollars, v.to)}</div></details>
     <p class="savings-note">A call's tokens go to the stage of the tool it called; the first call after a prompt is Prompts; a call with no tool is Think. Verify is any check of the work before it merges, by running it or by reading it. A loop is work that came back to an earlier stage after something failed; rework is what it cost, the calls spent inside a loop. A stage is good at or under ${Math.round(100 * (v.thresholds?.good ?? .1))}% rework, bad at or over ${Math.round(100 * (v.thresholds?.bad ?? .35))}%.</p>`;
   el.innerHTML = html;
   fxLoopTable(stages, loops, dollars);
@@ -1292,8 +1337,9 @@ function renderFactory(rv) {
   $('#fx-metric').onclick = e => { const b = e.target.closest('button'); if (!b) return; FX_METRIC = b.dataset.m; segOn('#fx-metric', b); fxRows(stages, loops, dollars); };
   $('#fx-diff-sel').onchange = e => { FX_DIFF = e.target.value; try { localStorage.setItem('fx-diff', FX_DIFF); } catch {} e.target.blur(); fxDiff(v, stages, loops, dollars); fxLoopTable(stages, loops, dollars); fxRows(stages, loops, dollars); };
   fxDiff(v, stages, loops, dollars);
-  $('#fx-anim').onclick = () => { FX_ANIM = !FX_ANIM; $('#fx-canvas').classList.toggle('anim', FX_ANIM); $('#fx-anim').classList.toggle('on', FX_ANIM); $('#fx-anim').setAttribute('aria-pressed', FX_ANIM); };
-  fxSelect(FX_SEL.kind, FX_SEL.id, stages, loops, dollars);
+  fxMark(FX_SEL.kind, FX_SEL.id);
+  $('#fx-overlay .btn-close').onclick = fxClose;
+
 }
 // "See diff by": the Factory split by a feature's two sides, the sessions it reached against the ones held out from it,
 // on the same mix of work (factory.js:ARMS, armTally). Every figure is a ratio of sums per side. How far to trust a
@@ -1330,52 +1376,44 @@ function fxDiff(v, stages, loops, dollars) {
   el.innerHTML = `<section class="fx-box fx-diff" aria-label="${esc(spec.name)} by arm">
     <div class="fx-boxhead"><div><h2>${esc(spec.name)}: ${esc(spec.labels[0])} against ${esc(spec.labels[1])}</h2><p>The same figures on the sessions the feature reached and on the ones held out from it${a.rate != null ? `, ${fxPct(a.rate)} of sessions` : ''}. Ratios of sums per side; the difference is the ${esc(spec.labels[0])} side against the held-out one, green where it is better, grey where it is within noise.</p></div></div>
     <div class="fx-trust ${t.level}"><b>${esc(tw)}.</b> ${esc(ts)} The smaller side has ${t.smaller} sessions${t.band != null ? `; a difference under <b>±${Math.round(100 * t.band)}%</b> is what two random samples of these sessions would show by chance, and is greyed below` : ''}.</div>
-    <div class="fx-tbl"><table><thead><tr><th></th><th class="num on">${esc(spec.labels[0])}</th><th class="num">${esc(spec.labels[1])}</th><th class="num">difference</th></tr></thead><tbody>
+    <div class="fx-tbl"><table><thead><tr><th scope="col"></th><th scope="col" class="num on">${esc(spec.labels[0])}</th><th scope="col" class="num">${esc(spec.labels[1])}</th><th scope="col" class="num">difference</th></tr></thead><tbody>
       ${rows.map(x => x.group ? `<tr class="grp"><td colspan="4">${esc(x.group)}</td></tr>` : (() => { const d = x.lower != null && x.on != null && x.off != null && x.off ? (x.on - x.off) / x.off : null, band = x.n ? t.bandFor(x.n[0], x.n[1]) : t.band, cls = d == null || x.lower == null || band == null || t.level === 'none' || (x.n && Math.min(...x.n) < 10) ? 'flat' : Math.abs(d) < band ? 'flat' : (d < 0) === x.lower ? 'good' : 'bad'; return `<tr><td>${x.color ? `<i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${x.color};margin-right:.5rem"></i>` : ''}${esc(x.label)}${x.hint ? `<span class="muted" style="display:block;font-size:.74rem">${esc(x.hint)}</span>` : ''}</td><td class="num on">${f(x.on, x.kind)}</td><td class="num">${f(x.off, x.kind)}</td><td class="num d ${cls}" title="${cls === 'flat' && d != null ? (t.level === 'none' || band == null ? 'too few sessions to read' : `within this row's noise band of ±${Math.round(100 * band)}%`) : ''}">${d == null ? '–' : `${d > 0 ? '+' : ''}${Math.round(100 * d)}%`}</td></tr>`; })()).join('')}
     </tbody></table></div>
     <div class="fx-note">${FX_DIFF === 'profile' ? 'A session\'s arm is drawn at its start and recorded on its state file; sessions from before the profile shipped carry none and are left out.' : 'The cleared side is the sessions a clear actually happened in; the held-out side is the sessions the hash held out, by a hash of the id against the service\'s share. A session that was on the clearing\'s side but never cleared is on neither, since nothing touched it. Both sides reached the clearing\'s trigger and started after the cut policy in force today landed (November 6); sessions cleared under the earlier clearing are a different feature and are left out.'} This is the same mix of work on two sides, not a controlled trial: a feature that gets things right faster can also change what the person asks next.</div>
   </section>`;
 }
-// the trend: a small table under the card or pill that was clicked, the last four weeks, two rows; the same card again,
-// Escape or a click elsewhere closes it. It reads the view's `weekly` (factory.js:weeklyTally), as the command's table does.
-// To the right of a stage's trend, "Chat about this" (the owner, 2026-11-21): it comes and goes with the trend, and
-// opens the chat with the stage in the prompt box (chatAboutStage). A loop's trend has none.
-let FX_POP = null;
+// Weekly history lives with the selected stage or loop in the details drawer.
+let FX_RETURN = null;
 const fxWk = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-function fxPopClose() { FX_POP?.pop.remove(); FX_POP?.chat?.remove(); FX_POP = null; }
-function fxPop(kind, id, anchor, stages, loops, dollars) {
-  const key = `${kind}:${id}`; if (FX_POP?.key === key) { fxPopClose(); return; }
-  fxPopClose();
-  const v = FX?.factory, wk = v?.weekly, canvas = $('#fx-canvas'); if (!wk?.columns?.length || !canvas || !anchor) return;
-  const cols = wk.columns.slice(-4), skip = wk.columns.length - cols.length, n = cols.length;
-  const amt = x => dollars ? money(x) : `${fmt(Math.round(x))} tok`;
-  let title, rows;
-  if (kind === 'stage') {
-    const cells = (wk.stages[id] || []).slice(skip); title = stages.find(s => s.key === id)?.name || id;
-    rows = [[dollars ? 'Cost' : 'Tokens', cells.map(c => amt(dollars ? c.cost : c.tokens))], ['Rework', cells.map(c => { const b = dollars ? c.cost : c.tokens; return b ? fxPct((dollars ? c.rework : c.reworkTokens) / b) : '–'; })]];
-  } else {
-    const cells = (wk.loops[id] || wk.columns.map(() => ({ loops: 0, cost: 0, tokens: 0 }))).slice(skip); title = loops.find(L => L.key === id)?.name || id;
-    rows = [['Loops', cells.map(c => fmt(c.loops))], [dollars ? 'Cost' : 'Tokens', cells.map(c => amt(dollars ? c.cost : c.tokens))]];
-  }
-  const pop = document.createElement('div'); pop.className = 'fx-pop'; pop.setAttribute('role', 'tooltip');
-  pop.innerHTML = `<table><thead><tr><th>${esc(title)}</th>${cols.map((c, i) => `<th class="num${i === n - 1 ? ' cur' : ''}">${esc(fxWk(c.t))}</th>`).join('')}</tr></thead><tbody>${rows.map(([l, vs]) => `<tr><td>${esc(l)}</td>${vs.map((x, i) => `<td class="num${i === n - 1 ? ' cur' : ''}">${esc(x)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
-  canvas.appendChild(pop);
-  const stage = kind === 'stage' ? stages.find(s => s.key === id) : null;
-  let chat = null;
-  if (stage) { chat = document.createElement('button'); chat.type = 'button'; chat.className = 'fx-chat'; chat.textContent = 'Chat about this'; chat.onclick = () => { fxPopClose(); chatAboutStage(stage, dollars); }; canvas.appendChild(chat); }
-  // under the card; a pill is drawn translated by half its size, so its box is around its offset point
-  const pill = anchor.classList.contains('fx-pill');
-  const top = pill ? anchor.offsetTop + anchor.offsetHeight / 2 + 8 : anchor.offsetTop + anchor.offsetHeight + 8;
-  let left = pill ? anchor.offsetLeft - pop.offsetWidth / 2 : anchor.offsetLeft;
-  // the button keeps its place at the trend's right, so the pair is what stays inside the canvas
-  const beside = chat ? chat.offsetWidth + 8 : 0;
-  left = Math.max(4, Math.min(left, canvas.clientWidth - pop.offsetWidth - beside - 4));
-  pop.style.left = `${left}px`; pop.style.top = `${top}px`;
-  if (chat) { chat.style.left = `${left + pop.offsetWidth + 8}px`; chat.style.top = `${top + (pop.offsetHeight - chat.offsetHeight) / 2}px`; }
-  FX_POP = { pop, chat, key };
+function fxClose() { $('#fx-overlay')?.classList.remove('active'); FX_RETURN?.focus(); }
+document.addEventListener('keydown', e => {
+  const panel = $('#fx-overlay.active'); if (!panel) return;
+  if (e.key === 'Escape') { e.preventDefault(); fxClose(); }
+
+});
+// Bar heights share a zero baseline. Values are the report's weekly sums, never a new estimate.
+function fxWeeklyChart(columns, cells, dollars, through) {
+  if (!columns?.length || !cells?.some(c => c && Number.isFinite(dollars ? c.cost : c.tokens))) return '<p class="fx-chart-note">No weekly usage recorded yet.</p>';
+  const values = columns.map((_, i) => { const x = dollars ? cells[i]?.cost : cells[i]?.tokens; return Number.isFinite(x) ? Math.max(0, x) : null; });
+  const peak = Math.max(0, ...values.filter(x => x != null)), scale = peak || 1;
+  const W = 560, H = 210, left = 52, right = 12, top = 30, bottom = 44, plot = H - top - bottom, stride = (W - left - right) / columns.length;
+  const amount = x => x == null ? 'Not recorded' : dollars ? money(x) : `${fmt(Math.round(x))} tokens`;
+  const bars = columns.map((col, i) => {
+    const value = values[i], x = left + stride * (i + .5), h = value == null ? 0 : value / scale * plot, partial = Number.isFinite(through) && col.end > through;
+    return `<g><title>${esc(fxWk(col.t))}${partial ? ' (partial week)' : ''}: ${esc(amount(value))}</title>${value == null ? '' : `<rect x="${x - stride * .28}" y="${H - bottom - h}" width="${stride * .56}" height="${h}" rx="3" fill="${partial ? '#a4c8b1' : '#377d55'}"/>`}<text x="${x}" y="${H - bottom - h - 9}" text-anchor="middle" font-size="12" fill="#374151">${value == null ? '–' : esc(dollars ? money(value) : fmt(Math.round(value)))}</text><text x="${x}" y="${H - bottom + 20}" text-anchor="middle" font-size="11" fill="#6b7280">${esc(fxWk(col.t))}</text>${partial ? `<text x="${x}" y="${H - bottom + 34}" text-anchor="middle" font-size="10" fill="#6b7280">partial</text>` : ''}</g>`;
+  }).join('');
+  return `<figure class="fx-history-chart"><figcaption>${dollars ? 'Model usage at list prices' : 'Recorded tokens'} by week</figcaption><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Weekly ${dollars ? 'model usage cost' : 'token usage'}; exact values follow"><line x1="${left}" y1="${H - bottom}" x2="${W - right}" y2="${H - bottom}" stroke="#d1d5db"/><text x="${left - 8}" y="${H - bottom + 4}" text-anchor="end" font-size="11" fill="#6b7280">0</text>${bars}</svg><p class="fx-chart-note">Weeks starting on the dates shown. Sessions are grouped by their last-updated week. A partial week is still in progress; lower usage alone does not establish savings.</p></figure><details class="fx-more"><summary>Exact weekly values</summary><div class="fx-tbl"><table><thead><tr><th scope="col">Week of</th><th scope="col" class="num">${dollars ? 'Usage cost' : 'Tokens'}</th><th scope="col" class="num">Calls</th></tr></thead><tbody>${columns.map((col, i) => `<tr><td>${esc(fxWk(col.t))}${Number.isFinite(through) && col.end > through ? ' (partial)' : ''}</td><td class="num">${esc(amount(values[i]))}</td><td class="num">${cells[i]?.calls == null ? '–' : fmt(Math.round(cells[i].calls))}</td></tr>`).join('')}</tbody></table></div></details>`;
 }
-document.addEventListener('click', e => { if (FX_POP && !e.target.closest('.fx-pop, .fx-chat, .fx-stage, .fx-pill, #fx-rows tr')) fxPopClose(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && FX_POP) fxPopClose(); });
+function fxHistory(kind, id, dollars) {
+  const wk = FX?.factory?.weekly, target = $('#fx-history');
+  if (!wk?.columns?.length) { target.innerHTML = '<p class="muted">No weekly history recorded yet.</p>'; return; }
+  const cells = (kind === 'stage' ? wk.stages[id] : wk.loops[id]) || [];
+  target.innerHTML = `<details class="fx-more"><summary>Weekly history · usage, calls and ${kind === 'stage' ? 'rework' : 'loops'}</summary>${fxWeeklyChart(wk.columns, cells, dollars, FX?.factory?.to)}<h3>${kind === 'stage' ? 'Weekly rework' : 'Weekly loop counts'}</h3><div class="fx-tbl"><table><thead><tr><th scope="col">Week of</th><th scope="col" class="num">${kind === 'stage' ? 'Rework usage' : 'Loops'}</th><th scope="col" class="num">${kind === 'stage' ? 'Share of stage usage' : 'Sessions'}</th></tr></thead><tbody>${wk.columns.map((col, i) => {
+    const c = cells[i]; if (!c) return `<tr><td>${esc(fxWk(col.t))}</td><td class="num">–</td><td class="num">–</td></tr>`;
+    const base = dollars ? c.cost : c.tokens, rework = dollars ? c.rework : c.reworkTokens;
+    return `<tr><td>${esc(fxWk(col.t))}</td><td class="num">${kind === 'stage' ? (dollars ? money(rework) : fmt(rework)) : fmt(c.loops)}</td><td class="num">${kind === 'stage' ? (base ? fxPct(rework / base) : '–') : fmt(c.sessions)}</td></tr>`;
+  }).join('')}</tbody></table></div></details>`;
+}
 let FX_CARDS = {}, FX_LOOPS = {}, FX_RO = null;
 // the loops table, with the two sides' loops per session when a diff is chosen
 function fxLoopTable(stages, loops, dollars) {
@@ -1383,10 +1421,12 @@ function fxLoopTable(stages, loops, dollars) {
   const a = FX_DIFF && FX?.factory?.arms?.[FX_DIFF], spec = FX_ARMS[FX_DIFF], diff = Boolean(a && spec);
   const idx = id => stages.findIndex(s => s.key === id), amt = (c, t) => dollars ? money(c) : `${fmt(t)} tok`;
   const per = (side, key) => { const c = a[side]; return c.sessions ? ((c.loops[key]?.loops || 0) / c.sessions) : null; };
-  box.innerHTML = `<div class="fx-tbl"><table><thead><tr><th>Loop</th><th>Route</th><th>Share of tokens</th><th class="num">Loops</th><th class="num">Sessions</th><th class="num">${dollars ? 'Cost' : 'Tokens'}</th><th class="num">Per loop</th>${diff ? `<th class="num on" title="loops per session, ${esc(spec.labels[0])}">${esc(spec.short[0])} / session</th><th class="num" title="loops per session, ${esc(spec.labels[1])}">${esc(spec.short[1])} / session</th>` : ''}</tr></thead><tbody id="fx-rows">
-    ${loops.length ? loops.map(L => { const on = diff ? per(spec.on, L.key) : null, off = diff ? per(spec.off, L.key) : null, d = on != null && off ? (on - off) / off : null; return `<tr class="lrow${FX_SEL.kind === 'loop' && FX_SEL.id === L.key ? ' on' : ''}" data-id="${esc(L.key)}" style="--lc:${L.lc};--lbg:${L.lbg}"><td><span class="fx-lname"><span class="fx-licon">${fxUse('fxi-loop')}</span>${esc(L.name)}</span></td><td><span class="fx-route">${esc(stages[idx(L.from)]?.name || L.from)} → ${esc(stages[idx(L.to)]?.name || L.to)}</span></td><td><span class="fx-metric">${fxPct(L.share)}</span></td><td class="num">${fmt(L.loops)}</td><td class="num">${fmt(L.sessions)}</td><td class="num">${amt(L.cost, L.tokens)}</td><td class="num">${L.loops ? amt(L.cost / L.loops, L.tokens / L.loops) : '–'}</td>${diff ? `<td class="num on">${on == null ? '–' : on.toFixed(2)}</td><td class="num">${off == null ? '–' : off.toFixed(2)}${d == null ? '' : ` <span class="fx-d ${Math.abs(d) < 0.05 ? 'flat' : d < 0 ? 'good' : 'bad'}">${d > 0 ? '+' : ''}${Math.round(100 * d)}%</span>`}</td>` : ''}</tr>`; }).join('') : `<tr><td colspan="${diff ? 9 : 7}" class="muted">No loop detected in this window.</td></tr>`}
+  box.innerHTML = `<div class="fx-tbl"><table class="fx-wide-table" aria-label="Detected repeat-work loops"><thead><tr><th scope="col">Loop</th><th scope="col">Route</th><th scope="col" class="num">Share of ${dollars ? 'usage cost' : 'tokens'}</th><th scope="col" class="num">Loops</th><th scope="col" class="num">Sessions</th><th scope="col" class="num">${dollars ? 'Usage cost' : 'Tokens'}</th><th scope="col" class="num">Per loop</th>${diff ? `<th scope="col" class="num on" title="loops per session, ${esc(spec.labels[0])}">${esc(spec.short[0])} / session</th><th scope="col" class="num" title="loops per session, ${esc(spec.labels[1])}">${esc(spec.short[1])} / session</th>` : ''}</tr></thead><tbody id="fx-rows">
+    ${loops.length ? loops.map(L => { const on = diff ? per(spec.on, L.key) : null, off = diff ? per(spec.off, L.key) : null, d = on != null && off ? (on - off) / off : null; return `<tr class="lrow${FX_SEL.kind === 'loop' && FX_SEL.id === L.key ? ' on' : ''}" data-id="${esc(L.key)}" style="--lc:${L.lc};--lbg:${L.lbg}"><td><button type="button" class="fx-loop-link" aria-label="View ${esc(L.name)} loop details">${esc(L.name)}</button></td><td><span class="fx-route">${esc(stages[idx(L.from)]?.name || L.from)} → ${esc(stages[idx(L.to)]?.name || L.to)}</span></td><td class="num"><span class="fx-metric">${fxPct(L.share)}</span></td><td class="num">${fmt(L.loops)}</td><td class="num">${fmt(L.sessions)}</td><td class="num">${amt(L.cost, L.tokens)}</td><td class="num">${L.loops ? amt(L.cost / L.loops, L.tokens / L.loops) : '–'}</td>${diff ? `<td class="num on">${on == null ? '–' : on.toFixed(2)}</td><td class="num">${off == null ? '–' : off.toFixed(2)}${d == null ? '' : ` <span class="fx-d ${Math.abs(d) < 0.05 ? 'flat' : d < 0 ? 'good' : 'bad'}">${d > 0 ? '+' : ''}${Math.round(100 * d)}%</span>`}</td>` : ''}</tr>`; }).join('') : `<tr><td colspan="${diff ? 9 : 7}" class="muted">No loop detected in this window.</td></tr>`}
   </tbody></table></div>`;
-  for (const tr of box.querySelectorAll('tr.lrow')) tr.onclick = () => { fxSelect('loop', tr.dataset.id, stages, loops, dollars); fxPop('loop', tr.dataset.id, FX_LOOPS[tr.dataset.id]?.pill, stages, loops, dollars); };
+  for (const tr of box.querySelectorAll('tr.lrow')) {
+    tr.onclick = () => fxSelect('loop', tr.dataset.id, stages, loops, dollars);
+  }
 }
 function fxRows(stages, loops, dollars) {
   const a = FX_DIFF && FX?.factory?.arms?.[FX_DIFF], spec = FX_ARMS[FX_DIFF];
@@ -1396,23 +1436,23 @@ function fxRows(stages, loops, dollars) {
     if (a && spec) { const per = side => a[side].sessions ? ((a[side].loops[L.key]?.loops || 0) / a[side].sessions).toFixed(2) : '–'; ls.textContent = `${spec.short[0]} ${per(spec.on)} · ${spec.short[1]} ${per(spec.off)} per session`; }
     else ls.textContent = `${fmt(L.loops)} loops · ${dollars ? money(L.cost) : fmt(L.tokens) + ' tok'}`;
   }
-  // the totals on the chart's bottom right (the owner, 2026-11-09: on the chart, not in the flow): cost per merged pull request
+  // Top-level totals: cost per merged pull request
   // and rework share, the two sides' when a diff is chosen
   const dock = $('#fx-dock'), prs = FX?.factory?.prs, fv = FX?.factory;
   if (dock) {
     const perPr = (cost, n) => n ? (dollars ? money(cost / n) : fmt(Math.round(cost / n))) : '–', rw = (r, c) => c ? fxPct(r / c) : '–';
-    if (a && spec) dock.innerHTML = `<div class="two head"><span></span><b>${esc(spec.short[0])}</b><b class="off">${esc(spec.short[1])}</b></div><div class="two"><span>${dollars ? 'Cost' : 'Tokens'} per PR</span><b>${perPr(a[spec.on].prs.cost, a[spec.on].prs.merged)}</b><b class="off">${perPr(a[spec.off].prs.cost, a[spec.off].prs.merged)}</b></div><div class="two"><span>Rework</span><b>${rw(dollars ? a[spec.on].rework : a[spec.on].reworkTokens, dollars ? a[spec.on].cost : a[spec.on].tokens)}</b><b class="off">${rw(dollars ? a[spec.off].rework : a[spec.off].reworkTokens, dollars ? a[spec.off].cost : a[spec.off].tokens)}</b></div>`;
-    else dock.innerHTML = `<div class="two"><span>${dollars ? 'Cost' : 'Tokens'} per PR</span><b>${prs?.meanCost == null ? '–' : dollars ? money(prs.meanCost) : fmt(Math.round(prs.meanCost))}</b></div><div class="two"><span>Rework</span><b>${fxPct(fv?.reworkShare)}</b></div>`;
+    if (a && spec) dock.innerHTML = [spec.on, spec.off].map((side, i) => `<p>${esc(spec.short[i])}: average model usage was <mark>${perPr(a[side].prs.cost, a[side].prs.merged)}${dollars ? '' : ' tokens'} per merged PR</mark>, and <mark>${rw(dollars ? a[side].rework : a[side].reworkTokens, dollars ? a[side].cost : a[side].tokens)}</mark> of overall usage was attributed to detected repeat-work loops.</p>`).join('');
+    else dock.innerHTML = `<p>${prs?.meanCost == null ? '' : `Measured merged PRs averaged <mark>${dollars ? money(prs.meanCost) : fmt(Math.round(prs.meanCost)) + ' tokens'} each</mark>. `}${fv?.reworkShare == null ? 'Repeat-work share not yet measured' : `Repeat work accounted for <mark class="fx-repeat">${fxPct(fv.reworkShare)} of total usage</mark>.`}</p>`;
   }
   for (const s of stages) {
     const r = FX_CARDS[s.key]?.querySelector('.rows'); if (!r) continue;
     if (a && spec) {
       const on = a[spec.on].stages[s.key], off = a[spec.off].stages[s.key], rw = c => { const base = dollars ? c.cost : c.tokens; return base ? (dollars ? c.rework : c.reworkTokens) / base : null; }, per = (c, side) => { const n = a[side].sessions; return n ? (dollars ? c.cost : c.tokens) / n : null; };
-      r.innerHTML = `<div class="two"><span></span><b>${esc(spec.short[0])}</b><b class="off">${esc(spec.short[1])}</b></div><div class="two"><span>Per session</span><b>${per(on, spec.on) == null ? '–' : dollars ? money(per(on, spec.on)) : fmt(Math.round(per(on, spec.on)))}</b><b class="off">${per(off, spec.off) == null ? '–' : dollars ? money(per(off, spec.off)) : fmt(Math.round(per(off, spec.off)))}</b></div><div class="two"><span>Rework</span><b>${fxPct(rw(on))}</b><b class="off">${fxPct(rw(off))}</b></div>`;
+      r.innerHTML = `<div class="two"><span></span><b>${esc(spec.short[0])}</b><b class="off">${esc(spec.short[1])}</b></div><div class="two"><span>Per session</span><b>${per(on, spec.on) == null ? '–' : dollars ? money(per(on, spec.on)) : fmt(Math.round(per(on, spec.on)))}</b><b class="off">${per(off, spec.off) == null ? '–' : dollars ? money(per(off, spec.off)) : fmt(Math.round(per(off, spec.off)))}</b></div><div class="two"><span>Rework share</span><b>${fxPct(rw(on))}</b><b class="off">${fxPct(rw(off))}</b></div>`;
       continue;
     }
     r.innerHTML = FX_METRIC === 'stage'
-      ? `<div><span>${dollars ? 'Cost' : 'Tokens'}</span><b>${dollars ? money(s.cost) : fmt(s.tokens)}</b></div><div><span>Share</span><b>${fxPct(s.share)}</b></div><div><span>Rework</span><b class="${s.verdict ? `fx-${s.verdict}` : ''}">${fxPct(s.reworkShare)}</b></div>`
+      ? `<div><span>${dollars ? 'Usage cost' : 'Tokens'}</span><b>${dollars ? money(s.cost) : fmt(s.tokens)}</b></div><div><span>Rework share</span><b class="${s.verdict ? `fx-${s.verdict}` : ''}">${fxPct(s.reworkShare)}</b></div>`
       : `<div><span>Loops out</span><b>${fmt(loops.filter(L => L.from === s.key).reduce((a, L) => a + L.loops, 0))}</b></div><div><span>Loops in</span><b>${fmt(loops.filter(L => L.to === s.key).reduce((a, L) => a + L.loops, 0))}</b></div><div><span>Rework ${dollars ? '$' : 'tok'}</span><b>${dollars ? money(s.rework) : fmt(s.reworkTokens)}</b></div>`;
   }
 }
@@ -1423,12 +1463,15 @@ function fxCanvas(v, stages, loops, dollars) {
   FX_CARDS = {}; FX_LOOPS = {};
   for (const s of stages) {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'fx-stage'; b.dataset.id = s.key; canvas.appendChild(b);
-    b.innerHTML = `<div class="row1"><span>${String(idx(s.key) + 1).padStart(2, '0')}</span><span class="lamp" style="background:${s.verdict === 'good' ? '#15803d' : s.verdict === 'bad' ? '#b91c1c' : s.verdict === 'mid' ? '#a16207' : '#d1d5db'}" title="${fxVerdict[s.verdict] ? `${fxVerdict[s.verdict]}: ${fxPct(s.reworkShare)} of this stage's cost was rework, spent inside a loop` : 'no rework measured'}"></span></div><div class="name">${fxUse('fxi-' + s.key)}${esc(s.name)}</div><div class="calls">${fmt(s.calls)} calls</div><div class="rows"></div><span class="port t"></span><span class="port b"></span>`;
-    b.onclick = () => { fxSelect('stage', s.key, stages, loops, dollars); fxPop('stage', s.key, b, stages, loops, dollars); };
+    b.innerHTML = `<div class="name">${esc(s.name)}</div><div class="rows"></div>`;
+    b.onclick = () => {
+      if (FX_SEL?.kind === 'stage' && FX_SEL.id === s.key && $('#fx-overlay')?.classList.contains('active')) fxClose();
+      else fxSelect('stage', s.key, stages, loops, dollars);
+    };
     FX_CARDS[s.key] = b;
   }
   fxRows(stages, loops, dollars);
-  const CH = 180, LANE = 52, PILL = 196, CW_MIN = 150, CW_MAX = 200, GAP_MIN = 28, X0_MIN = 32;
+  const CH = 120, LANE = 52, PILL = 196, CW_MIN = 120, CW_MAX = 200, GAP_MIN = 20, X0_MIN = 24;
   const layout = () => {
     const n = stages.length, avail = Math.max(scroller.clientWidth - 2, n * CW_MIN + (n - 1) * GAP_MIN + 2 * X0_MIN);
     const CW = Math.min(CW_MAX, Math.floor((avail - 2 * X0_MIN - (n - 1) * GAP_MIN) / n)), GAP = Math.min(80, Math.floor((avail - 2 * X0_MIN - n * CW) / (n - 1))), X0 = Math.floor((avail - n * CW - (n - 1) * GAP) / 2);
@@ -1439,13 +1482,13 @@ function fxCanvas(v, stages, loops, dollars) {
       let k = ls.findIndex(lane => lane.every(o => iv[1] < o[0] || iv[0] > o[1])); if (k < 0) { ls.push([]); k = ls.length - 1; }
       ls[k].push(iv); L.side = side; L.lane = k;
     });
-    const TOP = 54 + lanes.top.length * LANE;
+    const TOP = 28 + lanes.top.length * LANE;
     canvas.style.width = avail + 'px'; canvas.style.height = (TOP + CH + 30 + lanes.bottom.length * LANE + 20) + 'px';
     const portUse = {}; for (const L of loops) for (const end of ['from', 'to']) { const key = L[end] + ':' + L.side; (portUse[key] ||= []).push(L.key + ':' + end); }
     const portX = (L, end) => { const list = portUse[L[end] + ':' + L.side], k = list.indexOf(L.key + ':' + end); return cx(idx(L[end])) + (k - (list.length - 1) / 2) * 16; };
-    stages.forEach((s, i) => { const b = FX_CARDS[s.key]; b.style.left = left(i) + 'px'; b.style.top = TOP + 'px'; b.style.width = CW + 'px'; });
+    stages.forEach((s, i) => { const b = FX_CARDS[s.key]; b.style.left = left(i) + 'px'; b.style.top = TOP + 'px'; b.style.width = CW + 'px'; b.style.minHeight = CH + 'px'; });
     wires.innerHTML = '';
-    for (let i = 0; i < n - 1; i++) { const y = TOP + CH / 2, x1 = left(i) + CW + 4, x2 = left(i + 1) - 4; el('circle', { class: 'fx-fwd-dot', cx: x1 + 2, cy: y, r: 2.5 }, wires); el('line', { class: 'fx-fwd', x1: x1 + 5, y1: y, x2: x2 - 6, y2: y }, wires); el('polygon', { class: 'fx-fwd-head', points: `${x2 - 7},${y - 4} ${x2},${y} ${x2 - 7},${y + 4}` }, wires); }
+    for (let i = 0; i < n - 1; i++) { const y = TOP + CH / 2, x1 = left(i) + CW + 4, x2 = left(i + 1) - 4; el('line', { class: 'fx-fwd', x1: x1 + 5, y1: y, x2: x2 - 6, y2: y }, wires); el('polygon', { class: 'fx-fwd-head', points: `${x2 - 7},${y - 4} ${x2},${y} ${x2 - 7},${y + 4}` }, wires); }
     for (const k in FX_LOOPS) FX_LOOPS[k].pill.remove(); FX_LOOPS = {};
     for (const L of loops) {
       const fi = idx(L.from), ti = idx(L.to); if (fi < 0 || ti < 0) continue;
@@ -1455,13 +1498,27 @@ function fxCanvas(v, stages, loops, dollars) {
       const g = el('g', { class: 'fx-loop-g', 'data-id': L.key }, wires);
       el('path', { class: 'fx-loop-path', d, stroke: L.lc }, g); el('circle', { cx: sx, cy: sy, r: 3, fill: L.lc }, g);
       el('polygon', { points: `${tx - 5},${sy + dy * 9} ${tx + 5},${sy + dy * 9} ${tx},${sy + dy}`, fill: L.lc }, g);
-      const pill = document.createElement('button'); pill.type = 'button'; pill.className = 'fx-pill'; pill.style.setProperty('--lc', L.lc); pill.style.left = ((sx + tx) / 2) + 'px'; pill.style.top = Y + 'px'; pill.dataset.id = L.key;
+      const pill = document.createElement('button'); pill.type = 'button'; pill.className = 'fx-pill'; pill.style.setProperty('--lc', L.lc); pill.style.setProperty('--lbg', L.lbg); pill.style.left = ((sx + tx) / 2) + 'px'; pill.style.top = Y + 'px'; pill.dataset.id = L.key;
       pill.innerHTML = `${fxUse('fxi-loop')}<span class="ln">${esc(L.name)}</span><span class="lp">${fxPct(L.share)}</span><span class="ls">${fmt(L.loops)} loops · ${dollars ? money(L.cost) : fmt(L.tokens) + ' tok'}</span>`;
-      pill.onclick = () => { fxSelect('loop', L.key, stages, loops, dollars); fxPop('loop', L.key, pill, stages, loops, dollars); };
+      pill.onclick = () => { fxSelect('loop', L.key, stages, loops, dollars); };
       canvas.appendChild(pill); FX_LOOPS[L.key] = { g, pill };
     }
     if (FX_SEL) fxMark(FX_SEL.kind, FX_SEL.id);
-    fxRows(stages, loops, dollars); fxPopClose();
+    fxRows(stages, loops, dollars);
+    if (window.matchMedia('(max-width: 1100px)').matches) {
+      wires.innerHTML = '';
+      const origin = canvas.getBoundingClientRect();
+      for (let i = 0; i < stages.length - 1; i++) {
+        const a = FX_CARDS[stages[i].key].getBoundingClientRect(), b = FX_CARDS[stages[i + 1].key].getBoundingClientRect();
+        const sameRow = Math.abs(a.top - b.top) < 2;
+        const x = sameRow ? b.left - origin.left - 3 : (b.left + b.right) / 2 - origin.left;
+        const y = sameRow ? (b.top + b.bottom) / 2 - origin.top : b.top - origin.top - 3;
+        const sx = sameRow ? a.right - origin.left + 2 : (a.left + a.right) / 2 - origin.left;
+        const sy = sameRow ? y : a.bottom - origin.top + 2, mid = (sy + y) / 2;
+        el('path', { class: 'fx-fwd', d: sameRow ? `M${sx} ${sy} H${x}` : `M${sx} ${sy} V${mid} H${x} V${y}` }, wires);
+        el('polygon', { class: 'fx-fwd-head', points: sameRow ? `${x-5},${y-3} ${x},${y} ${x-5},${y+3}` : `${x-3},${y-5} ${x},${y} ${x+3},${y-5}` }, wires);
+      }
+    }
   };
   layout();
   if (FX_RO) FX_RO.disconnect();
@@ -1475,22 +1532,28 @@ function fxMark(kind, id) {
 }
 function fxSelect(kind, id, stages, loops, dollars) {
   FX_SEL = { kind, id }; fxMark(kind, id);
+  const overlay = $('#fx-overlay'), opening = !overlay.classList.contains('active');
+  if (opening || !overlay.contains(document.activeElement)) FX_RETURN = document.activeElement;
+  overlay.classList.add('active');
+  fxHistory(kind, id, dollars);
+  if (opening) overlay.querySelector('.btn-close').focus();
   const d = $('#fx-details'); if (!d) return;
   const idx = k => stages.findIndex(s => s.key === k), amt = (c, t) => dollars ? money(c) : `${fmt(t)} tok`;
   if (kind === 'stage') {
     const s = stages[idx(id)]; if (!s) return;
     const touching = loops.filter(L => L.from === s.key || L.to === s.key);
-    d.innerHTML = `<div class="kicker">Stage details</div><div class="fx-dhead"><span class="fx-dicon">${fxUse('fxi-' + s.key)}</span><div><div class="fx-dname">${esc(s.name)}</div><div class="fx-dsub">Stage ${String(idx(s.key) + 1).padStart(2, '0')} of ${String(stages.length).padStart(2, '0')}</div></div><span class="fx-dkind">Stage</span></div>
-      <p class="fx-ddesc">${esc(s.desc || '')}</p>
-      <div class="fx-drows"><div><span>${dollars ? 'Cost' : 'Tokens'}</span><b>${amt(s.cost, s.tokens)}</b></div><div><span>Share of all tokens</span><b>${fxPct(s.share)}</b></div><div><span>Of it rework</span><b class="${s.verdict ? `fx-${s.verdict}` : ''}">${fxPct(s.reworkShare)}${s.verdict ? ` · ${fxVerdict[s.verdict]}` : ''}</b></div><div><span>Model calls</span><b>${fmt(s.calls)}</b></div></div>
-      ${touching.length ? `<div class="fx-dloops">${touching.map(L => `<button type="button" data-id="${esc(L.key)}"><i style="background:${L.lc}"></i>${esc(L.name)} ${L.from === s.key ? 'out' : 'in'}</button>`).join('')}</div>` : ''}
+    d.innerHTML = `<div class="kicker">Stage details</div><div class="fx-dhead"><span class="fx-dicon">${fxUse('fxi-' + s.key)}</span><div><div class="fx-dname">${esc(s.name)}</div><div class="fx-dsub">Stage ${String(idx(s.key) + 1).padStart(2, '0')} of ${String(stages.length).padStart(2, '0')}</div></div></div>
+      <p class="fx-ddesc">${esc(s.desc || '')}</p><button type="button" class="btn ghost fx-chat-stage">Chat about this</button>
+      <div class="fx-drows"><div><span>${dollars ? 'Usage cost' : 'Tokens'}</span><b>${amt(s.cost, s.tokens)}</b></div><div><span>Share of ${dollars ? 'usage cost' : 'tokens'}</span><b>${fxPct(s.share)}</b></div><div><span>Rework share</span><b class="${s.verdict ? `fx-${s.verdict}` : ''}">${fxPct(s.reworkShare)}${s.verdict ? ` · ${fxVerdict[s.verdict]}` : ''}</b></div><div><span>Model calls</span><b>${fmt(s.calls)}</b></div><div><span>Rework ${dollars ? 'usage' : 'tokens'}</span><b>${amt(s.rework, s.reworkTokens)}</b></div><div><span>Loops returning to this stage</span><b>${fmt(loops.filter(L => L.to === s.key).reduce((n, L) => n + L.loops, 0))}</b></div><div><span>Loops leaving this stage</span><b>${fmt(loops.filter(L => L.from === s.key).reduce((n, L) => n + L.loops, 0))}</b></div></div>
+      ${touching.length ? `<div class="fx-dloops">${touching.map(L => `<button type="button" style="color:${L.lc};background:${L.lbg};border-color:${L.lc}33" data-id="${esc(L.key)}"><i style="background:${L.lc}"></i>${esc(L.name)} ${L.from === s.key ? 'out' : 'in'}</button>`).join('')}</div>` : ''}
       <div class="fx-dfoot"><span>${idx(s.key) === 0 ? 'first stage' : `after ${esc(stages[idx(s.key) - 1].name)}`}</span><span>${touching.length} connected loop${touching.length === 1 ? '' : 's'}</span></div>`;
+    d.querySelector('.fx-chat-stage').onclick = () => { fxClose(); chatAboutStage(s, dollars); };
     d.querySelectorAll('.fx-dloops button').forEach(b => b.onclick = () => fxSelect('loop', b.dataset.id, stages, loops, dollars));
   } else {
     const L = loops.find(l => l.key === id); if (!L) return;
-    d.innerHTML = `<div class="kicker">Loop details</div><div class="fx-dhead"><span class="fx-dicon" style="background:${L.lbg};border-color:transparent"><svg style="stroke:${L.lc};color:${L.lc}"><use href="#fxi-loop"/></svg></span><div><div class="fx-dname">${esc(L.name)}</div><div class="fx-dsub">${esc(stages[idx(L.from)]?.name || L.from)} back to ${esc(stages[idx(L.to)]?.name || L.to)}</div></div><span class="fx-dkind">Loop</span></div>
+    d.innerHTML = `<div class="kicker">Loop details</div><div class="fx-dhead"><span class="fx-dicon" style="background:${L.lbg};border-color:transparent"><svg style="stroke:${L.lc};color:${L.lc}"><use href="#fxi-loop"/></svg></span><div><div class="fx-dname">${esc(L.name)}</div><div class="fx-dsub">${esc(stages[idx(L.from)]?.name || L.from)} back to ${esc(stages[idx(L.to)]?.name || L.to)}</div></div></div>
       <p class="fx-ddesc">${esc(L.sub || '')}</p>
-      <div class="fx-drows"><div><span>Loops</span><b>${fmt(L.loops)}</b></div><div><span>Sessions</span><b>${fmt(L.sessions)}</b></div><div><span>${dollars ? 'Cost' : 'Tokens'}</span><b>${amt(L.cost, L.tokens)}</b></div><div><span>Share of all tokens</span><b>${fxPct(L.share)}</b></div><div><span>Per loop</span><b>${L.loops ? amt(L.cost / L.loops, L.tokens / L.loops) : '–'}</b></div><div><span>Calls inside</span><b>${fmt(L.calls || 0)}</b></div></div>
+      <div class="fx-drows"><div><span>Loops</span><b>${fmt(L.loops)}</b></div><div><span>Sessions</span><b>${fmt(L.sessions)}</b></div><div><span>${dollars ? 'Usage cost' : 'Tokens'}</span><b>${amt(L.cost, L.tokens)}</b></div><div><span>Share of ${dollars ? 'usage cost' : 'tokens'}</span><b>${fxPct(L.share)}</b></div><div><span>Per loop</span><b>${L.loops ? amt(L.cost / L.loops, L.tokens / L.loops) : '–'}</b></div><div><span>Calls inside</span><b>${fmt(L.calls || 0)}</b></div></div>
       <p class="fx-ddesc" style="font-size:.78rem"><span class="muted">Detected by:</span> ${esc(L.rule || '')}</p>
       <div class="fx-dloops"><button type="button" data-stage="${esc(L.from)}">${esc(stages[idx(L.from)]?.name || L.from)}</button><button type="button" data-stage="${esc(L.to)}">${esc(stages[idx(L.to)]?.name || L.to)}</button></div>`;
     d.querySelectorAll('.fx-dloops button').forEach(b => b.onclick = () => fxSelect('stage', b.dataset.stage, stages, loops, dollars));
