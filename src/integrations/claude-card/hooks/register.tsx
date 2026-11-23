@@ -15,8 +15,10 @@ import type { Register } from 'claude-code'
 
 export type Tool = { name: string; calls: number; tokens: number }
 export type Saving = { saved: number; requests: number; uses: number; tools: Tool[] }
-export type Note = { id: string; title: string; lines: string[]; more?: string; version?: string; page?: string }
-export type Card = { tail: string; at: number; prompts?: number; compression?: Saving; update?: Note }
+// A card kept before 2026-11-23 may also hold an `update`: the release note ("What changed"), drawn once per
+// machine from 2026-11-10 until the owner had it removed. Nothing says one now and a kept one is not drawn again;
+// the copies of this mod still open in older sessions keep their own until those sessions end.
+export type Card = { tail: string; at: number; prompts?: number; compression?: Saving }
 // the kept ledger, as src/accountant.js writes it
 export type Cell = { cost: number; tokens: number; unpricedTokens?: number }
 export type Ledger = { at: number; day: string; version?: string; today: Cell; lifetime: Cell }
@@ -116,13 +118,9 @@ async function savings($: any, { now = Date.now() } = {}): Promise<string> {
   try { l = JSON.parse(String(await $.fs.read(`${await thinkerHome($)}/state/savings.json`))) } catch { return '' }
   if (!l?.lifetime || (!l.lifetime.tokens && !l.lifetime.unpricedTokens)) return ''
   const today = l.day === dayKey(now) && Number.isFinite(l.today?.cost) ? formatDollars(l.today.cost) : null
-  version = l.version || ''
   return savingsStatus(today, formatDollars(l.lifetime.cost), l.version)
 }
 
-// The version that wrote the ledger, kept from the same read: the update card names it too, and a card
-// may no more read a file while drawing than the status row may.
-let version = ''
 // The line currently on screen, kept here because a `ui.render` hook draws on every frame and must
 // never read a file: the reads happen at the start of the session, at the end of each turn, and when
 // the ledger's file moves (the poll below), and a changed line asks for a redraw.
@@ -218,101 +216,6 @@ async function noticeShown($: any): Promise<void> {
   try { await $.fs.write(await noticeFile($), JSON.stringify({ at: new Date().toISOString(), prompts: 0 })) } catch {}
 }
 
-// What changed in thinker, drawn once per machine as a card under an answer. The words are
-// src/update-note.js's (no test holds this copy to them: change both); the mod runs inside Claude
-// Code and can import nothing from thinker. Once per note, keyed on the note's own id, and never where
-// the notices are off -- a person who asked thinker to be quiet did not ask for release notes.
-export const UPDATE_NOTE: Note = {
-  id: '2026-11-agent',
-  title: 'What changed',
-  lines: [
-    'Thinker is now an agent that constantly improves your harness and instruction files!',
-    'Chat with thinker in {chat} to learn about how it works and steer it as you like.',
-    'Look at your factory page {factory} and click on a stage to tell thinker to improve it based on your recent history.',
-    'More coming soon.',
-  ],
-  more: 'Open the dashboard any time: thinker ui',
-}
-// Which notes this machine has been shown: `<thinker home>/state/update-notes.json`, `{ shown: { <note id>: <when> } }`,
-// the one record both doors read and add to (src/update-note.js holds the same rule for the Stop hook). It is a
-// set that is only ever added to, never the one id of the last note said. That was the fault of 2026-11-22: the
-// record was this mod's own store key holding one id, and an open session keeps the mod it loaded at its start
-// (claude-card.js), so after an update a session still running the copy before it found a newer id there, drew
-// its own old note again and put its id back, and the next new session drew the new note again -- the two traded
-// places at every turn for as long as both were open. A record no copy takes an id out of cannot be traded.
-//
-// NOTE_KEY is that old store key. It is read once more, as what a copy before this one left (its own id there
-// means this note was said), and never written: the copies before this one still compare it to their own id,
-// and a write here would have every session open on an older note draw it again.
-export const NOTE_KEY = 'update-note'
-export const NOTES_KEEP = 20
-const notesFile = async ($: any) => `${await thinkerHome($)}/state/update-notes.json`
-const oldNoteFile = async ($: any) => `${await thinkerHome($)}/state/update-note.json`   // the Stop hook's, one id, until 2026-11-22
-async function json($: any, file: string): Promise<any> {
-  try { return JSON.parse(String(await $.fs.read(file))) } catch { return null }
-}
-// Whether this note has been said on this machine, by either door or by a copy from before the shared record --
-// and what the older records knew is written into the shared one on the way, since an older copy still open can
-// put another id over its own at any turn.
-async function noteSaid($: any, id = UPDATE_NOTE.id): Promise<boolean> {
-  const shown: Record<string, string> = { ...((await json($, await notesFile($)))?.shown ?? {}) }
-  if (shown[id]) return true
-  const before = (await json($, await oldNoteFile($)))?.id === id
-    || (await $.store.get(NOTE_KEY).catch(() => null)) === id
-    || (await load($)).some(c => c.update?.id === id)
-  if (before) await markNote($, id, shown)
-  return before
-}
-async function markNote($: any, id = UPDATE_NOTE.id, shown?: Record<string, string>): Promise<void> {
-  try {
-    const all = { ...(shown ?? (await json($, await notesFile($)))?.shown ?? {}), [id]: new Date().toISOString() }
-    const kept = Object.fromEntries(Object.entries(all).slice(-NOTES_KEEP))
-    await $.fs.write(await notesFile($), JSON.stringify({ shown: kept }))
-  } catch {}
-}
-
-
-// Where a line's `{chat}` and `{factory}` go, as src/update-note.js:noteLinks fills them: the place on the
-// local page while one runs for this machine, the command that opens it where none could be started.
-export const noteLinks = (page?: string) => (page
-  ? { chat: `${page}#tab=chat`, factory: `${page}#tab=factory` }
-  : { chat: 'the dashboard (run: thinker ui)', factory: '(run: thinker ui --tab factory)' })
-// a line as the pieces the card draws: its words, and each place on the page as a link of its own
-export function noteParts(line: string, page?: string): { text: string; href?: string }[] {
-  const links = noteLinks(page) as Record<string, string>
-  return line.split(/(\{(?:chat|factory)\})/).filter(Boolean).map(t => {
-    const to = /^\{(chat|factory)\}$/.exec(t)
-    return to ? { text: links[to[1]], ...(page ? { href: links[to[1]] } : {}) } : { text: t }
-  })
-}
-// thinker's CLI, read off the prompt hook thinker wrote into Claude Code's settings: the copy the hooks run
-// (the clearing mod finds it the same way, claude-clear:cliOf)
-export const cliOf = (settings: any): string | null => {
-  for (const g of settings?.hooks?.UserPromptSubmit || []) for (const h of g?.hooks || []) {
-    const hit = /^node "([^"]+[\\/]cli\.js)" hook prompt\b/.exec(String(h?.command || ''))
-    if (hit) return hit[1]
-  }
-  return null
-}
-// The page the note's links open, put up first: `thinker ui --ensure` answers with the address of the page
-// running for this machine and starts one in the background where none runs (context-suggest.js:ensureUi),
-// since the mod can start nothing that outlives its own call. No CLI found, none started in time, or an
-// answer that is not the page's own address: the card names the command instead.
-export const PAGE_TIMEOUT_MS = 8_000
-async function notePage($: any): Promise<string | undefined> {
-  try {
-    let cli = (await $.env.get('THINKER_CLI')) || null
-    if (!cli) {
-      const dir = (await $.env.get('CLAUDE_CONFIG_DIR')) || `${await $.env.get('HOME')}/.claude`
-      cli = cliOf(JSON.parse(String(await $.fs.read(`${dir}/settings.json`))))
-    }
-    if (!cli) return undefined
-    const r = await $.process.run(['node', cli, 'ui', '--ensure'], { timeoutMs: PAGE_TIMEOUT_MS })
-    const url = String(r.stdout || '').trim().split('\n').pop() || ''
-    return r.exitCode === 0 && /^http:\/\/127\.0\.0\.1:\d+\/$/.test(url) ? url : undefined
-  } catch { return undefined }
-}
-
 const MAX_CARDS = 300
 export const tailOf = (text: string) => text.replace(/\s+/g, ' ').trim().slice(-160)
 let cards: Card[] | null = null
@@ -326,11 +229,8 @@ export const register: Register = on => {
   let held = 0
   // turns since the first one that saw the proxy clear anything in this session; -1 until then
   let sinceClear = -1
-  // the update note was drawn in this session
-  let noted = false
   cards = null
   line = ''
-  version = ''
   ledgerAt = -1
   let poll: { cancel: () => void } | null = null
 
@@ -364,29 +264,10 @@ export const register: Register = on => {
       if (state) sinceClear = sinceClear < 0 ? 0 : sinceClear + 1
       const compression = state && sinceClear >= TURNS_AFTER ? state : undefined
       const tail = tailOf(e.answer)
-      // What changed in thinker, once per machine, at the first turn that ends after the update. It
-      // does not wait for the summary cadence and does not spend it: a release note is a one-off, and
-      // a person who learns a week late what their agent has been doing has learnt it too late. The
-      // Stop hook leaves it to this card where the mod runs (commands/hooks.js:carded), and the two
-      // read one record (noteSaid), so it is said once whichever door it comes through.
-      if (tail && !noted && (await noticeOn($)) && !(await noteSaid($))) {
-        // marked before the page is put up, which can take seconds: two sessions ending a turn together
-        // would otherwise both find it unsaid. `noted` is the same guard inside this session, should the
-        // record's file not take the write: a note drawn at every turn is worse than one drawn per session.
-        noted = true
-        await markNote($)
-        const page = await notePage($)
-        const card: Card = { tail, at: Date.now(), update: { ...UPDATE_NOTE, version, ...(page ? { page } : {}) } }
-        cards = [...(await load($)).filter(c => c.tail !== tail), card].slice(-MAX_CARDS)
-        await $.store.set('cards', cards).catch(() => {})
-        await markSession($)
-        $.ui.invalidate('ui.render')
-      }
       if (compression && tail) {
         if (!(await noticeDue($))) held++   // the saving comes with the next card
         else {
-          const was = (await load($)).find(c => c.tail === tail)
-          const card: Card = { tail, at: Date.now(), prompts: held + 1, compression, update: was?.update }
+          const card: Card = { tail, at: Date.now(), prompts: held + 1, compression }
           cards = [...(await load($)).filter(c => c.tail !== tail), card].slice(-MAX_CARDS)
           await $.store.set('cards', cards).catch(() => {})
           await markSession($)
@@ -423,26 +304,16 @@ export const register: Register = on => {
     if (e.props.isSummary) return drawn
     const tail = tailOf(e.props.text)
     const card = tail ? (await load($)).find(c => c.tail === tail) : undefined
-    if (!card?.compression && !card?.update) return drawn
-    const { Box, Text, Link } = $.ui.resolve(e)
-    const page = card.update?.page
+    if (!card?.compression) return drawn
+    const { Box, Text } = $.ui.resolve(e)
     return (
       <Box flexDirection="column">
         {drawn}
-        {card.update ? (
-          <Box flexDirection="column" borderStyle="round" paddingX={1} marginTop={1}>
-            <Text><Text bold>🧠 Thinker{card.update.version ? ` v${card.update.version}` : ''}</Text><Text dimColor> · {card.update.title}</Text></Text>
-            {card.update.lines.map((l, i) => <Text key={i} dimColor>• {noteParts(l, page).map((p, j) => p.href ? <Link key={j} href={p.href} /> : p.text)}</Text>)}
-            {card.update.more ? <Text dimColor>{card.update.more}</Text> : null}
-          </Box>
-        ) : null}
-        {card.compression ? (
-          <Box flexDirection="column" borderStyle="round" paddingX={1} marginTop={1}>
-            <Text><Text bold>🗜 Thinker</Text><Text dimColor> · {compressionHeader(card.compression)}</Text></Text>
-            <Text dimColor>• {card.compression.uses} tool {card.compression.uses === 1 ? 'result' : 'results'} cleared from the prompt</Text>
-            {compressionTools(card.compression) ? <Text dimColor>• out now: {compressionTools(card.compression)}</Text> : null}
-          </Box>
-        ) : null}
+        <Box flexDirection="column" borderStyle="round" paddingX={1} marginTop={1}>
+          <Text><Text bold>🗜 Thinker</Text><Text dimColor> · {compressionHeader(card.compression)}</Text></Text>
+          <Text dimColor>• {card.compression.uses} tool {card.compression.uses === 1 ? 'result' : 'results'} cleared from the prompt</Text>
+          {compressionTools(card.compression) ? <Text dimColor>• out now: {compressionTools(card.compression)}</Text> : null}
+        </Box>
       </Box>
     )
   })
