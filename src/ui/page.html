@@ -1127,7 +1127,7 @@ function renderChat() {
   const log = $('#chat-log');
   const bubble = m => m.role === 'you' ? `${m.ref ? refCard(m.ref, true) : ''}<div class="chat-msg you">${esc(m.text)}</div>`
     : m.pending ? `<div class="chat-msg thinker wait"><span class="spinner"></span>Waiting to answer through your agent's own session${m.via ? ` in ${esc(m.via)}` : ''}: the next time it is active there.</div>`
-    : m.failed ? `<div class="chat-msg thinker bad">Could not answer: ${esc(m.failed)}</div>`
+    : m.failed ? `<div class="chat-msg thinker bad">Could not answer: ${esc(m.failed)}${m.recovery?.ui ? `<br><br>${esc(m.recovery.ui)}` : ''}</div>`
     : `<div class="chat-msg thinker">${chatText(m.text)}${m.did?.length ? `<ul class="chat-did">${m.did.map(x => `<li class="${x.ok ? '' : 'no'}">${x.ok ? '✓' : '✗'} ${chatText(x.text)}</li>`).join('')}</ul>` : ''}</div>`;
   // a message being answered shows in the conversation it was said in, whichever is opened meanwhile
   const waiting = CHAT_WAIT && CHAT_WAIT_IN === CHAT_ID;

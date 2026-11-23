@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Store } from '../src/store.js';
-import { chatSend, chatAnswerPending, chatView, chatContext, refOf, CHAT } from '../src/chat.js';
+import { chatSend, chatAnswerPending, chatView, chatContext, renderChat, refOf, CHAT } from '../src/chat.js';
 import { behaviorOf, upkeepCheck, upkeepPending, readUpkeep, BEHAVIOR, STEER } from '../src/upkeep.js';
 import { changeHistory, VIA } from '../src/context-suggest.js';
 import { savingsDetail, savingsNet, dayKey, RECENT_DAYS } from '../src/accountant.js';
@@ -265,4 +265,42 @@ test('a card attached to a message carries only what the page may send', () => {
     ['a link that is https comes through', { ...good, url: 'https://github.com/o/r/pull/3' }, { ...good, url: 'https://github.com/o/r/pull/3' }],
   ];
   for (const [name, card, expected] of cases) assert.deepEqual(refOf(card), expected, name);
+});
+
+
+test('chat calls the normal provider path without pinning the profile model', async () => {
+  const { home, repos } = fresh();
+  const other = model({ reply: 'Answered through the configured provider.', actions: [] });
+  const r = await say('hello', { repos, home, have: ['codex'], fns: { complete: other } });
+  assert.equal(answer(r).text, 'Answered through the configured provider.');
+  assert.equal(other.asked.length, 1);
+  assert.equal(other.asked[0].model, 'opus', 'a tier leaves routing to the normal provider selection');
+});
+
+test('authentication failures keep the message and expose recovery for the chosen provider', async () => {
+  for (const reason of [
+    'claude -p exited 1: Failed to authenticate: OAuth session expired and could not be refreshed',
+    'codex exec exited 1: token expired',
+    'agent -p exited 1: not logged in',
+    'gemini -p exited 1: authentication failed',
+  ]) {
+    const { home, repos } = fresh();
+    const queued = [];
+    const r = await say('hello', { repos, home, completeFn: async () => { throw new Error(reason); }, enqueue: (...args) => queued.push(args) });
+    assert.equal(queued.length, 0, 'a login failure is actionable, not silently queued');
+    assert.equal(r.messages.filter(m => m.text === 'hello').length, 1);
+    const failed = answer(r).failed;
+    assert.ok(failed.startsWith(reason));
+    const recovery = answer(r).recovery;
+    assert.ok(recovery.ui);
+    assert.ok(recovery.cli);
+    assert.notEqual(recovery.ui, recovery.cli);
+    const terminal = renderChat(r.messages).join('\n');
+    assert.ok(terminal.includes(recovery.cli));
+    assert.ok(!terminal.includes(recovery.ui), 'terminal does not show page instructions');
+    assert.deepEqual(chatView({ home }).messages.at(-1).recovery, recovery);
+    assert.equal(answer(r).pending, undefined);
+    assert.equal(chatView({ home }).messages.at(-1).failed, failed, 'the page receives the full guidance');
+    assert.ok(renderChat(r.messages).join('\n').includes(failed), 'the CLI receives the same guidance');
+  }
 });

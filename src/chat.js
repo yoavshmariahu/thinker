@@ -53,8 +53,8 @@
 // never has only the model's word that a thing was changed. Nothing else can be done from here: an action that names
 // an unknown setting, repository or item is refused and said so.
 //
-// Through the person's own login, as every model call thinker makes (profile.js:completeProfile; llm.js for another
-// agent's CLI). In a desktop app with no agent CLI signed in there is no model to call from here, so the message is
+// Through the person's own login, as every model call thinker makes (llm.js, using the configured provider or its normal
+// fallback order). In a desktop app with no agent CLI signed in there is no model to call from here, so the message is
 // queued for the app's own session (session-work.js) and answered by `thinker chat --answer` the next time an agent
 // is active in that repository; the page shows it waiting and picks the answer up.
 //
@@ -71,7 +71,7 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { thinkerHome } from './update.js';
 import { complete, available } from './llm.js';
-import { completeProfile, readProfile, renderProfile } from './profile.js';
+import { readProfile, renderProfile } from './profile.js';
 import { delegateConfig } from './delegate.js';
 import { readReport, keptRows, inputRateHere } from './report-snapshot.js';
 import { formatTokens } from './model-usage.js';
@@ -475,8 +475,8 @@ export async function chatReply(text, { repos = [], about = null, ref = null, hi
   const ending = '\n\nReturn the JSON: your reply, and the actions (empty when nothing is to change).';
   const store = looking?.store || repos[0]?.store || null;
   const opts = { system: CHAT_SYSTEM, prompt: `${asked}${ending}`, schema: CHAT_SCHEMA, maxTokens: 3000, thinkingTokens: 0, structuredRetries: 1, timeoutMs: CHAT.waitMs, ...(store ? { accounting: { store, phase: 'chat', purpose: 'chat' } } : {}) };
-  // the model that reads the person's sessions answers them too; another agent's own CLI where that one is not here
-  const call = completeFn || (o => completeProfile(o, { have }).catch(e => /no model available/.test(String(e.message)) ? complete({ ...o, model: 'opus' }) : Promise.reject(e)));
+  // Chat uses the configured provider and normal fallback order, without the profile's Claude model pin.
+  const call = completeFn || (o => (fns.complete || complete)({ ...o, model: 'opus' }));
   const actionsOf = r => (Array.isArray(r.json?.actions) ? r.json.actions : []).filter(a => a && typeof a === 'object');
   let res = await call(opts);
   const did = [];
@@ -499,6 +499,16 @@ export async function chatReply(text, { repos = [], about = null, ref = null, hi
   return { reply: cut(res.json?.reply || '', 6000) || (acted.length ? 'Done!' : 'Hmm, I\'m not sure what to say to that one. Ask me what I\'ve been up to, or how I decide what to change.'), did };
 }
 
+// Shared failure classification; each surface displays only its own recovery instruction.
+function chatFailure(e) {
+  const failed = String(e?.message || e).split('\n')[0].slice(0, 200);
+  if (!/failed to authenticate|OAuth.*expired|not logged in|no model available|authentication|unauthorized|invalid.*(?:api.?key|token)|token.*expired/i.test(failed)) return { failed };
+  return { failed, recovery: {
+    ui: 'Sign in to your coding agent through your command line, then resend your message.',
+    cli: 'Sign in to your coding agent, then retry.',
+  } };
+}
+
 // Whether a model can be called from this process: an agent CLI or a key, or a queue's own provider.
 export const canAnswer = ({ have = available() } = {}) => Boolean(process.env.THINKER_LLM) || have.length > 0;
 
@@ -517,7 +527,11 @@ export async function chatSend(text, { chat = null, repos = [], about = null, re
   if (completeFn || canAnswer({ have })) {
     let answer;
     try { const r = await chatReply(text, { repos, about, ref: card, history, chat: id, home, now, completeFn, have, fns }); answer = message('thinker', r.reply, { now, chat: id, did: r.did.length ? r.did : undefined }); }
-    catch (e) { answer = message('thinker', '', { now, chat: id, failed: String(e.message || e).split('\n')[0].slice(0, 200) }); }
+    catch (e) {
+      const failure = chatFailure(e);
+      answer = message('thinker', '', { now, chat: id, ...failure });
+      if (failure.recovery && !process.env.THINKER_QUIET) process.stderr.write(`[thinker] ${failure.failed}\n${failure.recovery.cli}\n`);
+    }
     // read again before writing: another window may have added to the conversations while the model answered
     writeChat(home, [...readChat({ home }), mine, answer]);
     return chatView({ home, chat: id });
@@ -542,7 +556,7 @@ export async function chatAnswerPending({ repos = [], home = thinkerHome(), now 
     if (!asked) patch = { pending: undefined, failed: 'the message this answers is gone' };
     else {
       try { const r = await chatReply(asked.text, { repos, about: asked.about || null, ref: asked.ref || null, history: mine.slice(0, Math.max(0, i - 1)), chat: chatId(wait), home, now, completeFn, have, fns }); patch = { text: r.reply, did: r.did.length ? r.did : undefined, pending: undefined }; }
-      catch (e) { patch = { pending: undefined, failed: String(e.message || e).split('\n')[0].slice(0, 200) }; }
+      catch (e) { patch = { pending: undefined, ...chatFailure(e) }; }
     }
     const cur = readChat({ home }), at = cur.findIndex(m => m.id === wait.id);
     if (at < 0) break;
@@ -562,7 +576,7 @@ export function renderChat(messages, { last = 10 } = {}) {
   const out = [];
   for (const m of messages.slice(-last)) {
     if (m.role === 'you' && m.ref) out.push(`  [about: ${m.ref.text}${m.ref.impactSaid ? `  ${m.ref.impactSaid}` : ''}]`);
-    out.push(`${m.role === 'you' ? 'you' : 'thinker'}: ${m.pending ? `(waiting to answer through your agent's session${m.via ? ` in ${m.via}` : ''})` : m.failed ? `(could not answer: ${m.failed})` : m.text}`);
+    out.push(`${m.role === 'you' ? 'you' : 'thinker'}: ${m.pending ? `(waiting to answer through your agent's session${m.via ? ` in ${m.via}` : ''})` : m.failed ? `(could not answer: ${m.failed})${m.recovery?.cli ? `\n${m.recovery.cli}` : ''}` : m.text}`);
     for (const d of m.did || []) out.push(`  ${d.ok ? '✓' : '✗'} ${d.text}`);
   }
   return out;
