@@ -504,7 +504,7 @@ export async function chatReply(text, { repos = [], about = null, ref = null, hi
 function chatFailure(e) {
   const reason = String(e?.message || e).split('\n')[0].slice(0, 200);
   if (!/failed to authenticate|OAuth.*expired|not logged in|no model available|authentication|unauthorized|invalid.*(?:api.?key|token)|token.*expired/i.test(reason)) return reason;
-  return `${reason}\n\nChoose the coding agent you use. For the local page, press Ctrl+C in the terminal running thinker ui, then restart with one of:\n  Codex: THINKER_LLM=codex thinker ui\n  Claude: THINKER_LLM=claude thinker ui\n  Cursor: THINKER_LLM=cursor thinker ui\n  Gemini: THINKER_LLM=gemini thinker ui\nOpen the address it prints and resend your message. For terminal chat, use the same THINKER_LLM setting with thinker chat "your message".\nIf your chosen provider still reports a login error, sign in through that provider's CLI and retry. A desktop app login may not sign in its CLI.`;
+  return `${reason}\n\nSign in to your agent's CLI, or switch agents:\n  THINKER_LLM=<agent> thinker ui\nReplace <agent> with codex, claude, cursor or gemini. Stop the server with Ctrl+C first, then reopen the page and resend.\nFor terminal chat, replace thinker ui with thinker chat "your message".`;
 }
 
 // Whether a model can be called from this process: an agent CLI or a key, or a queue's own provider.
