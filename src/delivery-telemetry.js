@@ -158,8 +158,12 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
       // The same dollars over the sessions cleared under a policy the client stamped on the clear (`r<rev>-...`,
       // cutting.js:policyId), which is the only way a day's saving can be known to be the current mechanism's: a
       // date cannot say it, since an old session is dated by its last request and nothing knows when a machine
-      // updated. Unstamped and mixed sessions are in the figures above and not in these.
-      if (x.cost?.priced && STAMPED.test(key)) { d.stampedSessions++; d.stampedSavedUsd += x.cost.saved || 0; d.stampedColdUsd += x.cost.cold || 0; d.stampedNetUsd += x.cost.net || 0; }
+      // updated. Unstamped sessions are in the figures above and not in these.
+      // A session cleared under two policies counts here by its newest stamp (2026-11-23). The stamp carries the
+      // thinker version, so any session that outlived an update was `mixed` and left out: one device's day read
+      // $0.49 on the dashboard against $62.81 netted, and over 30 days the fleet's daily figures counted $32
+      // and left out $252. `byPolicy` still keeps such a session under `mixed`, pooled with neither policy.
+      if (x.cost?.priced && x.cleared > 0 && STAMPED.test(x.policy || '')) { d.stampedSessions++; d.stampedSavedUsd += x.cost.saved || 0; d.stampedColdUsd += x.cost.cold || 0; d.stampedNetUsd += x.cost.net || 0; }
       if (x.spend != null) { d.spendUsd += x.spend; d.spendSessions++; }
     }
     bumpGroup(sessions.all, x);
