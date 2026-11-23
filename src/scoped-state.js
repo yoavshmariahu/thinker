@@ -12,8 +12,8 @@ const read = file => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
 // A test run with no THINKER_HOME of its own gets a machine of its own under the run's temp directory, kept in
 // the environment so the children a test spawns share it: with the real home, a test's approval of a tool switch
 // left a machine-wide decision in ~/.thinker that every later run's Recent activity, report and telemetry read
-// (2026-11-11, a dozen failures from one stray Artifact record). The three other machine-wide files in test mode
-// (update note, notice cadence, savings ledger) stay off instead; machine actions are what the tests exercise.
+// (2026-11-11, a dozen failures from one stray Artifact record). The other machine-wide files in test mode
+// (notice cadence, savings ledger) stay off instead; machine actions are what the tests exercise.
 export const machineDir = () => {
   if (!process.env.THINKER_HOME && isTestMode()) {
     process.env.THINKER_TEST_MACHINE ||= path.join(os.tmpdir(), `thinker-machine-${process.pid}`);

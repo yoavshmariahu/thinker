@@ -280,15 +280,15 @@ then "actually 0 holdout. cutting doesn't even get tirggered very often"; `proxy
 - Card on first turn of cache, else top of next summary.
 - Cadence state in `state/notice.json`; pending in cache's `notice-pending.json`.
 
-**What changed in thinker, said once (2026-11-10):**
-- `UPDATE_NOTE` in `src/update-note.js` (id, title, lines, more); mirrored by mod.
-- Keyed on note id, never version. One record for both doors, `state/update-notes.json` `{ shown: { id: when } }`, only ever added to
-  (2026-11-22): the old one held the last id alone, so an open session on the previous copy's mod and a new one re-said each other's
-  note at every turn. The old `update-note.json` and the mod's `update-note` store key are read, never written.
-- Card where mod runs (end of first turn); Stop hook's summary everywhere else.
-- A line links to the local page with `{chat}` / `{factory}` (2026-11-22): filled with the address of a page started for it
-  (`context-suggest.js:ensureUi`; the mod asks `thinker ui --ensure`), or with the command where none could be started. The page
-  stops after 30 idle minutes.
+**The release note is removed (2026-11-23, the owner's call):**
+- From 2026-11-10 thinker said "What changed" once per machine: a card under an answer where the mod runs, the top of the
+  Stop hook's summary elsewhere (`src/update-note.js`, in git before this date).
+- It was not said once. An open session keeps the mod it started with, and the copies before #930 draw their note
+  whenever the mod's `update-note` store key holds another copy's id, then put their own there. #930 made the current
+  copy read a shared record and leave that key alone; a copy from before it, in a session still open, goes on as it was.
+- Nothing says a note now, and a card kept with one is not drawn again (`claude-card/hooks/card.test.tsx`).
+  `state/update-notes.json`, `state/update-note.json` and the store key are read by nothing in this copy.
+- `thinker ui --ensure` and `--background`, added for the note's links, stay as commands.
 
 **Savings footer (2026-11-06):**
 - Dollars from the accountant's ledger (`accountant.js:computeSavings`, the Report's own `weeklySavings` over two windows and, since 2026-11-22, the last fortnight between them); never contradicts `thinker report`. See "Savings: one accountant" above.
