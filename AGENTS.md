@@ -282,7 +282,9 @@ then "actually 0 holdout. cutting doesn't even get tirggered very often"; `proxy
 
 **What changed in thinker, said once (2026-11-10):**
 - `UPDATE_NOTE` in `src/update-note.js` (id, title, lines, more); mirrored by mod.
-- Keyed on note id, never version (`updateNoteShown` in `state/update-note.json`).
+- Keyed on note id, never version. One record for both doors, `state/update-notes.json` `{ shown: { id: when } }`, only ever added to
+  (2026-11-22): the old one held the last id alone, so an open session on the previous copy's mod and a new one re-said each other's
+  note at every turn. The old `update-note.json` and the mod's `update-note` store key are read, never written.
 - Card where mod runs (end of first turn); Stop hook's summary everywhere else.
 - A line links to the local page with `{chat}` / `{factory}` (2026-11-22): filled with the address of a page started for it
   (`context-suggest.js:ensureUi`; the mod asks `thinker ui --ensure`), or with the command where none could be started. The page

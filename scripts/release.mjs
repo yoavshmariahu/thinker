@@ -117,6 +117,8 @@ export async function release({ version, noWait = false, hold = false, promote =
     // checks it from here on.
     out('Running the desktop mod\'s own tests (claude plugin test)...');
     at('claude', ['plugin', 'test', 'src/integrations/claude-clear'], { stdio: 'inherit' });
+    // the card's own: its update note is said once (note.test.tsx), which only that runner can hold
+    at('claude', ['plugin', 'test', 'src/integrations/claude-card'], { stdio: 'inherit' });
     testedTree = tree;
   };
   const manifestAt = url => {

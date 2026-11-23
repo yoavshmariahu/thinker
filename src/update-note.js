@@ -8,6 +8,8 @@
 //
 // Shown once per machine per note, keyed on the note's own id and not on a version, so a note can be
 // written without cutting a release and a release that changes nothing a person can see says nothing.
+// There is one note, the latest: a copy of thinker says its own and no other, and a note already said
+// is never said again, whichever copy or door said it (the record below).
 // The Claude Code mod draws it as a card under an answer (src/integrations/claude-card) and carries
 // its own copy of these words (no test holds the two together: change both); every other agent
 // gets it at the top of the next end-of-turn summary (commands/hooks.js).
@@ -48,18 +50,42 @@ export function notePage(store, { note = UPDATE_NOTE, ensureFn = ensureUi } = {}
 // The state is the machine's, beside the notice cadence, because a person sees one stream of messages
 // however many checkouts they work in. The suite must not write under the developer's home, so a run
 // with no THINKER_HOME of its own keeps it in the cache it is working in (notice-cadence.js does the same).
+//
+// The record is every note this machine has been shown, `{ shown: { <note id>: <when> } }`, and it is only
+// ever added to. Until 2026-11-22 it was the one id of the last note said, here and in the card mod's own
+// store, each door with its own: a note said by the card was said again by the Stop hook of another agent,
+// and -- the fault the owner saw -- two copies of thinker carrying different notes each found the other's id
+// where its own should be, said its note again and put its id back, at every turn. An open Claude Code
+// session keeps the mod it loaded at its start (claude-card.js), so every update that changed the note left
+// such a pair running. One file, both doors (the mod reads and adds to it through its own file door, the
+// same path), and no writer takes an id out. `update-note.json` is the old record: its id still counts as
+// said, and it is not written any more, since a copy from before this one would read it as its own.
 const noteHome = () => (isTestMode() && !process.env.THINKER_HOME ? null : process.env.THINKER_HOME || path.join(os.homedir(), '.thinker'));
-const noteFile = store => path.join(noteHome() || store.dir, 'state', 'update-note.json');
+const stateFile = (store, name) => path.join(noteHome() || store.dir, 'state', name);
+const noteFile = store => stateFile(store, 'update-notes.json');
+export const NOTES_KEEP = 20;
+const readJson = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
+
+// every note said on this machine, by id: the shared record, and the last id the old one held
+export function notesShown(store) {
+  const old = readJson(stateFile(store, 'update-note.json'));
+  const shown = readJson(noteFile(store))?.shown;
+  return { ...(old?.id ? { [old.id]: old.at || '' } : {}), ...(shown && typeof shown === 'object' ? shown : {}) };
+}
 
 export function updateNoteDue(store, { note = UPDATE_NOTE } = {}) {
-  try { return JSON.parse(fs.readFileSync(noteFile(store), 'utf8'))?.id !== note.id; } catch { return true; }
+  return !(note.id in notesShown(store));
 }
 
 export function updateNoteShown(store, { note = UPDATE_NOTE, now = Date.now() } = {}) {
   const f = noteFile(store);
   try {
+    const all = { ...notesShown(store), [note.id]: new Date(now).toISOString() };
     fs.mkdirSync(path.dirname(f), { recursive: true });
-    fs.writeFileSync(f, JSON.stringify({ id: note.id, at: new Date(now).toISOString() }));
+    // whole or not at all: a half-written record reads as nothing said, which is the note said again
+    const tmp = `${f}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify({ shown: Object.fromEntries(Object.entries(all).slice(-NOTES_KEEP)) }));
+    fs.renameSync(tmp, f);
   } catch {}   // a note must never fail a turn
 }
 
