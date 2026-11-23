@@ -420,9 +420,9 @@ function correctedBySession(store, { days, now }) {
 // with no model call of its own. One cache for the view and for the evidence the chat reads (session-evidence.js).
 export function sessionRecord(s, { corrected = new Map(), config = {} } = {}) {
   try {
-    return cachedByFiles(CACHE, cacheKey('factory', String(RULES_VERSION), s.file, s.parent || '', [...(corrected.get(s.session) || [])].join(','), String(s.since || '')), [s.file], () => {
+    return cachedByFiles(CACHE, cacheKey('factory', String(RULES_VERSION), s.file, JSON.stringify(s.repos || []), s.parent || '', [...(corrected.get(s.session) || [])].join(','), String(s.since || '')), [s.file], () => {
       // a session continued in a new one is read from the moment it was continued (findRepoSessions marks it; transcripts.js:continuations)
-      const p = parseTranscript(s.file, { since: s.since || 0 });
+      const p = parseTranscript(s.file, { since: s.since || 0, repos: s.repos });
       if (!p.calls?.length || /auto-review/i.test(String(p.model || ''))) return null;
       const price = listPrice(p.model, { config });
       return { ...sessionFactory(p, { price, corrected: corrected.get(s.session) || new Set() }), model: p.model || null };
