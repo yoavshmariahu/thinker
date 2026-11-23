@@ -101,7 +101,7 @@ function partChanges(view, { all = false } = {}) {
     builtin: s.group === 'builtin', sessions: s.loaded || 0, used: s.used ?? null, prompts: s.prompts || 0, options: s.group === 'builtin' && !s.off && s.label ? [ACTS.ref] : switchOpts(s), ...describePart({ kind: 'tool', name: s.name, builtin: s.group === 'builtin', toolKind: s.kind, text: s.text }),
   });
   // A tool's output is not a change anyone is offered (2026-11-04, the owner's call). The clearing is thinker's
-  // compression and it is on by default (cutting.js, applied by proxy.js on every request): it takes out the results
+  // compression (cutting.js, applied by proxy.js; off by default since 2026-11-23, `proxy: { cut: true }`): it takes out the results
   // the agent is done with, which is where the cost is -- 88% of what output costs a session is re-reads past the
   // agent's last use of the result (tool-outputs.js). Per-tool compression (diet.js) only shrinks what is still live:
   // the moderate cap took 7.5% of output cost over this machine's 38 most recent sessions, and the one arm measured in

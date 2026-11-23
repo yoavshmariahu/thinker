@@ -64,7 +64,7 @@ export function proxyOfferDue({ home = thinkerHome(), env = process.env, now = D
   const st = offerState(home);
   if (st.asked || st.answered || st.never) return null;
   // Every word of this question is a promise that old tool results will start leaving long sessions, and with
-  // the cutting off (2026-11-19, proxy.js:PROXY_DEFAULTS) none would. The proxy is still worth having on -- it
+  // the cutting off (the default since 2026-11-23, proxy.js:PROXY_DEFAULTS) none would. The proxy is still worth having on -- it
   // is where the measurement comes from -- but that is not what this asks, and asking it anyway would spend the
   // one question a machine gets on something that will not happen. It holds until the cutting is back, and the
   // state is untouched, so the machines this was written for are still owed the question then.

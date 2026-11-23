@@ -29,7 +29,7 @@ export { proxyLogFile };
 // call's own text goes with its result -- so this sentence and `cutting.js:policyId` say the same thing.
 export function proxyBanner(cfg, port) {
   const at = `http://127.0.0.1:${port}`;
-  // cutting off (proxy.js:PROXY_DEFAULTS, 2026-11-19): the proxy carries and measures the traffic and takes
+  // cutting off (the default, proxy.js:PROXY_DEFAULTS, 2026-11-23): the proxy carries and measures the traffic and takes
   // nothing out of it, so the banner may not go on describing a trigger and a floor that decide nothing
   if (cfg.cut === false) {
     return `thinker proxy on ${at} -> ${cfg.upstream}: carries every request and measures what it cost. Cutting is off: nothing is removed from a prompt.`

@@ -49,8 +49,8 @@ the agent can take it once you point it there; a blank means the agent gives thi
 
 | Agent | Tool output compression | Session profile | Instruction file optimization | Token usage analytics |
 | --- | --- | --- | --- | --- |
-| Claude Code (CLI, VS Code, JetBrains) | automatic: the proxy clears the tool results the agent is done with, nothing to switch on | yes: on the first prompt, learned from every session | yes: every section, nested file and rule measured; cuts as pull requests | yes: tokens by part and by model, week by week |
-| Claude desktop app (Code tab) | automatic: old tool results cleared inside the session itself, nothing to switch on (Desktop sets its own API URL, so the proxy cannot sit in front of it) | yes, through the session itself | yes | yes |
+| Claude Code (CLI, VS Code, JetBrains) | the proxy clears the tool results the agent is done with; wired automatically | yes: on the first prompt, learned from every session | yes: every section, nested file and rule measured; cuts as pull requests | yes: tokens by part and by model, week by week |
+| Claude desktop app (Code tab) | old tool results cleared inside the session itself; wired automatically (Desktop sets its own API URL, so the proxy cannot sit in front of it) | yes, through the session itself | yes | yes |
 | Codex CLI and app | no: Codex speaks only OpenAI's API, and its hooks cannot rewrite a result | yes | the root AGENTS.md measured | yes |
 | Cursor (editor and `agent` CLI) | no: calls go through Cursor's servers | yes (the CLI one tool call late) | the root AGENTS.md measured | partial: Cursor reports no token usage |
 | Gemini CLI | no: Google's API only | yes | the root AGENTS.md measured | partial: tool outputs only |
@@ -66,8 +66,9 @@ the agent can take it once you point it there; a blank means the agent gives thi
 | Auggie | no: Augment's servers | no: Auggie has no prompt hook | | |
 | Goose | automatic on its Anthropic provider: the proxy, through `ANTHROPIC_HOST` in its `config.yaml` | no: its hooks only record, for learning | | |
 
-The compression is the API clearing tool results the agent has finished with, through a local proxy thinker keeps
-running; it reaches any agent that speaks the Anthropic Messages API at
+The compression is off by default since 23 November 2026: `proxy: { cut: true }` in `~/.thinker/config.json` turns
+it on, and the column says where it reaches once it is. It replaces the tool results the agent has finished
+with, through a local proxy thinker keeps running; it reaches any agent that speaks the Anthropic Messages API at
 a base URL you can set. A section cut benefits every agent that reads the file, whichever agent's sessions
 measured it. Details and the hook events behind each cell: [docs/agent-integrations.md](docs/agent-integrations.md).
 

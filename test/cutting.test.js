@@ -15,7 +15,10 @@ import { keptCalls, keepPatterns, writeKeep } from '../src/keep.js';
 import { PROXY_DEFAULTS, resultTokens } from '../src/proxy.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 
-const cfg = { ...PROXY_DEFAULTS };
+// the cutting as a machine that turned it on runs it: off is the default (proxy.js:PROXY_DEFAULTS), and `cut: true`
+// in the machine config is the whole of what such a machine sets
+const cfg = { ...PROXY_DEFAULTS, cut: true };
+const ON = { proxy: { cut: true } };
 const MOD = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'integrations', 'claude-clear', 'hooks', 'register.tsx');
 // a candidate as proxy.js:cutCandidates hands one over: the ids it would replace, what they come to, and what
 // the rewrite would be. `rungs` makes the ladder, deepest last, which is the whole-set candidate.
@@ -37,14 +40,23 @@ const BIG_RESULT = resultTokens(big(150000));
 const conversation = [said('go'), ...pair('a', 150000), ...pair('b', 150000), ...pair('c', 100), ...pair('d', 300), ...pair('e', 300), said('now'), ...pair('f', 300)];
 const small = [said('go'), ...pair('a', 300), ...pair('b', 300), ...pair('c', 300), ...pair('d', 300), said('now'), ...pair('e', 300)];
 
-test('out of the box the cutting is on, and no session is held out of it', () => {
-  assert.equal(PROXY_DEFAULTS.cut, true, 'every install cuts');
-  assert.equal(SERVICE_HOLDOUT, 0, 'and no session is kept out of it to be compared: a cut is rare, and a holdout takes its share of exactly the few long sessions the saving is in');
-  const d = decideCut(freshCut('s'), PROXY_DEFAULTS, { prompt: PROXY_DEFAULTS.trigger, turn: 1 }, { cand: PAYS });
-  assert.equal(d.clear, true, 'the defaults alone cut a conversation past the trigger');
+test('out of the box nothing is cut by either door, and `cut: true` in the machine config puts it back with no session held out', () => {
+  assert.equal(PROXY_DEFAULTS.cut, false, 'no install cuts until its machine asks for it');
+  const off = decideCut(freshCut('s'), PROXY_DEFAULTS, { prompt: 500000, turn: 1 }, { cand: PAYS });
+  assert.equal(off.clear, false, 'the defaults alone cut nothing, however far past the trigger');
+  assert.equal(off.reason, 'off');
+  assert.equal(off.candidate, PAYS.tokens, 'and the row still says what there was to take');
+  assert.equal(clearAnswer({ op: 'start', session: 's' }, { config: {} }).auto, false, 'the desktop door clears no session of its own accord');
+  const door = clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 200000, messages: conversation }, { config: {} });
+  assert.equal(door.clear, false, 'with nothing in the machine config');
+  assert.equal(door.reason, 'off');
+  // the way back, and the control: the same request and the same conversation with the one key set
+  const d = decideCut(freshCut('s'), cfg, { prompt: PROXY_DEFAULTS.trigger, turn: 1 }, { cand: PAYS });
+  assert.equal(d.clear, true, 'the one key cuts a conversation past the trigger');
   assert.equal(d.reason, undefined, 'nothing refused it');
-  assert.equal(clearAnswer({ op: 'start', session: 's' }, { config: {} }).auto, true, 'and the desktop door clears a session of its own accord');
-  assert.equal(clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 200000, messages: conversation }, { config: {} }).clear, true, 'with nothing in the machine config');
+  assert.equal(SERVICE_HOLDOUT, 0, 'and no session is kept out of it to be compared: a cut is rare, and a holdout takes its share of exactly the few long sessions the saving is in');
+  assert.equal(clearAnswer({ op: 'start', session: 's' }, { config: ON }).auto, true, 'and the desktop door follows the same key');
+  assert.equal(clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 200000, messages: conversation }, { config: ON }).clear, true);
 });
 
 test('nothing is cut below the trigger, with too little to take, or with nothing finished, and the answer says which', () => {
@@ -205,7 +217,7 @@ test('what the profile learned the person points at is kept, and each checkout\'
 });
 
 test('the desktop door clears exactly where the proxy\'s pricing says a cut pays', () => {
-  const p = desktopPolicy(null);
+  const p = desktopPolicy(ON);
   let pays = 0, refuses = 0;
   for (const model of ['claude-opus-5', 'claude-opus-5-5', 'claude-sonnet-5-5', 'claude-fable-5-2']) {
     for (const tokens of [6000, 20000, 60000, 105472, 200000]) {
@@ -221,7 +233,7 @@ test('the desktop door clears exactly where the proxy\'s pricing says a cut pays
     }
   }
   assert.ok(pays > 0 && refuses > 0, 'the grid covers both sides of the decision');
-  assert.equal(stampOf(p), policyId({ ...PROXY_DEFAULTS, cutInputs: false, cutImages: false, cutBreakpoint: false, cutThinking: false }), 'one policy, one name for it');
+  assert.equal(stampOf(p), policyId({ ...cfg, cutInputs: false, cutImages: false, cutBreakpoint: false, cutThinking: false }), 'one policy, one name for it');
 });
 
 // Every key of the proxy's clearing policy must reach the desktop door, or say here why a mod inside a session
@@ -254,28 +266,28 @@ test('every setting of the proxy\'s clearing is honoured by the desktop door or 
 
 test('the desktop door clears a conversation that is mostly finished results, and names what goes', () => {
   const ev = { from: 'auto', session: 's', tokens: 200000, messages: conversation };
-  const d = clearAnswer({ op: 'decide', ...ev }, { config: {} });
+  const d = clearAnswer({ op: 'decide', ...ev }, { config: ON });
   assert.equal(d.clear, true, 'a context this far past the trigger, held up mostly by old results, pays');
   assert.equal(d.depth, 2, 'both of the old results');
-  const a = clearAnswer({ op: 'apply', ...ev, depth: d.depth }, { config: {} });
+  const a = clearAnswer({ op: 'apply', ...ev, depth: d.depth }, { config: ON });
   assert.equal(a.cleared, 2);
   assert.deepEqual(Object.keys(a.replace).sort(), ['a', 'b'], 'the two oldest results, by id');
   assert.ok(!('f' in a.replace), 'nothing of the turn the model is working in');
   assert.equal(a.tokens, 2 * BIG_RESULT, 'and what they came to');
   assert.equal(a.skip, undefined);
   // the floor is the automatic clear's; a person who asks for one gets it
-  const auto = clearAnswer({ op: 'apply', from: 'auto', session: 's', messages: small }, { config: {} });
+  const auto = clearAnswer({ op: 'apply', from: 'auto', session: 's', messages: small }, { config: ON });
   assert.ok(auto.skip && auto.skip.includes('under'), 'too little to be worth a rewrite');
-  const manual = clearAnswer({ op: 'apply', from: 'manual', session: 's', messages: small }, { config: {} });
+  const manual = clearAnswer({ op: 'apply', from: 'manual', session: 's', messages: small }, { config: ON });
   assert.equal(manual.skip, undefined);
   assert.ok(manual.cleared > 0, 'a hand-run clear takes what there is');
 });
 
 test('a session the proxy already serves, one held out, or a test is left alone, and the answer says which', () => {
   for (const [reason, ev, config] of [
-    ['proxied', { baseUrl: 'http://127.0.0.1:4000' }, {}],
-    ['test', { test: true }, {}],
-    ['holdout', {}, { proxy: { holdout: 1 } }],
+    ['proxied', { baseUrl: 'http://127.0.0.1:4000' }, ON],
+    ['test', { test: true }, ON],
+    ['holdout', {}, { proxy: { cut: true, holdout: 1 } }],
   ]) {
     const base = { session: 's', tokens: 500000, messages: conversation, ...ev };
     const d = clearAnswer({ op: 'decide', from: 'auto', ...base }, { config });
@@ -284,15 +296,15 @@ test('a session the proxy already serves, one held out, or a test is left alone,
     assert.equal(d.askAt, NEVER, `${reason}: and it is not asked again`);
     assert.equal(clearAnswer({ op: 'start', ...base }, { config }).auto, false, `${reason}: the session is told at its start`);
   }
-  assert.equal(clearAnswer({ op: 'start', session: 's' }, { config: {} }).auto, true, 'an ordinary session is cleared by this door');
+  assert.equal(clearAnswer({ op: 'start', session: 's' }, { config: ON }).auto, true, 'an ordinary session is cleared by this door');
 });
 
 test('an attempt that cleared nothing is held until the context has grown, not asked again after every answer', () => {
   const base = { op: 'decide', from: 'auto', session: 's', messages: conversation };
-  const below = clearAnswer({ ...base, tokens: cfg.trigger - 1 }, { config: {} });
+  const below = clearAnswer({ ...base, tokens: cfg.trigger - 1 }, { config: ON });
   assert.equal(below.reason, 'below-trigger');
   assert.equal(below.askAt, cfg.trigger, 'the context to come back at');
-  const held = clearAnswer({ ...base, tokens: 500000, holdUntil: 900000 }, { config: {} });
+  const held = clearAnswer({ ...base, tokens: 500000, holdUntil: 900000 }, { config: ON });
   assert.equal(held.clear, false);
   assert.equal(held.reason, 'held');
   assert.equal(held.askAt, 900000, 'while an attempt is held, nothing is asked until the context gets there');
@@ -342,7 +354,7 @@ test('the clearing mod decides nothing itself: it asks the installed thinker', (
   assert.ok(src.includes("'hook', 'clear'"), 'the mod asks the CLI the settings name');
   for (const op of ['start', 'decide', 'apply']) {
     assert.ok(src.includes(`op: '${op}'`), `the mod asks "${op}"`);
-    assert.ok(Object.keys(clearAnswer({ op, from: 'auto', session: 's', messages: [] }, { config: {} })).length > 1, `and the installed thinker answers "${op}"`);
+    assert.ok(Object.keys(clearAnswer({ op, from: 'auto', session: 's', messages: [] }, { config: ON })).length > 1, `and the installed thinker answers "${op}"`);
   }
 });
 

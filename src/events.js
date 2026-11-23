@@ -90,7 +90,7 @@ export function eventsTarget({ env = process.env, home = thinkerHome() } = {}) {
 //                    turn) or the reason it made none -- `cutting.js:decideCut`'s own eight branches
 //                    (`off`, `recap`, `nothing-to-cut`, `below-trigger`, `below-clear-minimum`, `mid-turn`,
 //                    `one-cut`, `payback`), so "why was nothing cut here" has a recorded answer per request. `off` is
-//                    every row since 2026-11-19, when the cutting was turned off (proxy.js:PROXY_DEFAULTS),
+//                    every row made while the cutting is off, which is the default (proxy.js:PROXY_DEFAULTS),
 //                    and it carries the `candidate` the request would have given up, which is what keeps the
 //                    log answering what a cut was worth while none is made.
 //   the session's    `state/compression/<session>.json`: how many calls carried a cut, how many tool

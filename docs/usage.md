@@ -56,15 +56,15 @@ data behind both.
 **The saving is measured.** The context proxy replaces the older tool results of a conversation in the requests it
 forwards, counts what it left out of each prompt, and those are added up over the pull request's sessions.
 
-**Cutting is on for every install since 22 November 2026, with no session held out.** Once a long session's
-context is large enough that a cut pays for itself, the results of tools the agent finished with are replaced in
-what is sent, and the newest turn is kept whole. It is rare by design: on the machine this was decided on,
-fourteen sessions were cut in a fortnight, and one very long session was three quarters of the saving. What a cut
-costs is counted against it -- the cache write of the request that made it and anything the model read again --
-and `thinker savings` prints the net beside the gross for the last fourteen days. It was off from 19 to 22
-November while its weekly figures could not be read; the count is now one sum (the accountant). `proxy: { cut:
-false }` in `~/.thinker/config.json` turns it off for a machine, and `proxy: { holdout: 0.5 }` holds half of its
-sessions out for a comparison; a saving names the policy that made it, so the two are never added together.
+**Cutting is off by default since 23 November 2026.** Nothing is taken out of a prompt unless you turn it on:
+`proxy: { cut: true }` in `~/.thinker/config.json`. With it on, once a long session's context is large enough that
+a cut pays for itself, the results of tools the agent finished with are replaced in what is sent, and the newest
+turn is kept whole. It is rare by design: on one machine fourteen sessions were cut in a fortnight, and one very
+long session was three quarters of the saving. What a cut costs is counted against it -- the cache write of the
+request that made it and anything the model read again -- and `thinker savings` prints the net beside the gross
+for the last fourteen days. `proxy: { holdout: 0.5 }` holds half of a machine's sessions out for a comparison; a
+saving names the policy that made it, so savings under two policies are never added together. The proxy keeps
+running either way: it carries every request and measures what it cost.
 
 **Matching a session to a pull request** needs nothing from you. A session is matched by a commit it
 was sitting on, or failing that by its branch. Where that is wrong or a session split across two pull
