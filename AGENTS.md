@@ -101,6 +101,7 @@ then "actually 0 holdout. cutting doesn't even get tirggered very often"; `proxy
 - `decideCut` returns `reason` (eight branches: `off` wins, then `recap`, then `nothing-to-cut`, then `below-trigger`, then `below-clear-minimum`, `mid-turn`, `one-cut`, `payback`). Both doors use it.
 - Claude Code's recap is not a turn (2026-11-22, `cutting.js:isRecap`): the request it sends three minutes after a turn ends with the person idle decides nothing, makes no seeded cut and moves no turn, so the person's next prompt is the boundary. Its row says `reason: recap` (or `recap: true` where a cut is carried) and names no turn. 3 of the 7 losing cuts on the owner's log were made on one.
 - Ratchet per conversation (keyed on first user message); write merges, never replaces; turn rises, set advances.
+- A request that names no session is not cut (2026-11-22, `missing-session`, as on the Codex door): with no record nothing held the set, so it was chosen afresh on every request and grew through the turn. None of this machine's 41,036 logged requests was one.
 - A long call whose result is short (a heredoc, a Write, an Edit that answered in a line) is a candidate on the call's own text (2026-11-17, `r6`); the short result stays. Only with `cutInputs`.
 - `cutThinking` (2026-11-17, on by default since 2026-11-18; `--no-cut-thinking` is the way back; `--cut-thinking`, `THINKER_PROXY_CUT_THINKING=on`, `proxy: { cutThinking: true }`): a cut also leaves out the earlier turns' thinking blocks after its own oldest replaced result and before the turn it was made in, whole blocks only, never the turn in progress. Ranges kept on the record (`rec.think`, one `[result id, turn]` a cut) and only ever grow. Priced in the ladder (`thinking` on the rung and the row). Policy name ends `+th`. Messages door only; the mod is exempt.
 - `thinkingKeepTurns` (2026-11-17, 2 by default since 2026-11-18; `--thinking-keep-turns n`, `THINKER_PROXY_THINKING_KEEP_TURNS`, `proxy: { thinkingKeepTurns }`): with `cutThinking`, the last n turns before the one in progress keep their thinking, so a cut's range stops n turns back. A cut never reaches above its own oldest replaced result for thinking that has aged since an earlier cut (2026-11-18): that moved the breakpoint to the top of the conversation (a PostHog turn-6 cut wrote 65k for 15.5k of thinking where the same cut without it wrote 19k). Aged thinking goes only when a later cut's own span holds it. Policy name ends `+th<n>`.
@@ -258,6 +259,9 @@ then "actually 0 holdout. cutting doesn't even get tirggered very often"; `proxy
   2026-10-24, both the API-side clearing era, none since the cut moved client-side. The valve has never fired.
 - Fixed on the way: the `proxy-cut-rejected` row carried no `session`, so `proxyReport`'s `sessionsRejected` keyed
   on it and could only ever read 1.
+- **A refused cut is credited nothing (2026-11-22).** The request that goes again is the agent's own, so its row
+  says nothing was cut and the answer logs no `proxy-cut` event; until then it kept the cut's
+  fields and the row read as the whole cut made (seen on the Messages and the Codex door; the line is shared).
 
 **OpenCode on OpenRouter goes through the proxy by default (2026-11-15, the owner's call):**
 - The service runs `--gateway-openrouter` and `connect` points OpenCode's `provider.openrouter` at `<proxy>/openrouter/v1`, unless `proxy: { gateways: { openrouter: false } }` (`proxy-service.js:openrouterGateway`, the one reader). LiteLLM is the person's own server and stays a setting.
