@@ -444,7 +444,7 @@ const seedRung = (cand, seed) => (cand?.steps || []).find(s => s.ids[s.ids.lengt
 function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Date.now(), model = rec.model, rates = null, mark = false, markTtl = ttl, recap = false } = {}) {
   const same = { cut: rec.cut, clear: false };
   const size = cand?.ids.length ? cand.tokens : 0;
-  // Cutting off (proxy.js:PROXY_DEFAULTS, the owner's call of 2026-11-19), and it is the first thing asked, so
+  // Cutting off (the default, proxy.js:PROXY_DEFAULTS, the owner's call of 2026-11-23), and it is the first thing asked, so
   // no cut is made, no breakpoint is seeded and no set is remembered whatever the guards below would have said.
   // The request is still measured: `candidate` is what this boundary would have taken, which is what lets the
   // log answer what a cut was worth while none is made. Read strictly, as `clearDeep` is: a policy built by hand

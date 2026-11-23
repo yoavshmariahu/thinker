@@ -14,8 +14,9 @@
 // Codex joins this service by default (owner's request, 2026-10-25): --codex adds a
 // fixed OpenAI/ChatGPT Responses route, and proxy-codex.js selects the managed provider.
 //
-// No session is held out (SERVICE_HOLDOUT 0 since 2026-11-22, the owner's call, with the cutting back on for every
-// install: "actually 0 holdout. cutting doesn't even get tirggered very often"). A cut is rare -- fourteen sessions
+// The cutting is off by default since 2026-11-23 (proxy.js:PROXY_DEFAULTS); this is the share held out where a
+// machine turns it on. No session is held out (SERVICE_HOLDOUT 0 since 2026-11-22, the owner's call, with the
+// cutting then on for every install: "actually 0 holdout. cutting doesn't even get tirggered very often"). A cut is rare -- fourteen sessions
 // in a fortnight on the owner's machine, three quarters of the saving in one of them -- so a holdout takes its
 // share of exactly the sessions the saving is made of and still fills too slowly to read. It was a quarter from
 // 2026-11-18 (a held-out session is forwarded byte for byte, test/proxy-cut.test.js), 0 from 2026-11-12,
@@ -204,8 +205,8 @@ export function serviceArgs(home = thinkerHome(), state = serviceState(home)) {
   for (const [key, flag] of [['trigger', '--trigger'], ['keep', '--keep'], ['keepMin', '--keep-min'], ['clearAtLeast', '--clear-at-least'], ['thinkingKeepTurns', '--thinking-keep-turns']]) if (cfg[key] != null) args.push(flag, String(cfg[key]));
   if (upstream) args.push('--upstream', String(upstream));
   // on by default (proxy.js:PROXY_DEFAULTS, 2026-10-28); a machine config that says false keeps that clear off.
-  // `cut` is the one switch over the rest, on by default again since 2026-11-22 (it was off from 2026-11-19), so as
-  // for the others it is `false` in the config that has to reach the service; a `true` is passed too and changes nothing.
+  // `cut` is the one switch over the rest and is OFF by default since 2026-11-23 (proxy.js:PROXY_DEFAULTS), so it
+  // is `cut: true` in the config that has to reach the service; the others are on and it is `false` that does.
   for (const [key, flag] of [['cut', 'cut'], ['clearDeep', 'clear-deep'], ['cutInputs', 'cut-inputs'], ['cutImages', 'cut-images'], ['cutBreakpoint', 'cut-breakpoint'], ['cutThinking', 'cut-thinking']]) {
     if (cfg[key] === false) args.push(`--no-${flag}`);
     else if (cfg[key] === true) args.push(`--${flag}`);

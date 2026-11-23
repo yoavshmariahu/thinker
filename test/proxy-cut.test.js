@@ -43,9 +43,10 @@ const chatMessages = ({ first = 12, size = BIG } = {}) => {
 
 const asked = (ms, extra = {}) => Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: ms, stream: true, ...extra }));
 const sent = t => JSON.parse(t.body);
-// The guards are the shipped ones; what the tests set is the clock, the keep list and the breakpoint (a request
+// The guards are the shipped ones; what the tests set is the switch (off by default since 2026-11-23, so every
+// config here is a machine that turned the cutting on), the clock, the keep list and the breakpoint (a request
 // with no `cache_control` of its own can carry none anyway, and the seeding is its own matter).
-const CUT = { ...PROXY_DEFAULTS, cutBreakpoint: false, keepPatterns: [], now: NOW };
+const CUT = { ...PROXY_DEFAULTS, cut: true, cutBreakpoint: false, keepPatterns: [], now: NOW };
 const SESSION = { 'x-claude-code-session-id': 's' };
 const door = (ms, cfg = {}) => transformRequest('POST', '/v1/messages', SESSION, Buffer.isBuffer(ms) ? ms : asked(ms), { ...CUT, cutRecord: freshCut('s'), ...cfg });
 // what startProxy does with a request's decision: reserve it, then count the answer against it
@@ -89,7 +90,7 @@ test('as it ships, a boundary seeds the cut on one request and makes it on the n
   const last = ms[ms.length - 1].content;
   last[last.length - 1] = { ...last[last.length - 1], cache_control: { type: 'ephemeral', ttl: '1h' } };
   const body = asked(ms);
-  const cfg = { ...PROXY_DEFAULTS, keepPatterns: [], now: NOW };   // the breakpoint is on, as it ships
+  const cfg = { ...PROXY_DEFAULTS, cut: true, keepPatterns: [], now: NOW };   // the breakpoint is on, as it ships
   const rec = freshCut('s');
   const seed = transformRequest('POST', '/v1/messages', SESSION, body, { ...cfg, cutRecord: rec });
   assert.equal(seed.reason, 'seed', 'the first boundary past the trigger only seeds');
@@ -263,7 +264,7 @@ const proxy = (url, cfg = {}) => {
   const dir = tmp('proxy');
   const logFile = path.join(dir, 'proxy.jsonl');
   return new Promise(r => {
-    const server = startProxy({ ...PROXY_DEFAULTS, upstream: url, ...cfg },
+    const server = startProxy({ ...PROXY_DEFAULTS, cut: true, upstream: url, ...cfg },
       { logFile, host: '127.0.0.1', routes: false, stubsHome: dir, retryWaits: [0, 0], onListen: a => r({ server, logFile, port: a.port }) });
   });
 };

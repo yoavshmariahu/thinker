@@ -61,42 +61,32 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Queued jobs get `session-work.js:MAX_ATTEMPTS` (5 tries), then dropped with `maintain.js:reportGaveUp`.
 - Tests cover desktop path (`appFn`, missing CLI login).
 
-**Cutting is ON for every install, with no session held out (2026-11-22, the owner's call: "for all users please",
-then "actually 0 holdout. cutting doesn't even get tirggered very often"; `proxy.js:PROXY_DEFAULTS.cut`,
-`proxy-service.js:SERVICE_HOLDOUT` 0, held by `test/cutting.test.js`):**
-- **It was off from 2026-11-19 to 2026-11-22, and why is worth keeping.** Read the day it was turned off, the
-  cutting was worth $7.01 and $4.03 in the weeks to 2026-11-15 and 2026-11-22 against $1,164 and $393 of spend
-  (the Report's weekly savings table), under 1%, where the two weeks before read $239 and $298: the series
-  disagreed with itself by fifty times, and the holdout could not say which was true (2 sessions cleared against
-  18 held out past the trigger, ±54% around a difference of a percent or two). A policy whose own ledger could
-  not be read could not be tuned.
-- **What changed is the count, not the policy.** The accountant (above) put the same machine's fortnight at
-  $128.84 cleared gross, $14.30 of it given back in cache writes the cuts caused and $0.25 in re-reads, one sum
-  every door reads; fourteen sessions were cut and $98 of it was one of them. The saving is a few very long
-  sessions, which one repository's weekly row hides.
-- **Why no holdout.** A cut is rare, so a holdout takes its share of exactly the few sessions the saving is made
-  of and still fills too slowly to read (a quarter left 2 cleared against 18 held out in six weeks). What says
-  whether a cut costs more than it saves instead: every cut's own cache write and every re-read of a cleared file
-  are counted and taken off (`accountant.js`), and each install sends its rework by stage and by loop stamped
-  with the policy it ran (`telemetry.js` `factory`), so the weeks before the switch read against the weeks after.
-  That is a correlation, not a comparison; `proxy: { holdout }` in the machine config puts a comparison back, and
-  the Factory's compression diff then reads it.
+**Cutting is OFF by default (2026-11-23, the owner's call: "please turn off context cutting by default";
+`proxy.js:PROXY_DEFAULTS.cut`, held by `test/cutting.test.js`):**
+- **Nothing is cut unless a machine asks for it.** `proxy: { cut: true }` in `<THINKER_HOME>/config.json`,
+  `--cut`, or `THINKER_PROXY_CUT=on` puts it back exactly as it was: every guard is untouched and no session is
+  held out (`proxy-service.js:SERVICE_HOLDOUT` 0; `proxy: { holdout }` puts a comparison back). It reaches the
+  service as `--cut` (`proxy-service.js:serviceArgs`), and the desktop door follows (`clear-door.js:desktopPolicy`:
+  `cut` and `auto` are off unless the config says true).
+- **The switch has moved three times.** On until 2026-11-19. Off from then to 2026-11-22, because the cutting's
+  weekly figures could not be read: $7.01 and $4.03 in two weeks against $239 and $298 in the two before, and a
+  holdout of 2 cleared sessions against 18 held out. On for every install on 2026-11-22 (#920), once the
+  accountant (above) made the count one sum: $128.84 cleared gross in the owner's fortnight, $14.30 of it given
+  back in cache writes the cuts caused and $0.25 in re-reads; fourteen sessions were cut and $98 of it was one of
+  them. Off by default again a day later.
 - **One switch, read in one place.** `cfg.cut === false` is the first branch of `cutting.js:decide`, so with it
   off all three doors and the desktop door refuse together (`reason: 'off'`), no breakpoint is seeded and no set
   is remembered. Off is not held out: a held-out session is one the policy still decides about. A row made then
   still carries the `candidate` the request would have given up.
-- **Off for a machine:** `proxy: { cut: false }` in `<THINKER_HOME>/config.json`, `--no-cut`, or
-  `THINKER_PROXY_CUT=off`. It reaches the service as `--no-cut` (`proxy-service.js:serviceArgs`); the desktop
-  door follows (`clear-door.js:desktopPolicy`: `cut` and `auto` are on unless the config says false).
 - **The policy stamp says which.** `policyId` is `v<version>-off` while cutting is off, so a saving made under
   the one policy is never pooled with the other (`cutting.js`).
 - **The proxy does the rest either way:** carrying and logging every request (`op: proxy`, the cache reads and
   writes every dollar figure is built from), `proxy-retry.js`, routing and pricing other providers' models, the
   gateways and Bedrock, and the delegation's savings read off the calls it sees.
-- A test that exercises the cutting may still ask for `cut: true` in its own config; `test/cutting.test.js` says
-  what the default does and what the switch does.
+- A test that exercises the cutting asks for `cut: true` in its own config; `test/cutting.test.js` says what the
+  default does and what the switch does.
 
-**The clearing: how thinker cuts results (MANDATORY, 2026-11-04; on by default, above):**
+**The clearing: how thinker cuts results where a machine turns it on (MANDATORY, 2026-11-04; off by default, above):**
 - Cut and keep newest turn + 3 results. Trigger 140k, floor 8k, payback 25 calls. A session resumed past the cache's hour is cut by the same trigger and floor (2026-11-17); the pause only makes the cut free.
 - `decideCut` returns `reason` (eight branches: `off` wins, then `recap`, then `nothing-to-cut`, then `below-trigger`, then `below-clear-minimum`, `mid-turn`, `one-cut`, `payback`). Both doors use it.
 - Claude Code's recap is not a turn (2026-11-22, `cutting.js:isRecap`): the request it sends three minutes after a turn ends with the person idle decides nothing, makes no seeded cut and moves no turn, so the person's next prompt is the boundary. Its row says `reason: recap` (or `recap: true` where a cut is carried) and names no turn. 3 of the 7 losing cuts on the owner's log were made on one.
