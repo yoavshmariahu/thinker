@@ -162,7 +162,7 @@ The service that receives these reports is not part of this repository.
 ## Fleet dashboard (optional)
 
 thinker needs no account. If your team has a fleet dashboard, a machine reports to it once it holds your
-organisation's API key:
+organization's API key:
 
 ```bash
 thinker config set api-key thk_live_...   # or set THINKER_API_KEY, e.g. as a CI secret
@@ -189,15 +189,15 @@ contents, environment variables.
 
 thinker hands a big file read to a subagent and gives the main model its report instead of the file. That
 subagent is normally your agent's own, on your own provider. With an API key set, thinker can instead run it
-itself on an open model it serves, paid from your organisation's credits:
+itself on an open model it serves, paid from your organization's credits:
 
 ```json
 { "delegate": { "hosted": "deepseek-ai/DeepSeek-V4-Flash" } }
 ```
 
 in `~/.thinker/config.json`, with a model id from the endpoint's list. It needs [OpenCode](https://opencode.ai)
-installed, which is what runs the subagent, and credits: `thinker status` shows what your organisation has
-left. Credits are not open yet, so today every organisation has none. Without credits, without OpenCode or
+installed, which is what runs the subagent, and credits: `thinker status` shows what your organization has
+left. Credits are not open yet, so today every organization has none. Without credits, without OpenCode or
 when a run fails, the read goes to your agent's own subagent exactly as before.
 
 **This is the one setting that sends file contents off your machine through thinker.** The files of a
