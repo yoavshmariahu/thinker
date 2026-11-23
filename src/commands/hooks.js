@@ -21,6 +21,7 @@ import { profileTurn, profileArmOf } from '../profile.js';
 import { retireNotes } from '../notes-retired.js';
 import { recordDevinCompactions } from '../devin-compaction.js';
 import { claudeCardActive } from '../claude-card.js';
+import { takeNote, updateNoteText, notePage, noteCard } from '../update-note.js';
 import { noticeDue, noticeShown, countPrompt, holdNotice, writeNoticeLast } from '../notice-cadence.js';
 import { setupRepo } from '../repo-onboard.js';
 import { proxyOffer } from '../proxy-offer.js';
@@ -81,6 +82,13 @@ async function hookCommand(ctx) {
       let answer = {};
       try { answer = clearAnswer(ev, { home: thinkerHome() }) || {}; } catch (e) { recordError('hook.clear', e, {}); }
       ctx.out(JSON.stringify(answer));
+      return;
+    }
+    // The card mod's question (update-note.js): is there a release note to draw under this answer. The mod holds
+    // no note and decides nothing; the take is made here, by this copy, and whoever takes the note is the only one
+    // that ever shows it. One line of JSON to the call that took it, nothing to every other.
+    if (pos[0] === 'note') {
+      try { const note = takeNote(); if (note) ctx.out(JSON.stringify(noteCard(note, { page: notePage(ctx.store, note) }))); } catch (e) { recordError('hook.note', e, {}); }
       return;
     }
     ev = normalizeHookEvent(client, ev, pos[0]);
@@ -384,9 +392,22 @@ async function hookCommand(ctx) {
     // is mirrored into the machine's log once per clear, where it lasts as long as the log
     // (compression.js:mirrorClearing). Cheap: one small file read, and a row only when the figure has grown.
     if (session !== 'unknown') { try { mirrorClearing(compressionDir(), session, row => store.log(row)); } catch {} }
+    // where the card mod runs, the status line carries the money the whole session (claude-card.js)
+    const carded = client === 'claude' && claudeCardActive(session);
+    // What changed in thinker (update-note.js): the note an update armed is taken by the first turn that ends
+    // where a person can be shown it, and said there and nowhere again. Not here where the card mod runs (it
+    // draws the note as a card and takes it itself), not in a client with no message at the end of a turn, and
+    // not in a run nobody watches (Claude Code's SDK and `-p`) or as a session closes (this hook runs for
+    // SessionEnd too): those leave it for a turn that can show it.
+    // It does not wait for the summary's cadence and does not spend it. With the notices off it is taken and
+    // not said: a person who asked thinker to be quiet did not ask for release notes, now or a month on.
+    let update = '';
+    if (!carded && stopOutput(client, '.') && !/^sdk-/.test(process.env.CLAUDE_CODE_ENTRYPOINT || '') && !/^session_?end$/i.test(ev.hook_event_name || '')) {
+      try { const note = takeNote(); if (note && noticeOn(store)) update = updateNoteText(note, { page: notePage(store, note) }); } catch (e) { recordError('hook.note', e, {}); }
+    }
+    // every delivered message is written too: OpenCode 2's terminal part toasts it from there (below)
+    const say = o => { if (o) { try { writeNoticeLast(store, o); } catch {} out(o); } return o; };
     if (noticeOn(store)) {
-      // where the card mod runs, the status line carries the money the whole session (claude-card.js)
-      const carded = client === 'claude' && claudeCardActive(session);
       // what the context proxy's clearing left out of this session's prompts, a few turns after the clear
       // (compression.js); the card mod draws it where it runs. The clock is
       // read every turn whether or not anything is said: it counts the person's turns since the clear, and
@@ -397,13 +418,13 @@ async function hookCommand(ctx) {
       // for its lines while a summary waits, since reading them clears its state (maintain.js:maintenanceNotice).
       countPrompt(store);
       const due = noticeDue(store);
-      if (!due.due) holdNotice(store, []);
+      if (!due.due) { holdNotice(store, []); say(stopOutput(client, update)); }
       else {
         const compression = carded ? '' : compressionNotice(cleared);
         // The money goes with the summary, except where the card mod runs: there the statusline keeps it
         // on screen the whole session, and saying it twice in one client is two voices for one figure.
         const money = carded ? '' : moneyLine();
-        const notice = [money ? `🧠 thinker: ${money}` : '', compression, NO_LEARN ? '' : maintenanceNotice(store)].filter(Boolean).join('\n');
+        const notice = [update, money ? `🧠 thinker: ${money}` : '', compression, NO_LEARN ? '' : maintenanceNotice(store)].filter(Boolean).join('\n');
         // The floors start again only once the person has actually been told: nothing to say yet, or a
         // client with no message at the end of a turn (Cursor's is its footnote above, clients.js:stopOutput),
         // leaves the summary waiting rather than spending it on an answer nobody reads.
@@ -412,7 +433,7 @@ async function hookCommand(ctx) {
         // no client to show a message with, so the summary lands on disk and the TUI picks it up
         // (opencode-tui.js). Every delivered notice is written, whatever the client; the file's only
         // reader is that door.
-        if (o) { noticeShown(store); try { writeNoticeLast(store, o); } catch {} out(o); }
+        if (say(o)) noticeShown(store);
       }
     }
     // Claude Code: its transcript. Other agents: the trace the hooks recorded,

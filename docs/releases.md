@@ -39,6 +39,15 @@ bash scripts/release.sh 0.1.44
 An open PR also causes the runner to exit when there is no interactive terminal.
 Exit code 2 means it is waiting for review; 1 means an error; 0 means completion.
 
+## Telling people what changed
+
+A release can carry one note, shown once on each machine right after it updates to
+that release: set `UPDATE_NOTE` in `src/update-note.js` (`id`, `title`, up to four
+`lines`, `more`) in a PR before cutting it, with an `id` no earlier note used. Leave it
+as it is for a release with nothing to say: a note the previous release carried is not
+shown again, and `null` means none. Nothing else is needed; the update arms the note and
+the first turn that ends afterwards shows it. A new install is shown none.
+
 ## Holding a release
 
 To cut a version without anyone updating to it yet:

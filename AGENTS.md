@@ -270,15 +270,15 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Card on first turn of cache, else top of next summary.
 - Cadence state in `state/notice.json`; pending in cache's `notice-pending.json`.
 
-**The release note is removed (2026-11-23, the owner's call):**
-- From 2026-11-10 thinker said "What changed" once per machine: a card under an answer where the mod runs, the top of the
-  Stop hook's summary elsewhere (`src/update-note.js`, in git before this date).
-- It was not said once. An open session keeps the mod it started with, and the copies before #930 draw their note
-  whenever the mod's `update-note` store key holds another copy's id, then put their own there. #930 made the current
-  copy read a shared record and leave that key alone; a copy from before it, in a session still open, goes on as it was.
-- Nothing says a note now, and a card kept with one is not drawn again (`claude-card/hooks/card.test.tsx`).
-  `state/update-notes.json`, `state/update-note.json` and the store key are read by nothing in this copy.
-- `thinker ui --ensure` and `--background`, added for the note's links, stay as commands.
+**The release note is shown once, right after the update that brought it (MANDATORY, 2026-11-23, the owner's rule; `src/update-note.js`):**
+- A note shows up only right after an update to a release that carries one (`UPDATE_NOTE`, `null` when the release has none), and is never revealed more than once.
+- It is a token, not a comparison. The new copy's `rewire` (what every updater runs last) and `connect` call `armNote`: the machine's release rose, the release it rose from did not carry this note, and the note was never shown here, so the note itself is written to `state/update-note-armed.json`. A new install is shown nothing.
+- The first watched turn that ends takes it (`takeNote`): the file is renamed, which one process can do and no second one, the id goes into `state/update-notes.json` (`shown`, only ever added to), and only then is it shown. A reveal that fails after the take is a note not shown; never two.
+- Two doors, one take: the Stop hook says it where the agent shows a message at the end of a turn; where the card mod runs, the mod asks `thinker hook note` and draws a card. Neither carries a note of its own, and the card is kept nowhere but the session that drew it.
+- Not taken in a run nobody watches (Claude Code's SDK and `-p`), as a session closes, or by a client with no end-of-turn message; taken and not said where the notices are off.
+- Why: from 2026-11-10 each copy carried its own note and showed it wherever a record did not hold its id. A session keeps the mod it started with, so two sessions open across an update traded ids and each drew its note again at every turn, and a kept card was redrawn in every session that reopened the transcript. The owner saw one note for a day; it was removed (#936) and came back as this.
+- Never: a door that decides from its own copy of a note, a record that a note's id can leave, a note card in the mod's store, a write to the mod's old `update-note` store key (the copies before #930 still compare it to their own id).
+- `test/update-note.test.js` (twelve processes asking at one instant, one answer), `claude-card/hooks/card.test.tsx`.
 
 **Savings footer (2026-11-06):**
 - Dollars from the accountant's ledger (`accountant.js:computeSavings`, the Report's own `weeklySavings` over two windows and, since 2026-11-22, the last fortnight between them); never contradicts `thinker report`. See "Savings: one accountant" above.

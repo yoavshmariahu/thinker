@@ -379,9 +379,8 @@ export const uiFile = (home = thinkerHome()) => path.join(home, 'state', 'ui.jso
 // null where none could be. A link in something thinker says has to open when it is clicked, and the page is only up
 // while somebody runs `thinker ui`: this is what puts it up (`thinker ui --ensure`). One per machine, reused while it
 // runs, gone once nothing has asked it anything for cache.js:UI_IDLE_MS. The weekly question had this until it was
-// retired; it came back on 2026-11-22 for the release note's links, and the note was removed the day after, so the
-// command is its only caller. Under THINKER_TEST nothing is started unless the test hands in its own spawnFn: a suite
-// leaves no server behind.
+// retired; it came back on 2026-11-22 for the release note's links (update-note.js:notePage). Under THINKER_TEST
+// nothing is started unless the test hands in its own spawnFn: a suite leaves no server behind.
 export const UI_WAIT_MS = 3000;   // how long ensureUi waits for the page it started to say where it is
 const sleep = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 export function ensureUi(store, { home = thinkerHome(), spawnFn = isTestMode() ? null : spawn, cliPath = CLI, waitMs = UI_WAIT_MS } = {}) {
