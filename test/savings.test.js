@@ -14,9 +14,11 @@ import {
 } from '../src/accountant.js';
 import { clearingRows, loggedClearing, mirrorClearing, noteCompression } from '../src/compression.js';
 import { delegatedOf } from '../src/delegated.js';
+import { deliveryMetrics } from '../src/delivery-telemetry.js';
 import { costOf, costOfInputSavings, listPrice } from '../src/prices.js';
 import { cutTimesFor, rereadsOf } from '../src/rereads.js';
 import { RESULT_TOKENS_PER_CHAR } from '../src/proxy.js';
+import { repoId } from '../src/store.js';
 import { sessionKey } from '../src/usage.js';
 
 const MODEL = 'claude-opus-5-5', SUB = 'claude-haiku-5-5';
@@ -333,6 +335,34 @@ test('every saving names the cut policy it was made under, and a session that sp
   assert.equal(by.get('one').policy, 'first');
   assert.equal(by.get('one').policyChanged, undefined, 'a session under one policy is not marked');
   assert.equal(by.get('two').policyChanged, true);
+});
+
+test('a day\'s counted saving takes a session that outlived an update, and leaves out a clear that names no policy', t => {
+  const h = tmp('days'), r = tmp('checkout');
+  const before = { ...process.env };
+  process.env.THINKER_HOME = h;
+  process.env.THINKER_PROXY_LOG = path.join(h, 'proxy.jsonl');
+  process.env.THINKER_LOG = path.join(h, 'log.jsonl');
+  t.after(() => { for (const k of ['THINKER_HOME', 'THINKER_PROXY_LOG', 'THINKER_LOG']) { if (before[k] === undefined) delete process.env[k]; else process.env[k] = before[k]; } });
+  const store = { repo: r, dir: path.join(r, '.thinker'), config: () => ({}) };
+  const H = 3600_000, last = NOW - 2 * H, cents = n => Math.round(n * 100) / 100;
+  const session = id => ({ op: 'session', session: id, model: MODEL, t: iso(last), repo: r, origin: repoId(r), turns: 5, totalTokens: 1000 });
+  const cut = (id, hoursAgo, cleared, policy) => row({ session: id, at: iso(NOW - hoursAgo * H), cleared, read: 90_000, write: 0, ...(policy ? { policy } : {}) });
+  fs.writeFileSync(process.env.THINKER_LOG, ['one', 'two', 'old'].map(id => JSON.stringify(session(id))).join('\n') + '\n');
+  fs.writeFileSync(process.env.THINKER_PROXY_LOG, [
+    cut('one', 3, 10e6, 'v0.5.2-t140k-f8k-p25-deep'),
+    // the stamp carries the version, so an update in the middle of a session gives it two
+    cut('two', 4, 10e6, 'v0.5.2-t140k-f8k-p25-deep'), cut('two', 3, 20e6, 'v0.5.3-t140k-f8k-p25-deep'),
+    cut('old', 3, 40e6),
+  ].map(e => JSON.stringify(e)).join('\n') + '\n');
+  const { sessions } = deliveryMetrics(store, { all: false, now: NOW, home: h });
+  const day = sessions.byDay[iso(last).slice(0, 10)];
+  assert.equal(day.clearedSessions, 3);
+  assert.equal(day.savedUsd, cents(readsCost(80e6)), 'every clear is in the day\'s own figure');
+  assert.equal(day.stampedSessions, 2, 'the session under one version and the one that outlived an update');
+  assert.equal(day.stampedSavedUsd, cents(readsCost(40e6)), 'the unstamped clear is in no counted dollar');
+  assert.equal(day.stampedNetUsd, cents(readsCost(40e6)));
+  assert.equal(sessions.byPolicy.mixed.sessions, 1, 'and no policy\'s own row takes the session that ran under two');
 });
 
 test('no module but the accountant prices a saving', () => {
