@@ -9,7 +9,7 @@
   },
   "l2": {
    "behavior": "check-keeps-release-instead-of-installing",
-   "intent": "Store a found release in state/update-ask.json, report whether it is news, and drop it when nothing waits."
+   "intent": "Store a found release in state/update-ask.json, report whether it is news, and drop the record when nothing waits."
   },
   "l3": {
    "behavior": "check-keeps-release-instead-of-installing",
@@ -17,7 +17,7 @@
   },
   "l4": {
    "behavior": "check-keeps-release-instead-of-installing",
-   "intent": "Name the OS job's new words and take the network, install, rewire and telemetry steps as parameters so the command's rules can be tested."
+   "intent": "Name the OS job's new words, and take the network, install, rewire and telemetry steps as parameters so tests can run the command's rules."
   },
   "l5": {
    "behavior": "check-keeps-release-instead-of-installing",
@@ -25,165 +25,169 @@
   },
   "l6": {
    "behavior": "check-keeps-release-instead-of-installing",
-   "intent": "Under the ask level, check for a release and install it only when the run was told to apply or the level is auto; skip the check under off."
+   "intent": "Remove the unconditional check, which is now made only when the level allows it."
   },
   "l7": {
    "behavior": "check-keeps-release-instead-of-installing",
-   "intent": "Keep a found release for the question and log it once, drop the record when this copy is current or nobody looks, and still check the wiring."
+   "intent": "Check for a release unless the level is off, and install it only when the run was told to apply or the level is auto."
   },
   "l8": {
    "behavior": "check-keeps-release-instead-of-installing",
-   "intent": "Note that the four-hourly check only looks for a release unless the level is auto."
+   "intent": "Keep a found release for the question and log it once, drop the record when this copy is current or nobody looks, and still check the wiring."
   },
   "l9": {
-   "behavior": "os-job-marked-as-scheduled",
-   "intent": "Define the scheduled arguments and label, and decide whether an update run is the OS job's own, including old schedules."
+   "behavior": "check-keeps-release-instead-of-installing",
+   "intent": "Note that the four-hourly check only looks for a release unless the level is auto."
   },
   "l10": {
    "behavior": "os-job-marked-as-scheduled",
-   "intent": "Write the LaunchAgent with the shared label and the `--scheduled` arguments."
+   "intent": "Define the scheduled arguments and label, and decide whether an update run is the OS job's own, including old schedules."
   },
   "l11": {
    "behavior": "os-job-marked-as-scheduled",
-   "intent": "Write the cron line with `--scheduled` and replace the old line in either form."
+   "intent": "Write the LaunchAgent with the shared label and the `--scheduled` arguments."
   },
   "l12": {
    "behavior": "os-job-marked-as-scheduled",
-   "intent": "Treat a schedule that lacks the `--scheduled` words as out of date, so it is rewritten."
+   "intent": "Write the cron line with `--scheduled` and replace the old line in either form."
   },
   "l13": {
    "behavior": "os-job-marked-as-scheduled",
-   "intent": "Never refresh the schedule from inside the scheduled job itself."
+   "intent": "Treat a schedule that lacks the `--scheduled` words as out of date, so it is rewritten."
   },
   "l14": {
-   "behavior": "typed-update-installs-and-clears",
-   "intent": "Use the injected check function for a typed update."
+   "behavior": "os-job-marked-as-scheduled",
+   "intent": "Never refresh the schedule from inside the scheduled job itself."
   },
   "l15": {
    "behavior": "typed-update-installs-and-clears",
-   "intent": "When already up to date on the latest, drop any waiting release before rewiring."
+   "intent": "Use the injected check function for a typed update."
   },
   "l16": {
    "behavior": "typed-update-installs-and-clears",
-   "intent": "Install through the injected functions and drop the waiting release once it is installed."
+   "intent": "When already up to date on the latest release, drop any waiting release before rewiring."
   },
   "l17": {
-   "behavior": "ask-in-session",
-   "intent": "Decide whether a question is due: a release waits that is not the installed one, the level is ask, and the last question is old enough."
+   "behavior": "typed-update-installs-and-clears",
+   "intent": "Install through the injected functions and drop the waiting release once it is installed."
   },
   "l18": {
    "behavior": "ask-in-session",
-   "intent": "Build the thinker-update block that has the agent ask the question and say how to record the answer, and record that it was asked."
+   "intent": "Decide whether a question is due: a release other than the installed one waits, the level is ask, and the last question is old enough."
   },
   "l19": {
    "behavior": "ask-in-session",
-   "intent": "Import the update question."
+   "intent": "Build the thinker-update block that has the agent ask the question and says how to record the answer, and record that the question was put."
   },
   "l20": {
    "behavior": "ask-in-session",
-   "intent": "Put the update question in the prompt hook's one-question chain, after the error-report offer and before the weekly changes."
+   "intent": "Import the update question."
   },
   "l21": {
    "behavior": "ask-in-session",
-   "intent": "Export the unattended-session check so the update question uses the same rule."
+   "intent": "Put the update question in the prompt hook's one-question chain, after the error-report offer and before the weekly changes."
   },
   "l22": {
-   "behavior": "answer-the-update-question",
-   "intent": "Report whether a question waits for its answer, so the MCP tool is offered."
+   "behavior": "ask-in-session",
+   "intent": "Export the unattended-session check so the update question uses the same rule."
   },
   "l23": {
    "behavior": "answer-the-update-question",
-   "intent": "Record the answer, start a detached apply update on yes or always, set the level to auto on always, and say what was done."
+   "intent": "Report whether a question waits for its answer, so the MCP tool is offered."
   },
   "l24": {
    "behavior": "answer-the-update-question",
-   "intent": "Import the waiting check and the answer handler."
+   "intent": "Record the answer, start a detached update with --apply on yes or always, set the level to auto on always, and say what was done."
   },
   "l25": {
    "behavior": "answer-the-update-question",
-   "intent": "Note in the comment that the server now answers the update question."
+   "intent": "Import the waiting check and the answer handler."
   },
   "l26": {
    "behavior": "answer-the-update-question",
-   "intent": "Register the update tool with the other question tools."
+   "intent": "Note in the comment that the server now answers the update question."
   },
   "l27": {
    "behavior": "answer-the-update-question",
-   "intent": "Offer an `update` tool, while a question waits, that records the choice and starts the update."
+   "intent": "Register the update tool with the other question tools."
   },
   "l28": {
    "behavior": "answer-the-update-question",
-   "intent": "Skip the PR-comment run when the command is only answering the question."
+   "intent": "Offer an `update` tool while a question waits; it records the choice and starts the update."
   },
   "l29": {
    "behavior": "answer-the-update-question",
-   "intent": "Add `thinker update --answer yes|no|always` as the command-line door for the answer."
+   "intent": "Skip the PR-comment run when the command is only answering the question."
   },
   "l30": {
    "behavior": "answer-the-update-question",
-   "intent": "Make an update the person asked for wait for a running check's lock instead of being dropped."
+   "intent": "Add `thinker update --answer yes|no|always` as the command-line door for the answer."
   },
   "l31": {
    "behavior": "answer-the-update-question",
-   "intent": "Record in the notice file and the log that an applied update was asked for, not automatic."
+   "intent": "Make an update the person asked for wait for a running check's lock instead of being dropped."
   },
   "l32": {
    "behavior": "answer-the-update-question",
-   "intent": "Say 'updated' rather than 'auto-updated' in the terminal notice for an update the person asked for."
+   "intent": "Record in the notice file and the log that an applied update was asked for, not automatic."
   },
   "l33": {
-   "behavior": "terminal-release-notice",
-   "intent": "Produce the release-out line once for each waiting release, only under the ask level."
+   "behavior": "answer-the-update-question",
+   "intent": "Say 'updated' rather than 'auto-updated' in the terminal notice for an update the person asked for."
   },
   "l34": {
    "behavior": "terminal-release-notice",
-   "intent": "Import the release notice."
+   "intent": "Produce the release-out line once for each waiting release, and only under the ask level."
   },
   "l35": {
    "behavior": "terminal-release-notice",
-   "intent": "Print the release notice beside the pending post-update notice on a terminal."
+   "intent": "Import the release notice."
   },
   "l36": {
-   "behavior": "update-level-setting",
-   "intent": "Define the defaults and read the machine's update level and question frequency, with `update: false` read as off."
+   "behavior": "terminal-release-notice",
+   "intent": "Print the release notice beside the pending post-update notice on a terminal."
   },
   "l37": {
    "behavior": "update-level-setting",
-   "intent": "Note that the update level is now a setting."
+   "intent": "Define the defaults and read the machine's update level and question frequency, with `update: false` read as off."
   },
   "l38": {
    "behavior": "update-level-setting",
-   "intent": "Import the update defaults."
+   "intent": "Note that the update level is now a setting."
   },
   "l39": {
    "behavior": "update-level-setting",
-   "intent": "Add an Updates group with the level as three cards and the question frequency shown only under ask."
+   "intent": "Import the update defaults."
   },
   "l40": {
    "behavior": "update-level-setting",
-   "intent": "Read a whole `update` block switched off as level off."
+   "intent": "Add an Updates group with the level as three cards and the question frequency, shown only under ask."
   },
   "l41": {
    "behavior": "update-level-setting",
-   "intent": "Show in `update --status` how new releases are handled and how to change it."
+   "intent": "Read a whole `update` block that is switched off as level off."
   },
   "l42": {
    "behavior": "update-level-setting",
-   "intent": "Describe the schedule as update checks rather than auto-updates."
+   "intent": "Show in `update --status` how new releases are handled and how to change it."
   },
   "l43": {
    "behavior": "update-level-setting",
-   "intent": "Import the update level."
+   "intent": "Describe the schedule as update checks rather than auto-updates."
   },
   "l44": {
    "behavior": "update-level-setting",
-   "intent": "Report the update check and whether a new release is asked about, installed or not looked for."
+   "intent": "Import the update level."
   },
   "l45": {
    "behavior": "update-level-setting",
-   "intent": "Explain in the help that a found release is asked about, and how to set the level."
+   "intent": "Report the update check and whether a new release is asked about, installed or not looked for."
   },
   "l46": {
+   "behavior": "update-level-setting",
+   "intent": "Explain in the help that a found release is asked about, and how to set the level."
+  },
+  "l47": {
    "behavior": "update-level-setting",
    "intent": "Explain in the installer's help that `--no-auto-update` turns off the background check, whose finds are asked about."
   }
@@ -192,43 +196,43 @@
   "check-keeps-release-instead-of-installing": {
    "id": "check-keeps-release-instead-of-installing",
    "title": "A background check for a release no longer installs it unless updates are set to automatic",
-   "description": "The update check that runs on use (`--background`) or from the OS job now looks for a release and records it for the person to be asked about. It installs only under `update.level: auto`, does not look at all under `off`, and still checks the agents' wiring.",
+   "description": "The update check that runs on use (`--background`) or from the OS job now looks for a release and records it so the person can be asked about it. It installs only under `update.level: auto`. Under `off` it does not look at all. Either way it still checks the agents' wiring.",
    "afterwards": true
   },
   "os-job-marked-as-scheduled": {
    "id": "os-job-marked-as-scheduled",
    "title": "The OS job's runs are told apart from a person's `update --quiet`",
-   "description": "The LaunchAgent and crontab now run `update --scheduled --quiet`. An older schedule that still runs `update --quiet` is recognised by launchd's label, or on Linux by its crontab line, which is then rewritten. The refresh rewrites any schedule that lacks the new words.",
+   "description": "The LaunchAgent and the crontab now run `update --scheduled --quiet`. An older schedule that still runs `update --quiet` is recognised by launchd's label, or on Linux by its crontab line, which is then rewritten. The refresh rewrites any schedule that lacks the new words.",
    "afterwards": true
   },
   "typed-update-installs-and-clears": {
    "id": "typed-update-installs-and-clears",
    "title": "A typed `thinker update` still installs, and clears the waiting release",
-   "description": "When a person runs `thinker update` themselves, it installs the latest release as before, logs it as not automatic, and drops the record of a release waiting for the question.",
+   "description": "When a person runs `thinker update` themselves, it installs the latest release as before. It logs the update as not automatic and drops the record of any release waiting for the question.",
    "afterwards": true
   },
   "ask-in-session": {
    "id": "ask-in-session",
    "title": "Ask the person in their session whether to update",
-   "description": "When a release waits and the level is ask, the prompt hook has the agent ask through its own question tool (or in the chat): Update now, Not now, Always update automatically. The question comes at most once every `askEveryDays` and is about the newest release. It is never asked in unattended sessions or about the release already installed.",
+   "description": "When a release waits and the level is ask, the prompt hook has the agent ask through its own question tool, or in the chat: Update now, Not now, Always update automatically. The question comes at most once every `askEveryDays` and is about the newest release. It is never put in an unattended session or about the release already installed.",
    "afterwards": true
   },
   "answer-the-update-question": {
    "id": "answer-the-update-question",
    "title": "Act on the answer: update now, not now, or always",
-   "description": "The answer comes back through thinker's MCP tool `update` or `thinker update --answer`. Yes starts `update --background --apply` in its own process, which waits for a running check and installs under any level. Always also sets the level to auto. No changes nothing. An update the person asked for is logged and announced as asked, not automatic.",
+   "description": "The answer comes back through thinker's MCP tool `update` or through `thinker update --answer`. Yes starts `update --background --apply` in its own process, which waits for a running check and installs under any level. Always also sets the level to auto, and no changes nothing. An update the person asked for is logged and announced as asked, not as automatic.",
    "afterwards": true
   },
   "terminal-release-notice": {
    "id": "terminal-release-notice",
    "title": "Tell a terminal once that a release is out",
-   "description": "Under the ask level, the next command typed at a terminal prints a one-line notice that a release is out and that `thinker update` installs it. The notice appears once for each release.",
+   "description": "Under the ask level, the next command typed at a terminal prints one line saying a release is out and that `thinker update` installs it. The line appears once for each release.",
    "afterwards": true
   },
   "update-level-setting": {
    "id": "update-level-setting",
    "title": "Choose how releases are handled: ask, automatic or off",
-   "description": "`update.level` (ask by default) and `update.askEveryDays` are machine settings, shown in an Updates group on the Settings tab and in `thinker settings`. `update: false` reads as off. Status, doctor, help and the installer describe a check that asks before installing.",
+   "description": "`update.level` (ask by default) and `update.askEveryDays` are machine settings, shown in an Updates group on the Settings tab and in `thinker settings`. `update: false` reads as off. Status, doctor, help and the installer describe a check that asks before it installs.",
    "afterwards": true
   }
  },
@@ -236,7 +240,7 @@
   {
    "behavior": "check-keeps-release-instead-of-installing",
    "test": "test/update-ask.test.js::the check on use finds a release, installs nothing and keeps it for the question",
-   "says": "A background check that finds a release installs nothing, still rewires, records the release once as update-available, and releases its lock.",
+   "says": "A background check that finds a release installs nothing, still rewires, records the release once as update-available, and gives back its lock.",
    "afterwards": true
   },
   {
@@ -248,7 +252,7 @@
   {
    "behavior": "os-job-marked-as-scheduled",
    "test": "test/update-ask.test.js::the OS job installs nothing either, under its new words or the old ones launchd still runs",
-   "says": "A `--scheduled` run installs nothing, and a plain `update --quiet` counts as the job only when launchd's label is set and the run is not to a named release or at a terminal.",
+   "says": "A `--scheduled` run installs nothing, and a plain `update --quiet` counts as the job only when launchd's label is set and the run is neither to a named release nor at a terminal.",
    "afterwards": true
   },
   {
@@ -266,7 +270,7 @@
   {
    "behavior": "ask-in-session",
    "test": "test/update-ask.test.js::the question is put once, through the agent's own question tool, and not again inside the week",
-   "says": "A waiting release is asked about once through AskUserQuestion with the three options, is not asked again within the week even when a newer release comes out, is asked about the newest release a week later, and is asked in the chat for agents without a question tool.",
+   "says": "A waiting release is asked about once through AskUserQuestion with the three options. It is not asked about again within the week, even when a newer release comes out, and a week later the question is about the newest release. An agent without a question tool asks in the chat.",
    "afterwards": true
   },
   {
@@ -290,13 +294,13 @@
   {
    "behavior": "answer-the-update-question",
    "test": "test/update-ask.test.js::yes starts the update in a process of its own, and always also stops the asking",
-   "says": "Yes starts one update without changing the level, always also sets the level to auto, a failed start is reported, and startUpdate spawns a detached `update --background --apply --quiet` but never in test mode.",
+   "says": "Yes starts one update without changing the level, and always also sets the level to auto. A failed start is reported. startUpdate spawns a detached `update --background --apply --quiet`, but never in test mode.",
    "afterwards": true
   },
   {
    "behavior": "answer-the-update-question",
    "test": "test/update-ask.test.js::the update a person said yes to installs under any setting, and is not called automatic",
-   "says": "An `--apply` background run installs the release, logs it with auto false and asked true, clears the waiting release, and the notice says 'updated' rather than 'auto-updated'.",
+   "says": "A background run with --apply installs the release, logs it with auto false and asked true, and clears the waiting release; its notice says 'updated' rather than 'auto-updated'.",
    "afterwards": true
   },
   {
@@ -308,7 +312,7 @@
   {
    "behavior": "update-level-setting",
    "test": "test/update-ask.test.js::the settings show how a release is handled, asked first unless the person says otherwise",
-   "says": "The Updates group shows level ask with options ask/auto/off and a 7-day frequency, setting auto is saved and hides the frequency, and both values can be set back.",
+   "says": "The Updates group shows level ask with the options ask, auto and off and a 7-day frequency. Setting auto is saved and hides the frequency, and both values can be set back.",
    "afterwards": true
   },
   {
@@ -321,77 +325,81 @@
  "sessions": [],
  "afterwards": {
   "base": "c9fab2712a52111c7b3fc6f9da4ef90791491734",
-  "at": "2026-11-24T19:17:02.634Z",
+  "at": "2026-11-24T19:17:42.769Z",
   "model": "claude-opus-5-5",
   "added": {
    "src/update-ask.js": {
     "l1": "1-35",
     "l2": "54-80",
-    "l17": "82-95",
-    "l18": "108-133",
-    "l22": "97-106",
-    "l23": "135-160",
-    "l33": "162-170",
-    "l36": "36-52"
+    "l18": "82-95",
+    "l19": "108-133",
+    "l23": "97-106",
+    "l24": "135-160",
+    "l34": "162-170",
+    "l37": "36-52"
    },
    "src/commands/setup.js": {
     "l3": "15-16",
     "l4": "230-241",
     "l5": "314-319",
-    "l6": "325-341",
-    "l7": "344-353",
-    "l13": "327-329",
-    "l14": "372",
-    "l15": "391-393",
-    "l16": "413-420",
-    "l28": "227",
-    "l29": "307-312",
-    "l30": "320-324",
-    "l31": "342-343",
-    "l41": "270-271",
-    "l42": "288-303"
+    "l7": "325-341",
+    "l8": "344-353",
+    "l14": "327-329",
+    "l15": "372",
+    "l16": "391-393",
+    "l17": "413-420",
+    "l29": "227",
+    "l30": "307-312",
+    "l31": "320-324",
+    "l32": "342-343",
+    "l42": "270-271",
+    "l43": "288-303"
    },
    "src/update.js": {
-    "l8": "495-496",
-    "l9": "509-533",
-    "l10": "557-562",
-    "l11": "598-601",
-    "l12": "611-625",
-    "l32": "722"
+    "l9": "495-496",
+    "l10": "509-533",
+    "l11": "557-562",
+    "l12": "598-601",
+    "l13": "611-625",
+    "l33": "722"
    },
    "src/commands/hooks.js": {
-    "l19": "31",
-    "l20": "251"
+    "l20": "31",
+    "l21": "251"
    },
    "src/upkeep.js": {
-    "l21": "623"
+    "l22": "623"
    },
    "src/mcp-server.js": {
-    "l24": "17",
-    "l25": "95-96",
-    "l26": "103",
-    "l27": "172-184"
+    "l25": "17",
+    "l26": "95-96",
+    "l27": "103",
+    "l28": "172-184"
    },
    "src/cli.js": {
-    "l34": "9",
-    "l35": "377",
-    "l45": "258-260"
+    "l35": "9",
+    "l36": "377",
+    "l46": "258-260"
    },
    "src/settings.js": {
-    "l37": "22-23",
-    "l38": "31",
-    "l39": "88-95",
-    "l40": "105"
+    "l38": "22-23",
+    "l39": "31",
+    "l40": "88-95",
+    "l41": "105"
    },
    "src/commands/doctor.js": {
-    "l43": "9",
-    "l44": "272-274"
+    "l44": "9",
+    "l45": "272-274"
    },
    "install.sh": {
-    "l46": "31-32"
+    "l47": "31-32"
    }
   },
-  "deleted": {}
+  "deleted": {
+   "src/commands/setup.js": {
+    "l6": "313"
+   }
+  }
  },
  "evidence": {
   "tree": "f7a00ff346b588dcf10d048f2156ae57da01a974",
