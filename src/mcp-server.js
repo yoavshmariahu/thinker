@@ -14,6 +14,7 @@ import { isDisabledRepo } from './repo-switch.js';
 import { proxyOfferPending, answerProxyOffer } from './proxy-offer.js';
 import { containersOfferPending, answerContainersOffer } from './containers-offer.js';
 import { errorOfferPending, answerErrorOffer } from './error-report.js';
+import { askWaiting, answerAsk } from './upkeep.js';
 import { queueDir, buildRunning, nextRequest, answerRequest, requestText } from './session-llm.js';
 import { anyDesktopApp } from './app-host.js';
 
@@ -75,6 +76,7 @@ async function ensureBound(args) {
   if (r && r !== repo) {
     if (isDisabledRepo(r)) return { reply: text('thinker is switched off for that repository and serves nothing there.') };
     binding = bind(r); await binding;
+    registerChangesTool();
     registerQueueTools();
     return { bound: true };
   }
@@ -88,14 +90,36 @@ const clientName = () => server.server.getClientVersion()?.name || 'mcp';
 
 // The agent's own tools (orient, lookup, find, drilldown, remember, behavior, feedback) were taken out on
 // 2026-10-22, at the owner's decision: the notes reach the agent through the prompt hook, and real sessions
-// rarely called the tools (AGENTS.md, Serving). What is left answers thinker's own questions (the proxy,
-// container and error-report offers; the weekly context suggestion's tool went with the question on 2026-11-21) and
+// rarely called the tools (AGENTS.md, Serving). What is left answers thinker's own questions (the weekly question
+// about the changes worth making, back since 2026-11-23, and the proxy, container and error-report offers) and
 // works the desktop app's learning queue (learn_next), each offered only while it has something to do.
 function registerTools() {
+  registerChangesTool();
   registerProxyTool();
   registerContainersTool();
   registerErrorsTool();
   registerQueueTools();
+}
+
+// The answer to the weekly question (upkeep.js:askOffer): offered while a question is kept for the next prompt here
+// or was put and not answered yet. The agent asks the person with its own question tool and hands in what they
+// chose; thinker resolves the numbers against the list it showed and makes the changes, so nothing depends on the
+// agent composing a command line, and the answer is recorded whichever way it goes.
+let changesTool;
+function registerChangesTool() {
+  if (changesTool || !store || !askWaiting(store)) return;
+  changesTool = server.registerTool('changes', {
+    title: 'Answer thinker\'s question about the changes worth making',
+    description: 'Only when a thinker-changes notice tells you to: records the user\'s answer and ships the changes they chose to what loads into every session here (a pull request for an instruction file, a tool made a reference). Nothing is changed on none.',
+    inputSchema: {
+      choice: z.string().describe('The numbers of the changes the user chose, comma-separated, as the question listed them; or all; or none'),
+      asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
+      ...(late ? { cwd: z.string().optional().describe('Absolute path of the repository') } : {}),
+    },
+  }, async ({ choice, asked, cwd }) => {
+    const { reply } = await ensureBound({ cwd }); if (reply) return reply;
+    return text(await answerAsk(store, String(choice), { client: clientName(), asked: asked === 'chat' ? 'chat' : 'picker' }));
+  });
 }
 
 // The answer to the one-off offer to turn the context proxy back on (proxy-offer.js): offered only while one
@@ -198,6 +222,7 @@ if (late) server.server.oninitialized = async () => {
         const r = checkoutOf(root.uri);
         if (!r || isDisabledRepo(r) || store) continue;
         binding = bind(r); await binding;
+        registerChangesTool();
         registerQueueTools();
         break;
       }

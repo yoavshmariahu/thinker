@@ -1,9 +1,15 @@
-// Upkeep: what thinker does by itself between sessions, beside learning. It looks at what the coding agents left
-// behind in a repository and does what is important, without asking and without anybody pressing anything. Recent
-// activity says what it did, a line an action with what it came to, beside the chat on the page and as `thinker
-// activity` (one view: upkeepView). The person changes how it behaves, and takes a thing back, by talking to it
-// (chat.js). There is no list of things for the person to do and no button to do them with (the owner, 2026-11-21:
-// "no more manual action please. thinker does its work for you. its opinionated").
+// Upkeep: what thinker looks after between sessions, beside learning. It looks at what the coding agents left behind
+// in a repository, finds the changes that are worth making, and once a week asks the person, in their own session,
+// whether to ship them (`level: 'ask'`, the default since 2026-11-23; "The weekly question" below). Told to
+// (`level: 'auto'`) it ships them by itself, without asking. Recent activity says what was done, a line an action
+// with what it came to, beside the chat on the page and as `thinker activity` (one view: upkeepView). The person
+// changes how it behaves, and takes a thing back, by talking to it (chat.js). There is no list of things for the
+// person to work through and no button to do them with: the one question, once a week, is all it asks of anybody.
+//
+// The owner, 2026-11-21: "no more manual action please. thinker does its work for you. its opinionated", and from
+// that day to 2026-11-23 `auto` was the default. The owner again, 2026-11-23: "let's actually go back to asking users
+// weekly to ship fixes to their instruction files as the default for everyone, rather than just automatically doing
+// this" -- a pull request against somebody's instruction file is theirs to say yes to first.
 //
 // A check runs on maintenance's clock (maintain.js, every four hours on the next activity). It spends no model
 // tokens: everything it reads was measured already, by code or by the one pass each session gets when it ends
@@ -22,7 +28,9 @@
 // How it behaves (BEHAVIOR). The owner's rule, 2026-11-21: thinker is "responsible to finding and making those
 // decisions... This should happen in batches and only on actions that have clear value", and then their answers, one
 // by one, to how that should work:
-//   - It acts by itself (`level: 'auto'`). `ask` has it wait for the person's word in the chat; `off` stops the checks.
+//   - `level`: `ask` (the default) puts the batch to the person as a question before anything is changed; `auto`
+//     has thinker make it by itself; `off` stops the checks. What is worth making, and how often, is the same rule
+//     under both: only who says yes differs.
 //   - Clear value is dollars, and only the high ones (`worthOf`; the owner again, a day into the $1 bar: "only
 //     automatically make fixes that are high value not medium value. at least $5 per day and the tool should not have
 //     clear utility. push it towards tool references rather than removing entirely"). A change is worth making when
@@ -44,8 +52,19 @@
 //   - A pull request is the only way it changes a repository's files: one for a batch, whatever it shortens and
 //     removes, left for a person to merge (thinker never merges its own), and opened even while an earlier one is
 //     still in review. The line about it carries its link. A section is never rewritten in the working tree.
-//   - A week into its effect (`followUpDays`) each change of a batch is checked, and what backfired is taken back
-//     and not tried again (`followUp`): a tool switched back on, a section put back by a pull request of its own.
+//   - A week into its effect (`followUpDays`) each change of a batch thinker made by itself is checked, and what
+//     backfired is taken back and not tried again (`followUp`): a tool switched back on, a section put back by a
+//     pull request of its own. Under `auto` alone: a batch the person said yes to is not thinker's to take back.
+//
+// The weekly question (`level: 'ask'`; keepQuestion, askOffer, answerAsk). A check that finds a batch due keeps it
+// as a question; the next prompt in the repository has the person's agent put it to them with its own question tool
+// (commands/hooks.js, the one-question chain), each change an option and "None of these" the last; the answer comes
+// back through thinker's MCP tool `upkeep` or `thinker activity answer`, and the changes they chose go out as one
+// batch -- one pull request for its sections, left for a person to merge -- by the door `session`. Nothing is changed
+// without a yes. At most one question per `batchEveryDays` (7) in a repository, answered or not; "none" leaves the
+// changes as they are and they may be asked about again the week after. The question the owner retired on
+// 2026-11-21 offered the report's five largest changes whatever they were worth; this one offers only what clears
+// the bar thinker would have acted on by itself.
 // The settings are `upkeep: { … }` in <THINKER_HOME>/config.json for the machine and in .thinker/config.json for
 // one repository (which wins); `upkeep: false` is `level: off`. The chat writes them (setBehavior).
 //
@@ -55,6 +74,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { QUESTION_TOOLS, MCP_CLIENTS, askThrough, askInChat } from './repo-onboard.js';
+import { SIGNATURE } from './harness.js';
 import { currentChanges, decidedKeys, allChanges, pickChanges, approveChanges, dismissChanges, changeHistory, retryJob, revertDecision, restoreSection, VIA, SUGGEST } from './context-suggest.js';
 import { lastSnapshot } from './context-snapshot.js';
 import { rateOf } from './context-view.js';
@@ -87,6 +109,10 @@ export const UPKEEP = {
   passedMax: 12,    // things found and passed over that the chat is shown, the costliest first
   followGiveUpDays: 28, // a change nothing could measure in this long is left as it is
   followedDays: 180, // how long a change's check is remembered
+  // the weekly question (`level: 'ask'`)
+  askMax: 5,        // changes one question may carry, the costliest first; the rest wait for the next one
+  askFreshDays: 3,  // a question no prompt came for in this long is not put: the next check keeps a fresh one
+  answerDays: 3,    // how long the numbers a person was shown still mean that list
 };
 const DAY = 86_400_000;
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -95,7 +121,7 @@ const short = (s, n = 160) => { s = String(s || '').replace(/\s+/g, ' ').trim();
 // --- how it behaves ------------------------------------------------------------------------------------------
 // Each setting with what it may be, and the words the chat and the command say it in.
 export const BEHAVIOR = {
-  level: 'auto', prs: true, remove: true, tools: true, skills: false,
+  level: 'ask', prs: true, remove: true, tools: true, skills: false,
   minPerDay: 5, batchPerDay: 5, batchEveryDays: 7, followUp: true, followUpDays: 7,
   // the two that are read from where their own part of thinker keeps them (`SETTINGS` below, `get`), never from the
   // upkeep block: on until that part says otherwise, and `null` for one the person has not set at all
@@ -107,14 +133,14 @@ const money = (min, max) => v => { const n = Number(String(v).trim().replace(/^\
 const bool = v => v === true || /^(true|on|yes)$/i.test(String(v)) ? true : v === false || /^(false|off|no)$/i.test(String(v)) ? false : undefined;
 const oneOf = (...xs) => v => xs.includes(String(v).toLowerCase()) ? String(v).toLowerCase() : undefined;
 export const SETTINGS = {
-  level: { read: oneOf('auto', 'ask', 'off'), about: 'auto: make the changes worth making by itself; ask: do nothing until told to in the chat; off: stop looking' },
+  level: { read: oneOf('auto', 'ask', 'off'), about: 'ask (the default): once a week, ask them in their own session which of the changes worth making to ship, and change nothing without a yes; auto: make those changes by itself, without asking; off: stop looking' },
   prs: { read: bool, about: 'whether it may put up a pull request that shortens or removes a section of an instruction file' },
   remove: { read: bool, about: 'whether such a pull request may remove a section outright; off, it only shortens' },
   tools: { read: bool, about: 'whether it may make a reference of a tool nobody calls (it stays callable), or switch off an MCP server no session called at all' },
   skills: { read: bool, about: 'whether it may switch off a skill nobody calls (off unless they say so)' },
-  minPerDay: { read: money(0.05, 1000), about: 'dollars a day one change must save here before thinker makes it by itself (5 unless they say otherwise; its waste must also be graded high, and a tool plainly in use is never touched)' },
-  batchPerDay: { read: money(0.05, 10_000), about: 'dollars a day the changes worth making must come to together before a batch of them goes' },
-  batchEveryDays: { read: num(1, 90), about: 'least days between batches in one repository' },
+  minPerDay: { read: money(0.05, 1000), about: 'dollars a day one change must save here before thinker asks about it, or makes it by itself (5 unless they say otherwise; its waste must also be graded high, and a tool plainly in use is never touched)' },
+  batchPerDay: { read: money(0.05, 10_000), about: 'dollars a day the changes worth making must come to together before a batch of them is asked about, or goes' },
+  batchEveryDays: { read: num(1, 90), about: 'least days between batches in one repository, and between the questions about them' },
   followUp: { read: bool, about: 'whether it checks each change once it has been in effect a while, and takes back by itself what did not pay' },
   followUpDays: { read: num(1, 90), about: 'days a change is in effect before that check' },
   // Two switches on the other work thinker does for them, which do not live under `upkeep` and are the machine's
@@ -205,17 +231,26 @@ export function steerBehavior(store, kind, direction, { scope = 'machine', home 
 // The behaviour in a sentence or two, for the page, the command and the chat.
 export function behaviorSaid(b) {
   if (b.level === 'off') return 'Thinker is not looking after this repository (upkeep is off).';
-  if (b.level === 'ask') return 'Thinker does nothing here until you tell it to.';
+  if (b.level === 'ask') {
+    const asks = [b.prs ? (b.remove ? 'shorten or remove instruction sections nobody needs in a pull request' : 'shorten instruction sections nobody needs in a pull request') : '', b.tools ? 'make a reference of tools nobody calls' : '', b.skills ? 'switch off skills nobody calls' : ''].filter(Boolean);
+    return asks.length
+      ? `Thinker asks before it changes anything here: at most every ${plural(b.batchEveryDays, 'day')}, in one of your sessions, it asks whether to ${asks.join(' and ')} -- only high-waste parts that save ${formatDollars(b.minPerDay)} a day or more each. Nothing is changed without your yes.`
+      : 'Thinker asks before it changes anything here, but every kind of change is switched off.';
+  }
   const cuts = [b.prs ? (b.remove ? 'shortens or removes instruction sections nobody needs in a pull request' : 'shortens instruction sections nobody needs in a pull request') : '', b.tools ? 'makes a reference of tools nobody calls' : '', b.skills ? 'switches off skills nobody calls' : ''].filter(Boolean);
   const does = [cuts.length ? `${cuts.join(' and ')}, but only high-waste parts that save ${formatDollars(b.minPerDay)} a day or more each, ${b.batchPerDay > b.minPerDay ? `together in one batch once that comes to ${formatDollars(b.batchPerDay)} a day` : 'together in one batch'}, at most every ${plural(b.batchEveryDays, 'day')}` : ''].filter(Boolean);
   return does.length ? `Thinker acts on its own here: it ${does.join('; ')}.${cuts.length && b.followUp ? ` ${plural(b.followUpDays, 'day')} after a change takes effect it checks it, and takes back what did not pay.` : ''}` : 'Thinker may act on its own here, but every kind of action is switched off.';
 }
+// the level alone, for the prompt hook: two small files and nothing else read
+const levelOf = (store, home) => ({ ...BEHAVIOR, ...settingsOf(readMachineConfig(home).upkeep), ...settingsOf(store?.config().upkeep) }).level;
 
 // --- what it remembers ---------------------------------------------------------------------------------------
 const stateFile = store => path.join(store.dir, 'state', 'upkeep.json');
 export function readUpkeep(store) {
-  try { const j = JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); return { lastCheck: j.lastCheck || null, items: j.items || [], seen: j.seen || {}, dismissed: j.dismissed || {}, done: j.done || [], followed: j.followed || {} }; }
-  catch { return { lastCheck: null, items: [], seen: {}, dismissed: {}, done: [], followed: {} }; }
+  // `ask`: the weekly question -- `pending` kept by a check for the next prompt, `offered` as it was put to the
+  // person (what their answer's numbers mean), `last` when one was last put
+  try { const j = JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); return { lastCheck: j.lastCheck || null, items: j.items || [], seen: j.seen || {}, dismissed: j.dismissed || {}, done: j.done || [], followed: j.followed || {}, ask: j.ask && typeof j.ask === 'object' ? j.ask : {} }; }
+  catch { return { lastCheck: null, items: [], seen: {}, dismissed: {}, done: [], followed: {}, ask: {} }; }
 }
 function writeJson(f, v) {
   const tmp = `${f}.${process.pid}.${randomBytes(3).toString('hex')}`;
@@ -373,23 +408,31 @@ const OFF_WHY = { prs: 'pull requests are switched off here', remove: 'it may sh
 // whether the settings let thinker do an item by itself at all (a removal is a pull request too)
 const allowed = (b, it) => Boolean(b[it.allow]) && (it.allow !== 'remove' || Boolean(b.prs));
 const lastBatch = store => Math.max(0, ...readUpkeep(store).done.filter(d => d.kind === 'batch').map(d => Date.parse(d.at)));
+// when a question was last put to the person here: it holds the next one as a batch holds the next batch
+const lastAsked = store => Date.parse(readUpkeep(store).ask.last || '') || 0;
 
 // The batch: every change worth making that thinker may make here, what they waste a day between them, and whether
-// it goes now (`ok`); else why not (`why`) and whether it is only waiting (`later`). The owner's answers, 2026-11-21:
-// a batch goes "when enough has piled up" and never more than one a week; one still being made is not doubled; a
-// pull request of an earlier batch still in review holds nothing up ("open another").
+// it goes now (`ok`), or is the person's to say yes to first (`ask`: the level is `ask`, and it is put to them in
+// their next session); else why not (`why`) and whether it is only waiting (`later`). The owner's answers,
+// 2026-11-21: a batch goes "when enough has piled up" and never more than one a week; one still being made is not
+// doubled; a pull request of an earlier batch still in review holds nothing up ("open another"). One rule under both
+// levels (the owner, 2026-11-23: asked weekly "rather than just automatically doing this"): what is asked about is
+// what would have gone, as often as it would have gone, and a question counts as a batch whatever its answer was.
 export function batchOf(store, b, { now = Date.now(), items } = {}) {
   const may = (items || openItems(store, { now, b })).filter(it => it.chore === 'context' && it.action && allowed(b, it));
   const perDay = may.reduce((a, it) => a + (it.perDay || 0), 0), r = { items: may, perDay };
   if (!may.length) return { ...r, ok: false };
-  if (b.level !== 'auto') return { ...r, ok: false, why: 'you asked to be asked first' };
-  const wait = why => ({ ...r, ok: false, later: true, why });
+  if (b.level === 'off') return { ...r, ok: false, why: 'thinker is switched off here' };
+  const asks = b.level !== 'auto', wait = why => ({ ...r, ok: false, later: true, why });
   let making = false; try { making = changeHistory(store, { now }).some(e => !e.revertedAt && e.attention === 'running'); } catch {}
   if (making) return wait('a change is still being made here');
-  const last = lastBatch(store);
-  if (last && now - last < b.batchEveryDays * DAY) return wait(`one batch every ${plural(b.batchEveryDays, 'day')} here, and the last went ${ago(new Date(last).toISOString(), now)}`);
-  if (perDay < b.batchPerDay) return wait(`the changes worth making come to ${formatDollars(perDay)} a day together so far, and a batch goes at ${formatDollars(b.batchPerDay)}`);
-  return { ...r, ok: true };
+  const last = lastBatch(store), every = b.batchEveryDays * DAY;
+  if (last && now - last < every) return wait(`one batch every ${plural(b.batchEveryDays, 'day')} here, and the last went ${ago(new Date(last).toISOString(), now)}`);
+  const asked = asks ? lastAsked(store) : 0;
+  // (a question put and not answered yet is said as that; once answered, or too old to answer, it is the wait between questions)
+  if (asked && now - asked < every) return wait(offeredNow(readUpkeep(store), now) ? `thinker asked you about it ${ago(new Date(asked).toISOString(), now)}, in a session here, and waits for your answer` : `thinker asks at most every ${plural(b.batchEveryDays, 'day')} here, and it last asked ${ago(new Date(asked).toISOString(), now)}`);
+  if (perDay < b.batchPerDay) return wait(`the changes worth making come to ${formatDollars(perDay)} a day together so far, and a batch ${asks ? 'is asked about' : 'goes'} at ${formatDollars(b.batchPerDay)}`);
+  return asks ? { ...r, ok: false, ask: true, why: 'it is yours to say: thinker asks you about it in your next session here' } : { ...r, ok: true };
 }
 
 // Whether thinker may do an item now, and if not, why (`why`), and whether it is only waiting its turn (`later`):
@@ -398,23 +441,26 @@ export function batchOf(store, b, { now = Date.now(), items } = {}) {
 // of this.
 export function mayAct(store, item, b, { now = Date.now(), batch } = {}) {
   if (!item.important || !item.action || !item.allow) return { ok: false };
-  if (b.level !== 'auto') return { ok: false, why: 'you asked to be asked first' };
+  if (b.level === 'off') return { ok: false, why: 'thinker is switched off here' };
   if (!allowed(b, item)) return { ok: false, why: OFF_WHY[b[item.allow] ? 'prs' : item.allow] || `${item.allow} is off` };
+  // a context change goes with its batch, which under `ask` is the person's to say yes to (`ask`)
+  if (item.chore === 'context') { const bt = batch || batchOf(store, b, { now }); return bt.ok ? { ok: true } : { ok: false, ...(bt.later ? { later: true } : {}), ...(bt.ask ? { ask: true } : {}), why: bt.why || 'not now' }; }
+  if (b.level !== 'auto') return { ok: false, why: 'thinker asks before it changes anything here' };
   const wait = why => ({ ok: false, later: true, why });
   if (item.chore === 'waiting') return item.data.tries >= UPKEEP.retries ? { ok: false, why: `it failed ${item.data.tries} times` } : now - Date.parse(item.data.failedAt) < DAY ? wait('it is tried again a day after it failed') : { ok: true };
-  if (item.chore === 'context') { const bt = batch || batchOf(store, b, { now }); return bt.ok ? { ok: true } : { ok: false, ...(bt.later ? { later: true } : {}), why: bt.why || 'not now' }; }
   return { ok: true };
 }
 
 // A batch made: every change in it through the one door (context-suggest.js:approveChanges, which keeps each decision
 // under the batch's id), its sections as one job and one pull request whatever they shorten and remove. One thing
-// done, and one line of the activity.
-async function doBatch(store, items, { now, by, fns = {} }) {
+// done, and one line of the activity. `via`: the door the decision came through -- thinker's own (a check under
+// `auto`, the person's word in the chat), or the person's answer to the weekly question (`session`).
+async function doBatch(store, items, { now, by, via = VIA.thinker, fns = {} }) {
   const canPr = (fns.prAvailable || prAvailable)(store.repo).ok;
   const picked = contextChore.pick(store, items, { fns }).filter(c => c.default && (c.kind !== 'section' || canPr));
   if (!picked.length) return { error: 'nothing of the batch can be made now; it is looked for again at the next check' };
   const id = randomBytes(5).toString('hex'), made = [];
-  try { await approveChanges(store, picked, { via: VIA.thinker, now, pr: true, batch: id, made, ...(fns.spawn ? { spawnFn: fns.spawn } : {}) }); }
+  try { await approveChanges(store, picked, { via, now, pr: true, batch: id, made, ...(fns.spawn ? { spawnFn: fns.spawn } : {}) }); }
   catch (e) { if (!made.some(m => !m.error)) return { error: short(e.message || e, 200) }; }
   const keys = new Set(made.filter(m => !m.error).map(m => m.key));
   if (!keys.size) return { error: short(made[0]?.error || 'nothing could be changed', 200) };
@@ -425,6 +471,7 @@ async function doBatch(store, items, { now, by, fns = {} }) {
   const said = `Sent a batch of ${plural(keys.size, 'change')}${perDay ? ` worth about ${formatDollars(perDay)} a day` : ''}: ${parts.join(', ')}`;
   const st = readUpkeep(store);
   for (const it of went) forget(st, it.id);
+  delete st.ask.pending; // a batch gone by any door: a question kept about it is not put any more
   const entry = { id, at: new Date(now).toISOString(), item: 'batch', chore: 'context', kind: 'batch', title: `A batch of ${plural(keys.size, 'change')}`, said, by, kept: true, batch: { keys: [...keys], perDay, sections: secs.length, removed: gone, tools, skills } };
   st.done.push(entry);
   writeUpkeep(store, st);
@@ -552,11 +599,118 @@ export async function upkeepCheck(store, { now = Date.now(), fns = {}, act = tru
     // and the changes of earlier batches, once each, a week into their effect
     if (b.followUp) { try { did.push(...await followUp(store, b, { now, fns })); } catch (e) { errors.push({ chore: 'follow', message: short(e.message || e, 200) }); } }
   }
+  // asked first: a batch that is due is kept as a question for the person's next session here, and nothing is changed
+  let asking = 0;
+  if (act && b.level === 'ask') { try { asking = keepQuestion(store, b, { now }); } catch (e) { errors.push({ chore: 'ask', message: short(e.message || e, 200) }); } }
   const { pending } = upkeepPending(store, { now, home });
-  store.log({ op: 'upkeep', did: did.length, pending: pending.length || undefined, level: b.level, acted: Boolean(act), chores: Object.fromEntries(CHORES.map(c => [c.id, did.filter(d => choreOfItem(d.id) === c.id).length]).filter(([, n]) => n)), ...(errors.length ? { errors: errors.length } : {}) });
-  return { did, pending: pending.length, errors };
+  store.log({ op: 'upkeep', did: did.length, pending: pending.length || undefined, asking: asking || undefined, level: b.level, acted: Boolean(act), chores: Object.fromEntries(CHORES.map(c => [c.id, did.filter(d => choreOfItem(d.id) === c.id).length]).filter(([, n]) => n)), ...(errors.length ? { errors: errors.length } : {}) });
+  return { did, pending: pending.length, errors, ...(asking ? { asking } : {}) };
 }
 const choreOfItem = id => id === 'batch' || id.startsWith('change:') ? 'context' : id.startsWith('wait:') ? 'waiting' : id.startsWith('rule:') ? 'rules' : 'other';
+
+// --- the weekly question ---------------------------------------------------------------------------------------
+// `level: 'ask'`, the default (the owner, 2026-11-23): nothing is changed until the person says yes, and they are
+// asked where they already are -- in a session of their own agent, through its own question tool -- not on a page
+// they would have to open. Three steps, each a small write to the upkeep state:
+//   keepQuestion   a check: a batch that is due is kept as a question (`ask.pending`), no model call
+//   askOffer       the prompt hook: the question, once, for the agent to put to the person (`ask.offered`, `ask.last`)
+//   answerAsk      the answer, through thinker's MCP tool `changes` or `thinker activity answer`: the changes they chose
+//                  go out as one batch by the door `session`; none leaves everything as it is
+// The log rows are the ones the retired question wrote (`context-suggest`, `context-offer`, `context-answer`), so
+// the funnel the telemetry already counts reads on: what was found, what was put to somebody, what they said.
+const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cli.js');
+// a session no person is at: `claude -p`, the Agent SDK
+const unattended = (env = process.env) => /^sdk-/.test(env.CLAUDE_CODE_ENTRYPOINT || '');
+
+// A check's part: the batch that is due, kept as a question for the next prompt here -- its costliest UPKEEP.askMax
+// changes, each with the words the person will be shown (the rest wait for the next question). Written again at every
+// check while it is due, so what is asked is never older than the last look, and dropped once it is not due any more
+// (a batch went by another door, the changes were left alone, the bar moved). Returns how many it holds.
+function keepQuestion(store, b, { now }) {
+  const batch = batchOf(store, b, { now }), st = readUpkeep(store);
+  if (!batch.ask) { if (st.ask.pending) { delete st.ask.pending; writeUpkeep(store, st); } return 0; }
+  const items = [...batch.items].sort((x, y) => (y.perDay || 0) - (x.perDay || 0)).slice(0, UPKEEP.askMax), fresh = !st.ask.pending;
+  st.ask.pending = { at: new Date(now).toISOString(), more: batch.items.length - items.length, changes: items.map(it => ({ id: it.id, title: it.title, does: it.action.label, detail: it.detail, perDay: it.perDay ?? null, tokens: it.rank || 0 })) };
+  writeUpkeep(store, st);
+  if (fresh) store.log({ op: 'context-suggest', changes: items.length, saving: items.reduce((a, it) => a + (it.rank || 0), 0) });
+  return items.length;
+}
+// what the person was last asked, while a reply to it is still plausible; null when nothing was, or it is too old
+const offeredNow = (st, now) => { const o = st.ask.offered; return o?.changes?.length && now - Date.parse(o.at) <= UPKEEP.answerDays * DAY ? o : null; };
+// Whether a question waits here: kept for the next prompt, or put and not answered yet. What thinker's MCP tool for
+// the answer is offered on (mcp-server.js), so a session started before the question was put still has the tool.
+export function askWaiting(store, { now = Date.now(), home = thinkerHome() } = {}) {
+  const st = readUpkeep(store), p = st.ask.pending;
+  return Boolean(offeredNow(st, now) || (p?.changes?.length && now - Date.parse(p.at) <= UPKEEP.askFreshDays * DAY && levelOf(store, home) === 'ask'));
+}
+
+// The prompt hook: the kept question, once, as a block that has the person's agent ask them. `client` is the agent,
+// whose own question tool puts it; where it has none the question goes in the chat. A question, not prose (the
+// owner's ask of 2026-10-27, of the question this one replaces): a relayed message can be skipped by the agent and
+// skimmed by the person, and leaves no answer either way. Each change is an option under its own number and "None of
+// these" is the last, so a no is an answer like any other; the numbers are what comes back. The list is kept as it
+// was put (`ask.offered`): the reply comes minutes to days later, and is resolved against what they read.
+// Reads one small file and, with a question to put, the two config files; nothing where no person is at the session.
+export function askOffer(store, { client, now = Date.now(), env = process.env, home = thinkerHome(), cli = CLI } = {}) {
+  if (unattended(env)) return '';
+  const st = readUpkeep(store), p = st.ask.pending;
+  if (!p?.changes?.length || now - Date.parse(p.at) > UPKEEP.askFreshDays * DAY || levelOf(store, home) !== 'ask') return '';
+  const at = new Date(now).toISOString(), n = p.changes.length;
+  delete st.ask.pending;
+  st.ask.last = at; st.ask.offered = { at, changes: p.changes };
+  writeUpkeep(store, st);
+  const perDay = p.changes.reduce((a, c) => a + (c.perDay || 0), 0), worth = perDay ? `, worth about ${formatDollars(perDay)} a day${n > 1 ? ' together' : ''}` : '';
+  store.log({ op: 'context-offer', changes: n, saving: p.changes.reduce((a, c) => a + (c.tokens || 0), 0), asked: true });
+  const lower = t => `${t.charAt(0).toLowerCase()}${t.slice(1)}`;
+  const lines = p.changes.map((c, i) => `${i + 1}. ${c.title}: ${lower(c.does)}. ${c.detail}`).join('\n');
+  const lead = `thinker read the recent agent sessions in this repository and found ${n === 1 ? 'one change' : `${n} changes`} worth making to what loads into every session here${worth}${p.more > 0 ? ` (${p.more} more wait for another week)` : ''}. It has changed nothing: it asks first.${perDay ? ' The dollars are the tokens that went unused at the providers\' list prices, as thinker prices everything; a subscription bills none of it by the token.' : ''} On a yes, sections of an instruction file change in one pull request, opened through the user's own gh login and left for them to review and merge; a tool made a reference stays callable.`;
+  const tool = QUESTION_TOOLS[client];
+  const question = `thinker found ${n === 1 ? 'a change' : `${n} changes`} to what loads into every session here${worth} at list prices. Ship ${n === 1 ? 'it' : 'any'}?`;
+  const ask = tool
+    ? `Before you start on the request, ${askThrough(tool, question)}: one question whose options are the changes below, in this order, each option labelled with its own number and name as written below ("2. AGENTS.md · Releases") and taking the rest of its line as the description; let them choose more than one where your tool allows it. The numbers are how you hand their answer back, so keep them on the options rather than working them out again. Add a last option "None of these" so saying no is an answer like any other, and keep the whole question to the options your tool allows: where that leaves room for fewer changes than there are, offer the highest ones (Claude Code's AskUserQuestion takes four, so three changes and the none); thinker asks about the rest another week.`
+    : `Before you start on the request, ${askInChat(`which of these changes to ship (any of them, or none), listing them as written below, and wait for their answer.`)}`;
+  const cmd = `"${process.execPath}" "${cli}" activity answer`;
+  const after = MCP_CLIENTS.has(client)
+    ? `Then call thinker's \`changes\` tool with choice set to the numbers they chose, comma-separated, or none, and asked "${tool ? 'picker' : 'chat'}"; if that tool is not offered, run \`${cmd} <those numbers, or none>\`. thinker makes the changes they chose and tells you what it did; pass that on in one line opening "${SIGNATURE}:". Then go on with the task.`
+    : `Then run \`${cmd} <the numbers they chose, comma-separated, or none>\` and tell them in one line opening "${SIGNATURE}:" what it did. Then go on with the task.`;
+  return `<thinker-changes>
+${lead}
+${ask} Do not decide for them, do not make any of these changes yourself, and do not open the files to check them.
+${lines}
+${after}
+</thinker-changes>`;
+}
+
+// The answer: the numbers the person chose from the list they were shown, `all`, or `none`. thinker resolves them
+// against that list and makes the changes itself, as one batch by the door `session` (one pull request for its
+// sections, whatever they shorten and remove), so the agent hands in an answer and composes nothing. None leaves
+// everything as it is: nothing is dismissed, and the same changes may be asked about again once the days between
+// questions are up (the owner's call of 2026-11-04, of the question this one replaces: a change left alone comes
+// back with the next question, and a month was too long). `asked` says where they answered: their agent's question
+// tool (picker) or the chat.
+export async function answerAsk(store, choice, { now = Date.now(), asked = 'picker', client = null, fns = {}, home = thinkerHome() } = {}) {
+  const o = offeredNow(readUpkeep(store), now);
+  if (!o) return 'There is no thinker question waiting for an answer here. Go on with the task.';
+  const raw = String(choice ?? '').trim(), none = !raw || /^(none|no|never|not now)\b/i.test(raw), n = o.changes.length;
+  const clear = () => { const st = readUpkeep(store); delete st.ask.offered; writeUpkeep(store, st); };
+  const b = behaviorOf(store, { home });
+  if (none) {
+    store.log({ op: 'context-answer', asked, client, changes: n, choice: 'none' });
+    clear();
+    return `Nothing was changed. thinker asks again in ${plural(b.batchEveryDays, 'day')} at the earliest (\`thinker settings\` changes how often, and whether it asks at all). Go on with the task.`;
+  }
+  const picked = pickChanges(o.changes.map(c => ({ ...c, key: c.id })), /^(yes|y|ok|sure|ship)\b/i.test(raw) ? 'all' : raw);
+  // an answer that names none of the lines is not an answer: the question stays, and the agent is told what to pass
+  if (!picked.length) return `Nothing there matched: pass the numbers of the changes the question listed (1-${n}), comma-separated, or all, or none. The question is still waiting.`;
+  store.log({ op: 'context-answer', asked, client, changes: n, choice: 'some' });
+  // what they chose, as the check holds it now: a change decided or gone from the report since is not made
+  const found = foundItems(store, { now, b }), items = picked.map(c => found.find(it => it.id === c.id)).filter(Boolean);
+  clear();
+  if (!items.length) return 'Nothing was changed: those parts are no longer in the report, and thinker looks again at its next check. Go on with the task.';
+  const r = await doBatch(store, items, { now, by: 'you', via: VIA.session, fns });
+  if (r.error) return `Nothing was changed: ${r.error}. Go on with the task.`;
+  return `${r.said}.${/pull request/.test(r.said) ? ' The pull request is being written in the background and is theirs to review and merge; `thinker activity` has its link once it is open.' : ''} Go on with the task.`;
+}
 
 // --- what is not done yet ------------------------------------------------------------------------------------
 const ORDER = { pr: 1, do: 2, note: 3 };
@@ -571,8 +725,9 @@ function foundItems(store, { now = Date.now(), b = behaviorOf(store) } = {}) {
   const st = readUpkeep(store);
   let decided = new Set(); try { decided = decidedKeys(store, { now }); } catch {}
   // A pull request of thinker's own that was closed without merging means "not this" (the owner's answer, 2026-11-21):
-  // its sections are left alone for UPKEEP.dismissDays, though `thinker context` lists them again at once.
-  let refused = new Set(); try { refused = new Set(changeHistory(store, { now }).filter(h => h.via === VIA.thinker && h.rejected && now - Date.parse(h.pr?.at || h.at) < UPKEEP.dismissDays * DAY).flatMap(h => h.keys || [h.key])); } catch {}
+  // its sections are left alone for UPKEEP.dismissDays, though `thinker context` lists them again at once. One the
+  // person said yes to in the weekly question and then closed is the same no: it is not asked about again next week.
+  let refused = new Set(); try { refused = new Set(changeHistory(store, { now }).filter(h => (h.via === VIA.thinker || (h.via === VIA.session && h.batch)) && h.rejected && now - Date.parse(h.pr?.at || h.at) < UPKEEP.dismissDays * DAY).flatMap(h => h.keys || [h.key])); } catch {}
   const items = [];
   for (const c of CHORES) { if (c.live) { try { items.push(...c.live(store, { now })); } catch {} } }
   for (const it of st.items) {
@@ -602,9 +757,10 @@ export function upkeepPending(store, { now = Date.now(), home = thinkerHome() } 
   for (const it of open) {
     if (!it.action) { notes.push(it); continue; }
     const may = mayAct(store, it, b, { now, batch });
-    pending.push({ ...it, why: may.ok ? (it.chore === 'context' ? 'it goes with the batch at the next check' : 'at its next check') : may.why || 'not now', ...(may.ok || may.later ? { later: true } : {}) });
+    // `later`: it waits its turn; `ask`: it waits for the person's yes to the question about its batch
+    pending.push({ ...it, why: may.ok ? (it.chore === 'context' ? 'it goes with the batch at the next check' : 'at its next check') : may.why || 'not now', ...(may.ok || may.later ? { later: true } : {}), ...(may.ask ? { ask: true } : {}) });
   }
-  return { lastCheck: st.lastCheck, pending, notes, passed, batch: { changes: batch.items.length, perDay: batch.perDay, ok: batch.ok, ...(batch.later ? { later: true } : {}), ...(batch.why ? { why: batch.why } : {}) } };
+  return { lastCheck: st.lastCheck, pending, notes, passed, batch: { changes: batch.items.length, perDay: batch.perDay, ok: batch.ok, ...(batch.later ? { later: true } : {}), ...(batch.ask ? { ask: true } : {}), ...(batch.why ? { why: batch.why } : {}) } };
 }
 // by its id, worth doing or passed over: what the person names in the chat is theirs to have done
 const itemOf = (store, ref, now, b) => foundItems(store, { now, b }).find(it => it.id === ref) || null;
@@ -881,12 +1037,14 @@ export function upkeepDetail(store, id, { now = Date.now(), log, report, compres
 
 // --- what both doors read ------------------------------------------------------------------------------------
 // One line on how things stand.
-export function summary({ level, lastCheck, later, held, batch }) {
+export function summary({ level, lastCheck, later, held, asking, batch }) {
   if (level === 'off') return 'Thinker is not looking after this repository.';
   if (!lastCheck) return 'Thinker has not looked here yet.';
-  // the changes of the next batch are said as the batch they will be; anything else waiting, by its count
-  const inBatch = batch?.changes && (batch.ok || batch.later) ? batch.changes : 0, other = Math.max(0, (later || 0) - inBatch);
-  const said = [inBatch ? `${plural(inBatch, 'change')} worth ${formatDollars(batch.perDay)} a day ${batch.ok ? 'going out in the next batch' : 'waiting for the next batch'}` : '', other ? `${inBatch ? `${other} more` : plural(other, 'change')} waiting ${other === 1 ? 'its' : 'their'} turn` : '', held ? `${held} held back until you say` : ''].filter(Boolean);
+  // the changes of the next batch are said as the batch they will be -- going out, waiting, or the person's to say
+  // yes to (`asking`) -- and anything else waiting, by its count
+  const inBatch = batch?.changes && (batch.ok || batch.later || batch.ask) ? batch.changes : 0, other = Math.max(0, (later || 0) + (asking || 0) - inBatch);
+  const how = batch?.ask ? 'that thinker asks you about in your next session here' : batch?.ok ? 'going out in the next batch' : level === 'ask' ? 'waiting for the next question' : 'waiting for the next batch';
+  const said = [inBatch ? `${plural(inBatch, 'change')} worth ${formatDollars(batch.perDay)} a day ${how}` : '', other ? `${inBatch ? `${other} more` : plural(other, 'change')} waiting ${other === 1 ? 'its' : 'their'} turn` : '', held ? `${held} held back until you say` : ''].filter(Boolean);
   return said.length ? `${said.join(', ')}.` : 'Up to date.';
 }
 // `pending`, `notes` and `passed` are for the chat (chat.js:chatContext); the page and the command show the feed and the count.
@@ -894,7 +1052,7 @@ export function upkeepView(store, { now = Date.now(), log, report, compression, 
   const b = behaviorOf(store, { home }), on = b.level !== 'off';
   const p = on ? upkeepPending(store, { now, home }) : { lastCheck: readUpkeep(store).lastCheck, pending: [], notes: [], passed: [] };
   const { set, ...behavior } = b;
-  const v = { level: b.level, behavior, behaviorSaid: behaviorSaid(b), lastCheck: p.lastCheck, later: p.pending.filter(i => i.later).length, held: p.pending.filter(i => !i.later).length, pending: p.pending, notes: p.notes, passed: p.passed || [], ...(p.batch ? { batch: p.batch } : {}), feed: upkeepFeed(store, { now, log, report }), delegated: delegatedView(store, { now, log, compression, home, max: UPKEEP.sessionsMax }) };
+  const v = { level: b.level, behavior, behaviorSaid: behaviorSaid(b), lastCheck: p.lastCheck, later: p.pending.filter(i => i.later).length, held: p.pending.filter(i => !i.later && !i.ask).length, asking: p.pending.filter(i => i.ask).length, pending: p.pending, notes: p.notes, passed: p.passed || [], ...(p.batch ? { batch: p.batch } : {}), feed: upkeepFeed(store, { now, log, report }), delegated: delegatedView(store, { now, log, compression, home, max: UPKEEP.sessionsMax }) };
   return { ...v, summary: summary(v) };
 }
 // Every repository's view as one (the page's All repositories): each line says whose it is, and the last check is
@@ -946,9 +1104,9 @@ export function mergeUpkeepViews(pairs) {
   const level = !on.length ? 'off' : levels.length === 1 ? levels[0] : 'mixed', lastCheck = checks.length && checks.every(Boolean) ? checks.sort()[0] : null;
   const first = on[0]?.view;
   // what waits for a batch over every repository: each change once (a tool is the machine's), and what they waste a day
-  const going = pending.filter(i => i.chore === 'context' && i.action && i.later);
-  const batch = going.length ? { changes: going.length, perDay: going.reduce((a, i) => a + (i.perDay || 0), 0), ok: waiting.some(w => w.ok), later: true } : null;
-  const v = { level, ...(batch ? { batch } : {}), behavior: first?.behavior || null, behaviorSaid: level === 'mixed' ? 'Thinker behaves differently from one repository to the next here.' : first?.behaviorSaid || behaviorSaid({ level: 'off' }), lastCheck, later: pending.filter(i => i.later).length, held: pending.filter(i => !i.later).length, pending, notes, feed: feed.slice(0, UPKEEP.feedMax),
+  const going = pending.filter(i => i.chore === 'context' && i.action && (i.later || i.ask));
+  const batch = going.length ? { changes: going.length, perDay: going.reduce((a, i) => a + (i.perDay || 0), 0), ok: waiting.some(w => w.ok), later: true, ...(waiting.some(w => w.ask) ? { ask: true } : {}) } : null;
+  const v = { level, ...(batch ? { batch } : {}), behavior: first?.behavior || null, behaviorSaid: level === 'mixed' ? 'Thinker behaves differently from one repository to the next here.' : first?.behaviorSaid || behaviorSaid({ level: 'off' }), lastCheck, later: pending.filter(i => i.later).length, held: pending.filter(i => !i.later && !i.ask).length, asking: pending.filter(i => i.ask).length, pending, notes, feed: feed.slice(0, UPKEEP.feedMax),
     // the sessions of every repository newest first, and their totals added
     delegated: { days: UPKEEP.feedDays, total: sumHanded(totals), sessions: sessions.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, UPKEEP.sessionsMax) } };
   return { ...v, summary: summary(v) };

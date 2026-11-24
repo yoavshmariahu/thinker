@@ -81,14 +81,16 @@ You don't run thinker by hand. Once it is installed there are three ways in:
   same two figures with thinker's end-of-turn card. `thinker savings` prints them with the split: the reading the cache
   replaced, and the context the proxy cleared. They are API-list-price equivalents of context nobody
   had to read, at the providers' published rates, not a bill.
-- **Context cuts, made for you.** Thinker measures what every prompt carries and never uses, and makes the
-  changes that clearly pay itself: each has to save $5 a day or more, and they go out together as one batch
-  (one pull request for the instruction sections it shortens or removes, left for a person to merge; unused
-  tools made references that stay callable, and a tool you plainly use never touched). A week later it checks each change and takes back what did not pay. Your next
-  session says once what it did.
+- **Context cuts, found for you and shipped on your yes.** Thinker measures what every prompt carries and
+  never uses, and finds the changes that clearly pay: each has to save $5 a day or more, and they go together
+  as one batch (one pull request for the instruction sections it shortens or removes, left for a person to
+  merge; unused tools made references that stay callable, and a tool you plainly use never touched). Once a
+  week at most your agent asks you, in a session, which of them to ship; nothing changes without your yes.
+  Set it to Automatic (`thinker settings`) and it ships them itself, checks each a week later and takes back
+  what did not pay.
 - **The page.** `thinker ui` opens a chat with thinker in your browser, over every repository on the
   machine: ask what it did, and tell it how to behave. Beside the conversation is what it did lately, a line
-  an action with what it saved. thinker makes the clearest context cuts itself: an instruction edit opens as
+  an action with what it saved. The clearest context cuts are put to you first: an instruction edit opens as
   a pull request for you to merge, and every cut has an undo. `thinker context` shows where the context goes
   part by part, and `thinker report` what a session costs week by week.
 

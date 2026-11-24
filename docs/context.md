@@ -3,20 +3,24 @@
 Which instructions, skills and tools consume your coding agent's context without helping its sessions, what
 is cut, and how each cut is undone. Back to the [README](../README.md).
 
-**thinker makes these cuts for you.** Between sessions it reads the same report and acts on the clearest
-items itself, a few at a time: a section of an instruction file that nobody needs becomes a pull request for
-you to merge, a tool nobody calls is moved out of the prompt as a reference and stays callable (a tool you
-plainly use is never touched, and an MCP server is switched off only where no session called it at all). It
-acts by itself only on what is graded high waste and saves $5 a day or more. What it did is listed, a line
-an action with what it saved, beside the chat on the page (`thinker ui`) and in `thinker activity`. Tell it in
-the chat to do more, less or nothing; every action has an undo.
+**thinker finds these cuts for you, and asks before it makes them.** Between sessions it reads the same
+report and picks out the clearest items: a section of an instruction file that nobody needs becomes a pull
+request for you to merge, a tool nobody calls is moved out of the prompt as a reference and stays callable (a
+tool you plainly use is never touched, and an MCP server is switched off only where no session called it at
+all). Only what is graded high waste and saves $5 a day or more. Once a week at most, your agent asks you in a
+session which of them to ship, and nothing is changed without your yes. What was done is listed, a line an
+action with what it saved, beside the chat on the page (`thinker ui`) and in `thinker activity`. Tell it in
+the chat to do more, less or nothing, or to stop asking and act on its own; every action has an undo.
 
 The measurement is yours to read whenever you want it: `thinker context` prints it for the repository you are
-in, and `thinker context --machine` over the repositories your agents worked in lately. Thinker makes the changes
-that clearly pay itself: each has to save $1 a day or more, they go out together as one batch once they come
-to $5 a day (at most one batch a week in a repository), and a week later each is checked and taken back if it
-did not pay. Skills it leaves alone unless you say otherwise. (Until 2026-11-21 this was a page, Find Savings,
-and a weekly question in your session; thinker now makes the decisions they asked you to make.)
+in, and `thinker context --machine` over the repositories your agents worked in lately. The changes that
+clearly pay go together as one batch: each has to save $5 a day or more, and a repository gets at most one
+batch a week. By default the batch is a question first (`upkeep.level` `ask`: "Ask first" on the Settings
+tab): your agent puts it to you in your next session there, each change an option, and what you choose goes
+out as one pull request. With `upkeep.level` `auto` ("Automatic") thinker sends the batch without asking,
+and a week later checks each change and takes back what did not pay. Skills it leaves alone unless you say
+otherwise. (From 2026-11-21 to 2026-11-23 Automatic was the default; before that the question offered the
+report's five largest changes, on a page called Find Savings and in your session.)
 
 ## What it shows
 

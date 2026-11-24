@@ -2,8 +2,9 @@ import { readScopedState, writeScopedState, machineUndoDir } from './scoped-stat
 // The changes the Context view finds to what loads into every prompt (context-view.js), each with a suggested action,
 // and the decisions on them. Every part of the context with the actions that can be taken on it is `allChanges`: a
 // section compressed or removed, a skill or tool switched off or back on; every decision is kept as Recent activity
-// with its undo. Thinker makes the ones that clearly pay by itself, in batches (upkeep.js, the door `thinker`);
-// `thinker context --approve|--dismiss|--history` is the person's own door over the top five.
+// with its undo. The ones that clearly pay go in batches (upkeep.js): asked about once a week in the person's own
+// session, by default, and shipped on their yes (the door `session`), or made by thinker itself where it was told to
+// (the door `thinker`); `thinker context --approve|--dismiss|--history` is the person's own door over the top five.
 // Ranking makes no model call; compressing a section does, and that call happens in a job of its own whichever door
 // the decision came through (approveChanges), so nothing waits it out or writes the file without a pull request.
 //
@@ -20,7 +21,7 @@ import { readScopedState, writeScopedState, machineUndoDir } from './scoped-stat
 //
 // Until 2026-11-21 the top five were also put to the person once a week as a question in their session, and before
 // that on the page's Find Savings tab; both went when the owner had thinker make these decisions itself (see "The
-// weekly question, retired" below).
+// weekly question" below). The question came back on 2026-11-23 as upkeep's own, over the batch.
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
@@ -219,11 +220,11 @@ const undoOf = (store, e) => e.decision === 'dismissed' ? { kind: 'dismissed' } 
   || (e.decision === 'approved' && (e.kind === 'tool' || e.kind === 'skill') ? { kind: 'off', key: e.key.replace(/^[^:]+:/, '') }
     : e.decision === 'approved' && e.kind === 'output' ? { kind: 'output', name: e.key.replace(/^output:/, '') } : null);
 // Where a decision was taken (`via`, on the log event and the history entry), so the funnel from a suggestion to a
-// change can be read end to end: `session` is the weekly suggestion approved in the conversation it was passed on in
-// (the command the offer text tells the agent to run), `page` was the page's Find Savings tab (removed 2026-11-21), `setup` the install's multi-select, and
+// change can be read end to end: `session` is the weekly question answered in the conversation it was put in
+// (upkeep.js:answerAsk; until 2026-11-21 the command the offer text told the agent to run), `page` was the page's Find Savings tab (removed 2026-11-21), `setup` the install's multi-select, and
 // `command` someone typing `thinker context --approve` themselves. VIA.session is what says whether a suggestion
 // converted; `page` is what says a person went to the dashboard and acted there.
-// `thinker`: through upkeep.js -- thinker acting by itself at a check, or the person saying so in Recent activity or the chat
+// `thinker`: through upkeep.js -- thinker acting by itself at a check (`level: 'auto'`), or the person saying so in the chat
 export const VIA = { session: 'session', page: 'page', setup: 'setup', command: 'command', thinker: 'thinker' };
 const viaOf = v => VIA[String(v)] || VIA.command;
 const entryOf = (store, c, decision, result, now, undo, { group = null, tokens = null, via = null, batch = null } = {}) => {
@@ -366,12 +367,14 @@ export function retryJob(store, id, { now = Date.now(), spawnFn = spawn, cliPath
   return { said: `${e.title}: ${action === 'remove' ? 'removing again' : 'compressing again in the background'}${es.length > 1 ? `, with the ${es.length - 1} other section${es.length > 2 ? 's' : ''} of the same change` : ''}` };
 }
 
-// The weekly question, retired (2026-11-21, the owner's answer to how a person should hear of a batch: "Recent
-// activity plus one line in a session"; "the weekly question that asked you to approve savings is retired, since
-// thinker no longer asks"). From 2026-10-22 maintenance kept the five largest changes once a week and the prompt hook
-// had the person's own agent ask which to make (scheduleContextSuggestion, contextSuggestOffer, the MCP `context`
-// tool's answerContextSuggestion); thinker now makes the ones that clearly pay itself, in batches (upkeep.js), and
-// says what it did. The code is in git before this date. `maintain: { contextSuggest }` in a config is ignored.
+// The weekly question: retired here on 2026-11-21, back in upkeep.js on 2026-11-23. From 2026-10-22 maintenance kept
+// the five largest changes once a week and the prompt hook had the person's own agent ask which to make
+// (scheduleContextSuggestion, contextSuggestOffer, the MCP `context` tool's answerContextSuggestion); that code is
+// in git before 2026-11-21, when the owner had thinker make the changes that clearly pay itself, in batches. Two days
+// on the owner had it ask again before it ships anything ("go back to asking users weekly ... rather than just
+// automatically doing this"), and the question is now over the batch itself: upkeep.js keeps it (keepQuestion), puts
+// it (askOffer) and takes the answer (answerAsk, the MCP `changes` tool), through this file's approveChanges by the
+// door `session`. `maintain: { contextSuggest }` in a config is still ignored: `upkeep: { level }` is the switch.
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
 // where a page started for the machine (`thinker ui --background`, cache.js:uiCommand) keeps its address while it runs
 export const uiFile = (home = thinkerHome()) => path.join(home, 'state', 'ui.json');
@@ -395,8 +398,8 @@ export function ensureUi(store, { home = thinkerHome(), spawnFn = isTestMode() ?
   return null;
 }
 
-// The person approved these changes (`thinker context --approve 1,3|all`, the page's Approve, the answer to the weekly
-// suggestion, the installer's picks): each one's default, made as the Context tab makes it. A skill or tool is switched
+// The person approved these changes (`thinker context --approve 1,3|all`, the answer to the weekly question, the
+// installer's picks; a batch of thinker's own): each one's default, made as the Context tab makes it. A skill or tool is switched
 // off for this repository, `thinker harness --undo` turning it back on (context-view.js:switchSources). That is a line
 // in a config file, so it is made here and done.
 //

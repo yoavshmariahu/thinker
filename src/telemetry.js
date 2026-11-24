@@ -577,7 +577,7 @@ export function spendMetrics(store, { all = true, now = Date.now() } = {}) {
     suggested: 0, suggestedTokens: 0, offers: 0, offersInPage: 0, offeredChanges: 0, offeredTokens: 0, offeredPerPrompt: 0,
     approvals: 0, approvedChanges: 0, approvedTokens: 0, approvalsReviewed: 0, approvalsAsPr: 0,
     dismissals: 0, dismissedChanges: 0, reverts: 0, revertedPrs: 0,
-    // the funnel's two ends by the door they came through (context-suggest.js:VIA): `session` is a weekly suggestion
+    // the funnel's two ends by the door they came through (context-suggest.js:VIA): `session` is the weekly question (upkeep.js:answerAsk; the weekly suggestion before 2026-11-21)
     // approved in the conversation it was passed on in, `page` a decision taken on the page's Find Savings tab (removed 2026-11-21, so only older decisions carry it),
     // `setup` the install's multi-select, `command` someone typing it. A machine before 0.2.11 logged no door, so its
     // decisions count under `command`; the counts here are of changes, not of events.
