@@ -318,7 +318,11 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   tells the model to hand the work to **its own named native subagent**, with a brief thinker has already written
   (`handoff` mode, `executionFor`). The rule stays thinker's -- `decide`, the thresholds, the holdout, the `op:
   delegate` row -- and the execution is the host's. A ranged Read (`offset`/`limit`, under the 4k `threshold`) is
-  never delegated, so the model still reads the lines it edits. The hook answers in ~0.25 s either way, because it
+  never delegated, so the model still reads the lines it edits. **A picture is never delegated either** (2026-11-23,
+  the owner's call; `isImage`, `declined: 'image'`): the Read tool shows the model an image, a subagent's report of
+  one is words, and its bytes on disk are not its size in the context (a 240 KB screenshot was sized as 125k
+  tokens of text; 7 of 43 handoffs on the owner's machine were screenshots the lead never saw). An SVG is text and
+  is read as text. The hook answers in ~0.25 s either way, because it
   starts nothing: the settings entry's timeout is 30 s, and only 300 s while the fallback below is on.
   The brief carries the **person's own request**, read from the transcript (`lastPromptOf`, #777): the last 400 KB
   first, and the whole file when that holds no prompt, since one prompt and a hundred tool calls is a 1.5 MB

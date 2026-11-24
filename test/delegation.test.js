@@ -84,6 +84,17 @@ test('after a denial the model can still read the lines it needs', async () => {
   assert.equal(await door(ranged), null);
 });
 
+test('a picture is never handed away, whatever its size on disk', async () => {
+  // a screenshot the model took to look at its own page: big in bytes, and a report of it is not the picture
+  for (const name of ['shot.png', 'page.JPG']) {
+    const rows = [];
+    assert.equal(await door(read(sized(name, THRESHOLD * 20)), { log: r => rows.push(r) }), null, name);
+    assert.deepEqual([rows.length, rows[0].declined, rows[0].fired, 'tokens' in rows[0]], [1, 'image', false, false], name);
+  }
+  // an SVG is text, and a big one is a read like any other
+  assert.equal(answer(await door(read(sized('logo.svg', THRESHOLD)))).permissionDecision, 'deny');
+});
+
 test('a file the person keeps is never handed away', async () => {
   const cases = [
     { name: 'their own notes', ev: read(NOTES), prompt: 'rename the handler', why: 'pattern' },
