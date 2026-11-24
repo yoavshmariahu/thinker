@@ -48,7 +48,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 
 **Tests (rebuilt 2026-11-22, the owner: "they are currently low signal and slow"):**
 - `npm test` runs every file in `test/`, every time, in a few seconds. `npm test -- test/file.test.js` runs named files. There is no selection.
-- One file per core feature: `cutting` (the policy and the desktop door), `proxy-cut` (the cut on the wire), `recap` (no cut while the person is away), `savings` (the accountant), `delegation`, `instructions`, `chat`, `upkeep`. The clearing mod has its own: `claude plugin test src/integrations/claude-clear`.
+- One file per core feature: `cutting` (the policy and the desktop door), `proxy-cut` (the cut on the wire), `recap` (no cut while the person is away), `savings` (the accountant), `delegation`, `instructions`, `chat`, `upkeep`, `behaviors` (the behavior structure and the hooks that hold an agent to it). The clearing mod has its own: `claude plugin test src/integrations/claude-clear`.
 - A test is a behavior a person would notice broken, driven through the function the door calls, with the model, `gh`, the clock and any child process injected. It must go red when one line of the product is broken; a test that cannot is not added.
 - Not tests: wording, history, internals read out of source text, a tunable's literal value. A check of the source is allowed only where the rule is about the source: one accountant, the mod holding no policy, every proxy setting honoured or exempt at the desktop door.
 - `test/helpers.js` is imported first by every test file: a throwaway home, test mode, no telemetry, a git that knows nothing of the machine. A file stays around a second and under about 400 lines.
@@ -738,6 +738,58 @@ Headroom Labs; `delegate.js` "the same file, read again", `op: repeat`):**
 - Tag `vX.Y.Z` on `main`, assets `thinker.tgz`, `version.json`, `install.sh`.
 - `npm` publishes at same version. `--hold` for pre-release/`next` tag. `--promote` to stable.
 - `scripts/release.sh`, `scripts/pack.sh` (self-host: `pack.sh <base url>`).
+
+## The behavior structure: tests and code tied to named behaviors, held by the hooks (2026-11-23, the owner's design)
+
+Off by default (`behaviors: { enabled: true }` in `<THINKER_HOME>/config.json`, then `thinker rewire`); silent in a
+repository with no `BEHAVIORS.md`; Claude Code's settings hooks only so far. `src/behaviors.js` is the graph,
+`src/behavior-hooks.js` the agent's state and the three doors, `thinker behaviors` the same reading in a terminal.
+
+- **Why.** The owner wants thinker useful in the verification stage, starting with test selection that is
+  deterministic and tight. Reverse-dependency lookup bloats a run and a build graph is not behavior, so tests are
+  looked up through the behaviors a change touched. A graph of which test ran which line was proposed first and
+  turned down ("this doesn't seem like what I'm looking for"): the graph is of behaviors, written down, and code
+  and tests are tied to it by whoever writes them.
+- **The file.** `BEHAVIORS.md` at the repository's root, committed: a list of `- id: one sentence`. The dots are
+  the tree (`cart.total.coupon` is a sub-behavior of `cart.total`); `(uses: pricing.round)` after a sentence is a
+  link across branches. A top-level id is a **feature**, everything beneath one a **behavior**.
+- **The tie.** One comment line, `behavior: <id>`, covers everything beneath it until the next one, in code and
+  in tests alike (`behavior: none` for plumbing; imports, comments and lone brackets need nothing). No coverage
+  run, no build graph, no model: a scanner reads it (`scan`, `tagAt`).
+- **The owner's rules** (`checkFile`): a test names exactly one behavior, so it stays light; a test of a whole
+  feature is an end-to-end test, names the feature and lives under `e2e/`; code is tied to a behavior; a behavior
+  is named in the file before its code is written. Held on the lines an edit touches, so a repository takes the
+  structure up one change at a time and its untouched files wait for the curation pass (not built).
+- **Rules were not enough** ("I don't think rules are sufficient for determinism. We need this to be at the hook
+  level"). The session has a mode, moved by what the agent does: `explore` -> `edit` on the first edit of a code
+  or test file -> `verify` on the first test run -> back to `explore` once the tests are green.
+  - *PreToolUse on an edit*: the edit is checked as it would land and refused with the fix where it breaks a
+    rule. The first edit of a turn that goes through carries `EDIT_RULES` and what the file holds as
+    `additionalContext` with no permission decision, so the person's own permissions still apply; another file
+    in the turn carries its map alone.
+  - *PreToolUse on a test run*: `changesOf` reads the session's edits off the graph (behaviors modified, added,
+    deleted, counted from the commit the session started on, committed or not), `selectTests` names the tests:
+    the changed behaviors' own, their sub-behaviors', the tests of the behaviors and the feature above them, and
+    of everything that says it uses them. A whole-suite run is refused in favour of that one command; a targeted
+    run goes through and is told what else the change needs. It goes before the delegation trigger, which still
+    takes a suite run the edits do not concern.
+  - *Stop*: the turn is held (`decision: block`) while the change owes the graph something (a new behavior with
+    no test or no code, changed code tied to nothing, a tag naming a removed id) or the selected tests have not
+    passed since the last edit. A pass is a run the hook saw start with the files as they now stand (`sig`),
+    whose exit code was the runner's own (no pipe, no `|| true`), and which the transcript says did not fail.
+    Held once a turn for any one reason, then let go, so an agent that cannot meet it says so and stops.
+- **Live, 2026-11-23** (two `claude -p` sessions on Haiku in a scratch shop, $0.14 and $0.08, this branch's hooks
+  through `--settings`). Asked for coupon support: the rules arrived with the first edit, the agent named
+  `cart.coupon` in the file, tagged its code and its test, had `npm test` refused, ran the four files named (of
+  six) and the turn ended. Asked for a small function and told "do not run any tests": the edit naming an
+  unlisted id was refused, the agent named it first, and the Stop hook held the turn until it had written the
+  light test and passed it. So the gate overrides a person's "don't test"; that is the design, and worth knowing.
+- **Not built**: the curation pass that drafts the file and tags an existing suite; a time budget for light
+  tests (one named behavior is not one tested behavior: the tag is checked, the body is not); the commit gate for
+  agents whose hooks cannot refuse; OpenCode's door and the Claude mod's; a holdout. A test written through the
+  shell is not seen by the edit hook and is caught at the test run and at the end of the turn.
+- A row per decision (`op: behaviors`: `at` edit, test or stop; `decision`; the mode it came from; counts, never
+  text). Judge it, when it is switched on anywhere, by rework and by test time per change, not by the rows.
 
 ## What `setup` does
 

@@ -34,6 +34,7 @@
 // with its result, the closing message) and that trace is distilled, so
 // learning does not depend on the agent's transcript format.
 import { delegateConfig, agentHookEntries } from './delegate.js';
+import { behaviorsConfig, BEHAVIORS_TOOLS } from './behavior-hooks.js';
 import fs from 'node:fs';
 import { setDevinCompaction } from './devin-compaction.js';
 import os from 'node:os';
@@ -1396,7 +1397,11 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       // `PreToolUse` in setHooks's list takes the entry out again on a rewire once it is off.
       // The timeout only has to cover a subagent run while the fallback is the one running it; a handoff
       // spawns nothing and the hook answers in a quarter of a second (2026-11-12).
-      if (delegateConfig().enabled) entries.push(['PreToolUse', { matcher: 'Read|Bash', hooks: [{ type: 'command', command: cmd('pretool'), timeout: delegateConfig().fallback ? 300 : 30 }] }]);
+      // The same entry sees edits too while the behavior structure is on (2026-11-23, behavior-hooks.js: an edit
+      // checked as it would land, a test run told which tests the change needs). Off by default, and the tools
+      // are added only while it is on, for the same reason: no node process per edit for nothing.
+      const pre = [...new Set([...(delegateConfig().enabled ? ['Read', 'Bash'] : []), ...(behaviorsConfig().enabled ? BEHAVIORS_TOOLS : [])])];
+      if (pre.length) entries.push(['PreToolUse', { matcher: pre.join('|'), hooks: [{ type: 'command', command: cmd('pretool'), timeout: delegateConfig().enabled && delegateConfig().fallback ? 300 : 30 }] }]);
       // The harness's own subagent on a matched call (delegate.js:agentHookEntries); no rule is configured, so none is written
       entries.push(...agentHookEntries(delegateConfig()));
       // No PostToolUse (2026-11-10): Claude Code keeps its own transcript, so the hook recorded nothing, and
