@@ -111,16 +111,23 @@ model provider.
 
 ## Updates
 
-Thinker updates itself: it checks for a new release every 4 hours in the background and on use.
+Thinker checks for a new release every 4 hours in the background and on use, and asks before it
+installs one: your agent puts the question in your next session (Update now, Not now, or Always
+update automatically), at most once a week, about the newest release. `thinker update` installs
+the latest at any time, and a terminal you run thinker in says once when a release is out.
+
+`thinker settings set update.level auto` installs releases as they come out, without asking;
+`off` stops looking. `thinker settings set update.askEveryDays <1|3|7|14|30>` changes how often
+the question may come. Both are on the Settings tab under Updates.
+
 A release is a tag `vX.Y.Z` on GitHub with three files attached: `thinker.tgz`,
 `version.json` (the version, the commit and the SHA-256 of the archive) and
-`install.sh`. An install reads the latest release's `version.json`, and when it names a newer
-version downloads the archive, checks it against the digest and swaps it in; no GitHub
-credentials are needed. After an update the new version rewires the agents it is connected to,
-so nothing needs rerunning.
+`install.sh`. The check reads the latest release's `version.json`; an update downloads the
+archive, checks it against the digest and swaps it in; no GitHub credentials are needed. After an
+update the new version rewires the agents it is connected to, so nothing needs rerunning.
 
-Pass `--no-auto-update` to the installer to skip OS scheduling; set `THINKER_NO_AUTO_UPDATE=1`
-to also skip the checks on use. Maintainers: see [Cutting a release](releases.md).
+Pass `--no-auto-update` to the installer to skip OS scheduling of the check; set
+`THINKER_NO_AUTO_UPDATE=1` to also skip the checks on use. Maintainers: see [Cutting a release](releases.md).
 
 ## Metrics and telemetry
 

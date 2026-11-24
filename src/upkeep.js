@@ -620,7 +620,7 @@ const choreOfItem = id => id === 'batch' || id.startsWith('change:') ? 'context'
 // the funnel the telemetry already counts reads on: what was found, what was put to somebody, what they said.
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cli.js');
 // a session no person is at: `claude -p`, the Agent SDK
-const unattended = (env = process.env) => /^sdk-/.test(env.CLAUDE_CODE_ENTRYPOINT || '');
+export const unattended = (env = process.env) => /^sdk-/.test(env.CLAUDE_CODE_ENTRYPOINT || '');
 
 // A check's part: the batch that is due, kept as a question for the next prompt here -- its costliest UPKEEP.askMax
 // changes, each with the words the person will be shown (the rest wait for the next question). Written again at every

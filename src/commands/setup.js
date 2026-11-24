@@ -12,7 +12,8 @@ import { uninstallGitHooks } from '../git-hooks.js';
 import { runSetup, stepConnectClis } from '../setup.js';
 import { unscheduleTelemetry, sendUninstallFeedback, sendTelemetry, sendTelemetryAfterUpdate } from '../telemetry.js';
 import readlinePromises from 'node:readline/promises';
-import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, refreshSchedule, ensureSchedule, autoUpdateOffFile, isScheduled, getLaunchAgentPath } from '../update.js';
+import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, refreshSchedule, ensureSchedule, autoUpdateOffFile, isScheduled, getLaunchAgentPath, scheduledRun } from '../update.js';
+import { updateLevel, keepAvailable, dropAvailable, answerUpdateOffer } from '../update-ask.js';
 import { readLog } from '../usage.js';
 import { isTestMode } from '../test-mode.js';
 import { runAutomaticPrComments } from '../delivery-auto.js';
@@ -223,10 +224,10 @@ const newCliOf = (install, home) => install.type === 'git' ? path.join(install.p
 export async function updateCommand(ctx, { updateFn = updateInstallCommand, commentsFn = runAutomaticPrComments } = {}) {
   const { cmd, flags, pos } = ctx;
   const runComments = ['update', 'upgrade'].includes(cmd) && !pos.length
-    && !['status', 'check', 'schedule', 'daily', 'unschedule', 'dry', 'branch', 'ref'].some(k => flags[k]);
+    && !['status', 'check', 'schedule', 'daily', 'unschedule', 'dry', 'branch', 'ref', 'answer'].some(k => flags[k]);
   try { return await updateFn(ctx); }
   finally {
-    // Both the OS's `update --quiet` and the detached invocation check land here, even
+    // Both the OS's `update --scheduled --quiet` and the detached invocation check land here, even
     // without a release or when the update check fails. Comment failures never fail an update.
     if (runComments) try {
       const r = await commentsFn(ctx.store);
@@ -235,7 +236,9 @@ export async function updateCommand(ctx, { updateFn = updateInstallCommand, comm
   }
 }
 
-async function updateInstallCommand(ctx) {
+// What reaches the network, replaces the install or rewrites the agents' settings is handed in, so a test runs the
+// command's own rules with none of it.
+export async function updateInstallCommand(ctx, { checkFn = checkUpdate, applyFn = applyUpdate, rewireFn = rewireAfterUpdate, telemetryFn = sendTelemetryAfterUpdate } = {}) {
   const { cmd, pos, flags, store, out, HERE } = ctx;
   const home = thinkerHome();
   const install = detectInstall(path.resolve(HERE, '..'), home);
@@ -264,7 +267,8 @@ async function updateInstallCommand(ctx) {
       out(`  Commit:       ${install.commit ? install.commit.slice(0, 7) : 'unknown'}`);
     }
     const sched = isScheduled(home);
-    out('Auto-updates:');
+    out('Updates:');
+    out(`  New releases: ${{ ask: 'asked about first', auto: 'installed automatically', off: 'not looked for' }[updateLevel(home)]} (\`thinker settings set update.level ask|auto|off\`)`);
     out(`  Schedule:     ${sched ? (process.platform === 'darwin' ? 'active (LaunchAgent: ' + getLaunchAgentPath() + ')' : 'active (cron)') : 'inactive'}`);
     const stamp = path.join(home, 'state', 'update.last');
     let lastCheck = 'never';
@@ -281,12 +285,12 @@ async function updateInstallCommand(ctx) {
       fs.rmSync(autoUpdateOffFile(home), { force: true });
       const res = scheduleDaily({ home, binPath: install.binPath });
       if (res.type === 'invocation') {
-        out(`Daily OS scheduling unavailable (${res.reason}); thinker will check for updates when invoked, at most once a day, unless auto-updates are disabled.`);
+        out(`OS scheduling unavailable (${res.reason}); thinker will check for updates when invoked, at most every 4 hours.`);
       } else {
-        out(`Scheduled auto-updates every 4 hours for thinker (${res.type === 'launchd' ? 'LaunchAgent: ' + res.path : 'cron: ' + res.line}).`);
+        out(`Scheduled update checks every 4 hours for thinker (${res.type === 'launchd' ? 'LaunchAgent: ' + res.path : 'cron: ' + res.line}).`);
       }
     } catch (e) {
-      out(`Failed to schedule auto-updates: ${e.message}`);
+      out(`Failed to schedule update checks: ${e.message}`);
       process.exit(1);
     }
     return;
@@ -295,40 +299,58 @@ async function updateInstallCommand(ctx) {
   if (flags.unschedule) {
     try { fs.mkdirSync(path.dirname(autoUpdateOffFile(home)), { recursive: true }); fs.writeFileSync(autoUpdateOffFile(home), new Date().toISOString()); } catch {}
     const res = unscheduleDaily({ home });
-    if (res.unscheduled) out('Removed scheduled auto-updates for thinker.');
-    else out('No scheduled auto-update was found.');
+    if (res.unscheduled) out('Removed scheduled update checks for thinker.');
+    else out('No scheduled update check was found.');
     return;
   }
 
-  if (flags.background) {
+  // the answer to the question about a release (update-ask.js); the agent's door where thinker's MCP tool is not offered
+  if (flags.answer) {
+    if (typeof flags.answer !== 'string') { out('thinker update --answer <yes|no|always>: yes installs the release now, no leaves it, always installs this and later ones without asking.'); process.exitCode = 1; return; }
+    out(answerUpdateOffer(flags.answer, { store, home, client: typeof flags.client === 'string' ? flags.client : undefined }));
+    return;
+  }
+
+  // The check nobody is watching: started on use (`--background`) or by the OS job (`--scheduled`, update.js:
+  // scheduledRun). It installs nothing since 2026-11-24: a release it finds is kept for the person to be asked about
+  // (update-ask.js). It installs where they said yes to that question (`--apply`) or set `update.level: auto`.
+  const scheduled = scheduledRun({ flags, plain: !targetRef, home, binPath: install.binPath });
+  if (flags.background || scheduled) {
     const lock = path.join(home, 'state', 'update.lock');
-    try {
-      if (Date.now() - fs.statSync(lock).mtimeMs < 15 * 60_000) return;
-    } catch {}
+    const held = () => { try { return Date.now() - fs.statSync(lock).mtimeMs < 15 * 60_000; } catch { return false; } };
+    // a check in front of this one is left to it; an update the person asked for waits its turn, since a yes dropped
+    // because a check happened to be running would be a yes nobody acted on
+    if (held() && !flags.apply) return;
+    for (let i = 0; i < 120 && held(); i++) await new Promise(r => setTimeout(r, 1000));
     fs.mkdirSync(path.dirname(lock), { recursive: true });
     fs.writeFileSync(lock, String(process.pid));
-    // an earlier version's daily schedule moves to the current interval (update.js:refreshSchedule)
-    if (install.type !== 'git') try { refreshSchedule({ home, binPath: install.binPath }); ensureSchedule({ home, binPath: install.binPath }); } catch {}
+    // an earlier version's schedule moves to the current interval and words (update.js:refreshSchedule), never from
+    // the scheduled job itself: reloading the LaunchAgent would stop the job that is reloading it
+    if (install.type !== 'git' && !scheduled) try { refreshSchedule({ home, binPath: install.binPath }); ensureSchedule({ home, binPath: install.binPath }); } catch {}
+    const level = updateLevel(home), applies = flags.apply || level === 'auto';
     try {
-      const chk = await checkUpdate({ home, install });
       let updated = false;
-      if (chk.available) {
-        const res = await applyUpdate({ home, install, quiet: true, background: true });
+      const chk = applies || level !== 'off' ? await checkFn({ home, install }) : null;
+      if (chk?.available && applies) {
+        const res = await applyFn({ home, install, quiet: true, background: true });
         if (res.updated) {
           updated = true;
-          const rewired = res.environmentRepair || rewireAfterUpdate(newCliOf(install, home), { quiet: true });
-          sendTelemetryAfterUpdate({ cliPath: newCliOf(install, home), home });
+          dropAvailable({ home });
+          const rewired = res.environmentRepair || rewireFn(newCliOf(install, home), { quiet: true });
+          telemetryFn({ cliPath: newCliOf(install, home), home });
           const noticeFile = path.join(home, 'state', 'update-notice.json');
-          fs.writeFileSync(noticeFile, JSON.stringify({ from: res.from, to: res.to, version: res.version, rewired: rewired?.changed || 0, at: new Date().toISOString() }));
-          store.log({ op: 'update', from: res.from, to: res.to, version: res.version, auto: true });
+          fs.writeFileSync(noticeFile, JSON.stringify({ from: res.from, to: res.to, version: res.version, rewired: rewired?.changed || 0, asked: !!flags.apply, at: new Date().toISOString() }));
+          store.log({ op: 'update', from: res.from, to: res.to, version: res.version, auto: !flags.apply, ...(flags.apply ? { asked: true } : {}) });
         }
-      }
+      } else if (chk?.available) {
+        if (keepAvailable(chk, { home })) store.log({ op: 'update-available', version: chk.latestVersion || undefined, from: chk.version || undefined });
+      } else if (!chk || !chk.error) dropAvailable({ home });   // this copy is current, or nobody is looking
       // no update: the wiring is checked all the same, since hooks that are gone cannot run the prompt hook's
       // refresh, and an agent installed after thinker is wired in only here (clients.js:connectDetected)
-      if (!updated) rewireAfterUpdate(path.join(HERE, 'cli.js'), { quiet: true });
+      if (!updated) rewireFn(path.join(HERE, 'cli.js'), { quiet: true });
     } catch (e) {
       // the background run's output goes nowhere, so a failure is logged or it is never seen (EXDEV, 2026-11-03)
-      try { store.log({ op: 'update-failed', error: String(e.message).slice(0, 300), auto: true }); } catch {}
+      try { store.log({ op: 'update-failed', error: String(e.message).slice(0, 300), auto: !flags.apply }); } catch {}
       process.stderr.write(`${e.message}\n`); process.exitCode = 1;
     }
     finally {
@@ -347,7 +369,7 @@ async function updateInstallCommand(ctx) {
 
   let chk;
   try {
-    chk = await checkUpdate({ home, install, ghrepo: flags.repo, ref: targetRef });
+    chk = await checkFn({ home, install, ghrepo: flags.repo, ref: targetRef });
   } catch (e) {
     out(`Update check failed: ${e.message}`);
     process.exitCode = 1;
@@ -366,8 +388,9 @@ async function updateInstallCommand(ctx) {
   }
 
   if (!chk.available && !flags.force) {
-    // up to date: the wiring is checked all the same (the daily job runs this, as `update --quiet`)
-    try { rewireAfterUpdate(path.join(HERE, 'cli.js'), { quiet: !!flags.quiet }); }
+    // up to date: the wiring is checked all the same
+    if (!targetRef) dropAvailable({ home });
+    try { rewireFn(path.join(HERE, 'cli.js'), { quiet: !!flags.quiet }); }
     catch (e) { out(e.message); process.exitCode = 1; return; }
     if (!flags.quiet) {
       out(`thinker is already up to date on ${chk.branch || chk.ref || 'latest'} (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version}).`);
@@ -387,13 +410,14 @@ async function updateInstallCommand(ctx) {
   }
 
   try {
-    const res = await applyUpdate({ home, install, force: !!flags.force, quiet: !!flags.quiet, ghrepo: flags.repo, ref: targetRef });
+    const res = await applyFn({ home, install, force: !!flags.force, quiet: !!flags.quiet, ghrepo: flags.repo, ref: targetRef });
     if (!flags.quiet) {
       const branchInfo = res.branch ? ` on branch ${res.branch}` : (res.ref ? ` on ref ${res.ref}` : '');
       out(`Updated thinker${branchInfo} to ${res.to ? res.to.slice(0, 7) : res.version} (v${res.version || 'latest'}).`);
     }
-    if (!res.environmentRepair) rewireAfterUpdate(newCliOf(install, home), { quiet: !!flags.quiet });
-    sendTelemetryAfterUpdate({ cliPath: newCliOf(install, home), home });
+    dropAvailable({ home });   // what the question was about is installed
+    if (!res.environmentRepair) rewireFn(newCliOf(install, home), { quiet: !!flags.quiet });
+    telemetryFn({ cliPath: newCliOf(install, home), home });
     if (!flags.quiet) {
       if (!isScheduled(home)) {
         out('Tip: Run `thinker update --schedule` to check for updates every 4 hours in the background.');

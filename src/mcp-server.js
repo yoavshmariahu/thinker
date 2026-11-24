@@ -14,6 +14,7 @@ import { isDisabledRepo } from './repo-switch.js';
 import { proxyOfferPending, answerProxyOffer } from './proxy-offer.js';
 import { containersOfferPending, answerContainersOffer } from './containers-offer.js';
 import { errorOfferPending, answerErrorOffer } from './error-report.js';
+import { updateOfferWaiting, answerUpdateOffer } from './update-ask.js';
 import { askWaiting, answerAsk } from './upkeep.js';
 import { queueDir, buildRunning, nextRequest, answerRequest, requestText } from './session-llm.js';
 import { anyDesktopApp } from './app-host.js';
@@ -91,13 +92,15 @@ const clientName = () => server.server.getClientVersion()?.name || 'mcp';
 // The agent's own tools (orient, lookup, find, drilldown, remember, behavior, feedback) were taken out on
 // 2026-10-22, at the owner's decision: the notes reach the agent through the prompt hook, and real sessions
 // rarely called the tools (AGENTS.md, Serving). What is left answers thinker's own questions (the weekly question
-// about the changes worth making, back since 2026-11-23, and the proxy, container and error-report offers) and
+// about the changes worth making, back since 2026-11-23, the proxy, container and error-report offers, and since
+// 2026-11-24 whether to install a new release of thinker) and
 // works the desktop app's learning queue (learn_next), each offered only while it has something to do.
 function registerTools() {
   registerChangesTool();
   registerProxyTool();
   registerContainersTool();
   registerErrorsTool();
+  registerUpdateTool();
   registerQueueTools();
 }
 
@@ -164,6 +167,20 @@ function registerErrorsTool() {
       choice: z.string().describe('What the user chose: yes, no, or never'),
     },
   }, async ({ choice }) => text(await answerErrorOffer(String(choice), { store, client: clientName() })));
+}
+
+// The answer to the question about a new release of thinker (update-ask.js): offered while one waits or is about
+// to be put. The install's, not a checkout's, as the error reports are.
+let updateTool;
+function registerUpdateTool() {
+  if (updateTool || !updateOfferWaiting()) return;
+  updateTool = server.registerTool('update', {
+    title: 'Answer thinker\'s question about its own update',
+    description: 'Only when a thinker-update notice tells you to: records the user\'s answer about installing the new release of thinker, and starts the update where they said yes.',
+    inputSchema: {
+      choice: z.string().describe('What the user chose: yes (update now), no (not now), or always (update now and install later releases without asking)'),
+    },
+  }, async ({ choice }) => text(answerUpdateOffer(String(choice), { store, client: clientName() })));
 }
 
 // Work read through this session (session-llm.js): in a desktop app, learning (session-work.js). Its subagent works the queue through one tool, learn_next: each call hands in the answer to

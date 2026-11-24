@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { thinkerHome, detectInstall, isScheduled } from '../update.js';
+import { updateLevel } from '../update-ask.js';
 import { USER_SCOPE_CLIENTS, detectClients, inferWiring, refreshWiring, pruneInstalls, prunedLines, installClient, trustCodexUser, enableCodexSubagents, staleRepoInstructions, stripRepoWiring, registersMcp } from '../clients.js';
 import { HOOKS } from '../git-hooks.js';
 import { postCommitHook } from '../maintain.js';
@@ -268,8 +269,9 @@ async function runChecks(ctx) {
     }
   }
 
-  // The parser comes with the dependencies; scheduled updates are optional
-  if (install.type !== 'git') add('auto-update', isScheduled(home) ? 'ok' : 'warn', isScheduled(home) ? 'scheduled every 4 hours' : 'not scheduled (`thinker update --schedule`)');
+  // The parser comes with the dependencies; the scheduled check for a release is optional, and what it finds is
+  // asked about before it is installed unless the person set otherwise (update-ask.js)
+  if (install.type !== 'git') add('update check', isScheduled(home) ? 'ok' : 'warn', `${isScheduled(home) ? 'scheduled every 4 hours' : 'not scheduled (`thinker update --schedule`)'}; a new release is ${{ ask: 'asked about first', auto: 'installed automatically', off: 'not looked for' }[updateLevel(home)]}`);
 
   return checks;
 }
