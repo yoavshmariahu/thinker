@@ -54,5 +54,6 @@ background. [docs/setup.md](docs/setup.md) has the details.
 - `--clients claude,codex,cursor,gemini` (or `all`): which agents to wire; by
   default the ones found on the machine.
 - `--no-learn`: wire the agents without learning from sessions.
-- `--no-auto-update`: skip scheduling background updates.
+- `--no-auto-update`: skip scheduling the background check for a new release (a release it finds is asked about,
+  not installed).
 - `--uninstall`: take the machine-wide wiring out again.

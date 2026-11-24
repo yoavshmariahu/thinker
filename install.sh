@@ -28,7 +28,8 @@
 #   --no-ui             accepted for compatibility: the Context report is shown in the terminal, with its suggestions to pick from
 #   --ref <tag>         release to install, a tag such as v0.1.34 (default latest; --branch also accepted)
 #   --update            update an installed thinker to the latest release and exit
-#   --no-auto-update    do not schedule background auto-updates (every 4 hours)
+#   --no-auto-update    do not schedule the background check for a new release (every 4 hours; what it
+#                       finds is asked about in a session, not installed, unless update.level is auto)
 #   --no-modify-path    do not add THINKER_HOME/bin to PATH in your shell's and bash's startup files
 #   --uninstall         remove hooks and registration from this repo (add --purge to delete the profile too); run outside
 #                       a repository, it removes the wiring from your agents' own settings

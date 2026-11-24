@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot, isGitCheckout } from './store.js';
 import { thinkerHome, maybeCheckDailyUpdateInBackground, checkPendingNotice } from './update.js';
 import { recordError } from './error-report.js';
+import { availableNotice } from './update-ask.js';
 import { ensureTelemetryScheduled, reportTelemetrySchedule } from './telemetry-schedule.js';
 import { maybeSendTelemetryInBackground } from './telemetry.js';
 import { commands as prsCommands } from './commands/prs.js';
@@ -254,7 +255,9 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  list prices, not a bill (--refresh
                                  recomputes the figure the Claude Code statusline and the end-of-turn cards read)
   update [tag] [--check] [--force] [--quiet] [--schedule] [--unschedule] [--status]
-                                 update thinker to the latest GitHub release, or to the release tagged <tag>; --schedule / --unschedule manages background updates every 4 hours
+                                 update thinker to the latest GitHub release, or to the release tagged <tag>; --schedule / --unschedule manages the
+                                 background check for one every 4 hours. A release it finds is asked about in your next session, not installed
+                                 (\`thinker settings set update.level auto\` installs them as they come out, off stops looking)
   switch <tag>                   switch thinker to the release tagged <tag> (a git checkout: to that branch); main or latest returns to the latest
   branch                         show the installed release tag, or the branch of a git checkout
   upgrade                        alias for update
@@ -371,7 +374,7 @@ async function main() {
   }
   if (!OFF_COMMANDS.includes(cmd) && isGitCheckout(repo) && isDisabledRepo(repo)) { process.stderr.write(`thinker: ${OFF_MESSAGE}\n`); process.exit(1); }
   if (!isTestMode() && process.stderr.isTTY && !['update', 'upgrade', 'switch', 'branch', 'hook', 'serve'].includes(cmd) && !process.env.THINKER_LOG) {
-    const notice = checkPendingNotice(thinkerHome());
+    const notice = [checkPendingNotice(thinkerHome()), availableNotice({ home: thinkerHome() })].filter(Boolean).join('; ');
     if (notice) process.stderr.write(`[thinker] ${notice}\n`);
   }
   if (!['update', 'upgrade', 'switch', 'branch', 'telemetry', 'setup'].includes(cmd) && !flags.background) {

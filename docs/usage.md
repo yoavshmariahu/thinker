@@ -109,7 +109,7 @@ the net comes out negative, Thinker says so rather than reporting a zero, and th
 that PR back — a clear that costs more than it saves is a bug to chase, not news for someone's PR.
 
 **Automatic comments** run as part of the existing four-hour update job, including when no update is
-available or the update check fails. Both the OS schedule (`thinker update --quiet`) and the detached
+available or the update check fails. Both the OS schedule (`thinker update --scheduled --quiet`) and the detached
 check started by normal Thinker use run the same pass. No extra daemon or model calls are needed.
 The first pass records a start date without backfilling old PRs. Subsequent passes post once per PR
 merged after that date, with positive recorded savings, after the merge and linked sessions have been

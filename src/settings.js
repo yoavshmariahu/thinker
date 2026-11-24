@@ -19,7 +19,8 @@
 // until this; they are now the machine's (repo-switch.js:layeredConfig), and a repository whose own file already
 // sets one still has it honoured there, as before. Neither door shows or writes a repository's file. Not here, on
 // purpose: the clearing (context cutting, the owner's call), the holdouts (an experiment's arms), prices, and what
-// only thinker's own upkeep needs (the update schedule).
+// only thinker's own upkeep needs (the schedule of the check for a release; whether a release found is asked
+// about or installed is here, `update.level`, since 2026-11-24).
 import { thinkerHome } from './update.js';
 import { readMachineConfig, updateMachineConfig } from './repo-switch.js';
 import { BEHAVIOR, STEER, SETTINGS as UPKEEP_SETTINGS, setBehavior } from './upkeep.js';
@@ -27,6 +28,7 @@ import { DELEGATE_DEFAULTS } from './delegate.js';
 import { DEFAULTS as MAINTAIN_DEFAULTS } from './maintain.js';
 import { NOTICE_HOURS } from './notice-cadence.js';
 import { errorConsent, answerErrorOffer } from './error-report.js';
+import { UPDATE_ASK } from './update-ask.js';
 
 const days = n => (n === 1 ? 'Day' : n === 7 ? 'Week' : n === 14 ? '2 weeks' : n === 30 ? 'Month' : `${n} days`);
 const hours = n => days(n / 24);
@@ -83,6 +85,14 @@ export const GROUPS = [
     { id: 'notice.everyHours', parent: ['notice.enabled', [true]], label: 'At most every', dflt: NOTICE_HOURS, options: [24, 72, 168], fmt: hours, help: '' },
     { id: 'prComments', label: 'Savings comment on merged pull requests', dflt: true, help: 'Posted once, through your gh login.' },
   ] },
+  { id: 'updates', title: 'Updates', about: 'New releases of thinker itself.', items: [
+    { id: 'update.level', as: 'cards', label: 'When a new release is out', dflt: UPDATE_ASK.level, help: '', options: [
+      ['ask', 'Ask first', 'Asks you in one of your sessions whether to install it. Nothing is installed without your yes.'],
+      ['auto', 'Automatic', 'Installs it in the background, within four hours of its release.'],
+      ['off', 'Off', 'Stops looking. Running thinker update yourself still installs the latest.']] },
+    { id: 'update.askEveryDays', parent: ['update.level', ['ask']], label: 'A question at most every', dflt: UPDATE_ASK.askEveryDays, options: [1, 3, 7, 14, 30], fmt: days,
+      help: 'About the newest release, whatever came out in between.' },
+  ] },
   { id: 'privacy', title: 'Privacy', about: 'What leaves this machine.', items: [
     { id: 'telemetry', label: 'Share usage figures', dflt: true, help: 'Counts, tokens and dollars. No prompts, no code, no names.' },
     { id: 'errors', own: true, parent: ['telemetry', [true]], label: 'Share error reports', dflt: false,
@@ -92,7 +102,7 @@ export const GROUPS = [
 const ITEMS = new Map(GROUPS.flatMap(g => g.items.map(i => [i.id, i])));
 
 // A whole block switched off the old way (`delegate: false`, `notice: "off"`, `upkeep: false`) reads as its switch.
-const BLOCK_OFF = { upkeep: { level: 'off' }, delegate: { enabled: false }, notice: { enabled: false } };
+const BLOCK_OFF = { upkeep: { level: 'off' }, delegate: { enabled: false }, notice: { enabled: false }, update: { level: 'off' } };
 const block = (cfg, key) => { const v = cfg?.[key]; return (v === false || v === 'off') && BLOCK_OFF[key] ? BLOCK_OFF[key] : v; };
 const at = (cfg, id) => { const [head, key] = id.split('.'); const b = block(cfg, head); return key === undefined ? b : b && typeof b === 'object' ? b[key] : undefined; };
 const put = (cfg, id, v) => {

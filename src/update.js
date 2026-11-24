@@ -492,7 +492,8 @@ export function isScheduled(home = thinkerHome(), opts = {}) {
 }
 
 // How often thinker looks for a new release: on use (maybeCheckDailyUpdateInBackground) and from the OS
-// schedule. Daily until 2026-10-16; four hours brings a fix out the same working day.
+// schedule. Daily until 2026-10-16; four hours brings a fix out the same working day. Looking is all it does since
+// 2026-11-24 unless the person chose `update.level: auto`: what it finds is asked about (update-ask.js).
 export const UPDATE_EVERY_MS = 4 * 3600_000;
 
 // The schedule is one per account, not per THINKER_HOME -- the crontab, and the LaunchAgent's label just the same:
@@ -504,6 +505,32 @@ export const UPDATE_EVERY_MS = 4 * 3600_000;
 const ownsSchedule = (home, machine) => ownsMachine(home, machine) || (process.platform === 'linux' && isTestMode() && process.env.THINKER_TEST_CRONTAB === '1');
 // `thinker update --unschedule` (or the installer's --no-auto-update) is an answer the background check keeps
 export const autoUpdateOffFile = (home = thinkerHome()) => path.join(home, 'state', 'auto-update-off');
+
+// What the OS job runs. `--scheduled` says the run is the job's own and not a person's: since 2026-11-24 a release
+// that the job finds is kept for the person to be asked about (update-ask.js), where `thinker update --quiet` typed
+// or scripted by somebody still installs it.
+const SCHEDULED_ARGS = 'update --scheduled --quiet';
+const OUR_CRON_LINE = / update (--scheduled )?--quiet\b/;
+const LAUNCH_LABEL = 'com.thinker.update';
+
+// Whether this `update` run is the OS job's. A schedule written before `--scheduled` runs `update --quiet`, and
+// stays that way until refreshSchedule rewrites it from a check on use, which is never from the job itself. Until
+// then the job is known by launchd's own mark on what it starts (XPC_SERVICE_NAME is the job's label); on Linux
+// by a crontab that still holds the old line while nobody is at a terminal, and that crontab is rewritten there
+// and then, which is safe from a cron job as reloading a LaunchAgent from its own job is not.
+export function scheduledRun({ flags = {}, plain = true, home = thinkerHome(), binPath, env = process.env, platform = process.platform, tty = !!process.stdout.isTTY, machine } = {}) {
+  if (flags.scheduled) return true;
+  if (!flags.quiet || !plain || flags.check || flags.force || flags.background) return false;
+  if (platform === 'darwin') return env.XPC_SERVICE_NAME === LAUNCH_LABEL;
+  if (platform !== 'linux' || tty || !ownsSchedule(home, machine)) return false;
+  try {
+    const crontab = execFileSync('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const bin = binPath || path.join(home, 'bin', 'thinker');
+    if (!crontab.split('\n').some(l => l.includes(bin) && / update --quiet\b/.test(l))) return false;
+    scheduleDaily({ home, binPath: bin, machine });
+    return true;
+  } catch { return false; }
+}
 
 // The OS schedule at UPDATE_EVERY_MS (the name is older than the interval)
 export function scheduleDaily(opts = {}) {
@@ -527,12 +554,12 @@ export function scheduleDaily(opts = {}) {
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.thinker.update</string>
+    <string>${LAUNCH_LABEL}</string>
     <key>ProgramArguments</key>
     <array>
         <string>/bin/sh</string>
         <string>-c</string>
-        <string>PATH="${nodeBinDir}:$PATH:/usr/local/bin:/opt/homebrew/bin" exec "${binPath}" update --quiet</string>
+        <string>PATH="${nodeBinDir}:$PATH:/usr/local/bin:/opt/homebrew/bin" exec "${binPath}" ${SCHEDULED_ARGS}</string>
     </array>
     <key>StartInterval</key>
     <integer>${UPDATE_EVERY_MS / 1000}</integer>
@@ -568,10 +595,10 @@ export function scheduleDaily(opts = {}) {
       if (e.code === 'ENOENT') return { type: 'invocation', reason: 'crontab not installed' };
     }
 
-    const line = `0 */${UPDATE_EVERY_MS / 3600_000} * * * PATH="${nodeBinDir}:$PATH:/usr/local/bin" "${binPath}" update --quiet`;
+    const line = `0 */${UPDATE_EVERY_MS / 3600_000} * * * PATH="${nodeBinDir}:$PATH:/usr/local/bin" "${binPath}" ${SCHEDULED_ARGS}`;
     if (!crontab.includes(line)) {
       // an earlier schedule's line (daily at 3:00 until 2026-10-16) is replaced, not run beside the new one
-      const kept = crontab.split('\n').filter(l => !(l.includes(binPath) && / update --quiet\b/.test(l))).join('\n').trim();
+      const kept = crontab.split('\n').filter(l => !(l.includes(binPath) && OUR_CRON_LINE.test(l))).join('\n').trim();
       const newCrontab = (kept ? kept + '\n' : '') + line + '\n';
       execFileSync('crontab', ['-'], { input: newCrontab, encoding: 'utf8' });
     }
@@ -581,7 +608,8 @@ export function scheduleDaily(opts = {}) {
   throw new Error(`OS scheduler not supported on platform: ${process.platform}`);
 }
 
-// A schedule written by an earlier version (daily at 3:00) is rewritten at the current interval. Run from the
+// A schedule written by an earlier version (daily at 3:00; `update --quiet` until 2026-11-24, which did not say it
+// was the job's own run) is rewritten at the current interval and with the current words. Run from the
 // update that the hooks start, never from the scheduled job itself: reloading the LaunchAgent would stop the
 // job that is reloading it.
 export function refreshSchedule(opts = {}) {
@@ -590,9 +618,11 @@ export function refreshSchedule(opts = {}) {
   if (!isScheduled(home, opts)) return null;
   try {
     if (process.platform === 'darwin') {
-      if (fs.readFileSync(getLaunchAgentPath(opts.plistPath, home, opts.machine), 'utf8').includes(`<integer>${UPDATE_EVERY_MS / 1000}</integer>`)) return null;
+      const plist = fs.readFileSync(getLaunchAgentPath(opts.plistPath, home, opts.machine), 'utf8');
+      if (plist.includes(`<integer>${UPDATE_EVERY_MS / 1000}</integer>`) && plist.includes(SCHEDULED_ARGS)) return null;
     } else if (process.platform === 'linux') {
-      if (execFileSync('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).includes(`0 */${UPDATE_EVERY_MS / 3600_000} * * *`)) return null;
+      const crontab = execFileSync('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      if (crontab.includes(`0 */${UPDATE_EVERY_MS / 3600_000} * * *`) && crontab.includes(SCHEDULED_ARGS)) return null;
     } else return null;
     return scheduleDaily(opts);
   } catch { return null; }
@@ -689,7 +719,7 @@ export function checkPendingNotice(home = thinkerHome()) {
       const data = JSON.parse(fs.readFileSync(noticeFile, 'utf8'));
       fs.rmSync(noticeFile, { force: true });
       if (data.to) {
-        return `auto-updated to ${data.to.slice(0, 7)}${data.version ? ` (v${data.version})` : ''}${data.rewired ? `; the hooks of ${data.rewired} ${data.rewired === 1 ? 'checkout were' : 'checkouts were'} rewritten for it; restart open desktop apps to load changed settings` : ''}${repair ? `; ${repair}` : ''}`;
+        return `${data.asked ? 'updated' : 'auto-updated'} to ${data.to.slice(0, 7)}${data.version ? ` (v${data.version})` : ''}${data.rewired ? `; the hooks of ${data.rewired} ${data.rewired === 1 ? 'checkout were' : 'checkouts were'} rewritten for it; restart open desktop apps to load changed settings` : ''}${repair ? `; ${repair}` : ''}`;
       }
     }
   } catch {}

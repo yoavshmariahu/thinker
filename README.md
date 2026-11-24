@@ -95,7 +95,8 @@ You don't run thinker by hand. Once it is installed there are three ways in:
   part by part, and `thinker report` what a session costs week by week.
 
 Everything else runs by itself: the hooks put the repository's profile into a session's first prompt, sessions
-are read into it when they end, and thinker updates itself. Reports and the profile are stored locally; learning
+are read into it when they end, and thinker asks you before it installs a new release of itself. Reports and the
+profile are stored locally; learning
 uses your existing agent's model access. See [setup and privacy](docs/setup.md).
 
 ## Uninstall
