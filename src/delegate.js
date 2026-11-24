@@ -165,6 +165,9 @@ function fileStats(file, cwd) {
   try { const st = fs.statSync(p); if (!st.isFile()) return null; return { path: p, bytes: st.size }; } catch { return null; }
 }
 function linesOf(p) { try { return fs.readFileSync(p, 'utf8').split('\n').length; } catch { return 0; } }
+// Files the Read tool shows the model as a picture. An SVG is text, and is read as text.
+const IMAGE = /\.(png|jpe?g|gif|webp|bmp|tiff?|ico|hei[cf]|avif)$/i;
+export const isImage = f => IMAGE.test(String(f || ''));
 
 /**
  * What this tool call would put into the context: { tokens, files }, or null when it is not a read. `readCap` is
@@ -644,6 +647,16 @@ async function handoffCall(opts) {
   // its report: the file is not landing, and there is nothing to decide here -- a second decision would hand
   // one read to a second subagent. The row is kept, since how often a batch does this is worth knowing, and
   // kept apart from `after: 'handoff'`, which is the lead reading a file whose report it already has.
+  // A PICTURE IS LOOKED AT, NOT READ (2026-11-23, the owner's call). The Read tool shows the model an image, and
+  // a subagent's report of one is a description in words: a lead that took a screenshot to check its page was
+  // told about the page and never saw it (7 of 43 handoffs on the owner's machine). The size was wrong as
+  // well: a read is sized from the bytes on disk, so a 240 KB PNG counted as 125k tokens of text. Decided
+  // before the rule and the holdout, so both sides see their pictures alike, and the row carries no `tokens`,
+  // since the bytes are not what a picture costs the context.
+  if (read && ev.tool_name === 'Read' && read.files.some(isImage)) {
+    log({ op: 'delegate', session, client, kind: 'explore', tool: ev.tool_name, files: read.files.map(f => path.relative(cwd || '', f) || f), mode: exec.mode, fired: false, declined: 'image', via });
+    return null;
+  }
   if (ev.in_flight) {
     log({
       op: 'delegate', session, client, kind: suite ? 'verify' : 'explore', tool: ev.tool_name,
