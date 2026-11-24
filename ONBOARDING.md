@@ -33,10 +33,13 @@ thinker ui --tab report
 
 Thinker also runs in the background:
 
-- **Thinker cuts what your agents load and never use, by itself**: a change
-  has to save $1 a day or more, and the ones that do go out together as one
-  batch, with one pull request for your instruction files that a person merges.
-  A week later it checks each change and takes back what did not pay.
+- **Thinker finds what your agents load and never use, and asks before it
+  cuts it**: a change has to save $5 a day or more, and the ones that do go
+  together as one batch. Once a week at most your agent asks you, in a
+  session, which to ship: one pull request for your instruction files, which
+  a person merges. Nothing changes without your yes. Set it to Automatic
+  (`thinker settings`) and it ships them itself, then checks each change a
+  week later and takes back what did not pay.
 - **`thinker ui` opens the page** whenever you want it: a chat with thinker,
   what it did lately with what each action saved, the Factory and Recent
   activity, over every repository on the machine.

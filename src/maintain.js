@@ -1,7 +1,7 @@
 // Background maintenance: what a user would otherwise have to remember to run. Since the knowledge notes went
 // (2026-11-08) it spends no tokens of its own: it prunes state files no session will read again, reads the
 // repository's pull requests so `thinker prs` knows what the sessions delivered, looks for a container thinker is
-// not in, schedules the weekly context suggestion, and runs upkeep (upkeep.js). It starts from the catch-up learning run (at most every ten
+// not in, and runs upkeep (upkeep.js), which keeps the weekly question about the changes worth making. It starts from the catch-up learning run (at most every ten
 // minutes, from the prompt hooks) and from the git post-commit hook, and runs at most once every four hours, on the
 // next activity after it is due. The daily token cap it keeps is what the profile's reads of sessions are bounded
 // by (learn.js, profile.js): tokens, not dollars, since the agents run on subscriptions as often as on metered keys.
@@ -159,18 +159,20 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     if (cfg.containers !== false && !dry) {
       try { const { scheduleContainersOffer } = await (fns.containers ? { scheduleContainersOffer: fns.containers } : import('./containers-offer.js')); const c = scheduleContainersOffer(store, { now }); if (c) r.containerFound = c.name || c.id; } catch (e) { failed('containers', e); }
     }
-    // 4. (the weekly context suggestion ran here until 2026-11-21; thinker makes those changes itself now, in step 5)
-    // 5. upkeep (upkeep.js): what clearly pays for thinker to do by itself -- the context changes worth making, sent
-    // as one batch (a pull request for
-    // its sections, its tools switched) once enough has piled up. No model call. What it did is said once at the end of a
-    // turn (maintenanceNotice: the owner's answer, 2026-11-21, "Recent activity plus one line in a session"), and
-    // kept under Recent activity.
+    // 4. (the weekly context suggestion ran here until 2026-11-21; the question is step 5's now)
+    // 5. upkeep (upkeep.js): the context changes that clearly pay, as one batch (a pull request for its sections, its
+    // tools switched) once enough has piled up. Asked first, by default (2026-11-23): the batch is kept as a question
+    // and the next prompt here has the person's agent put it to them (upkeep.js:askOffer); with `upkeep: { level:
+    // 'auto' }` thinker sends it by itself. No model call. What it did by itself is said once at the end of a turn
+    // (maintenanceNotice: the owner's answer, 2026-11-21, "Recent activity plus one line in a session"), and kept under
+    // Recent activity.
     if (!dry) {
       try {
         const { upkeepCheck } = await (fns.upkeep ? { upkeepCheck: fns.upkeep } : import('./upkeep.js'));
         const k = await upkeepCheck(store, { now });
         if (!k.skipped) {
           if (k.pending) r.upkeepPending = k.pending;
+          if (k.asking) r.upkeepAsking = k.asking;
           if (k.did?.length) { r.upkeepDid = k.did.length; state.unreported = { ...(state.unreported || {}), did: [...new Set([...(state.unreported?.did || []), ...k.did.map(d => `${d.said.charAt(0).toLowerCase()}${d.said.slice(1)}${d.kind === 'batch' && /pull request/.test(d.said) ? ' (Recent activity has its link)' : ''}`)])].slice(-4) }; }
         }
       } catch (e) { failed('upkeep', e); }
@@ -248,7 +250,8 @@ export function renderMaintain(r) {
   if (r.prSynced) bits.push(`${r.prSynced} pull ${r.prSynced === 1 ? 'request' : 'requests'} read`);
   if (r.containerFound) bits.push(`a container found (${r.containerFound})`);
   if (r.upkeepDid) bits.push(`${r.upkeepDid} ${r.upkeepDid === 1 ? 'thing' : 'things'} done on its own`);
-  if (r.upkeepPending) bits.push(`${r.upkeepPending} waiting ${r.upkeepPending === 1 ? 'its' : 'their'} turn`);
+  if (r.upkeepAsking) bits.push(`${r.upkeepAsking} ${r.upkeepAsking === 1 ? 'change' : 'changes'} to ask about in the next session`);
+  else if (r.upkeepPending) bits.push(`${r.upkeepPending} waiting ${r.upkeepPending === 1 ? 'its' : 'their'} turn`);
   return `maintained: ${bits.join(', ') || 'nothing to do'}${r.errors ? `; ${r.errors} failed${renderFailures(r.errorList)}` : ''}`;
 }
 

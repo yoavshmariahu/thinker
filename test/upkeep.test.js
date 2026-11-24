@@ -1,5 +1,6 @@
-// What thinker does by itself between sessions: what it finds in a repository, what it is willing to change
-// without being asked, what it will not touch, and what it takes back a week later.
+// What thinker looks after between sessions: what it finds in a repository, what it asks the person about before it
+// changes anything (the default), what it is willing to change without being asked where it was told to act on its
+// own, what it will not touch, and what it takes back a week later.
 //
 // Everything a check reaches outside the repository is handed to it: the kept Context report (`fns.view`), whether
 // a pull request can be opened (`fns.prAvailable`), the process a change would start (`fns.spawn`), the kept
@@ -10,7 +11,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Store } from '../src/store.js';
-import { UPKEEP, BEHAVIOR, worthOf, setBehavior, behaviorOf, upkeepCheck, upkeepPending, upkeepDo, upkeepUndo, upkeepView, upkeepFeed, upkeepDetail, mergeUpkeepViews, readUpkeep } from '../src/upkeep.js';
+import { UPKEEP, BEHAVIOR, worthOf, setBehavior, behaviorOf, upkeepCheck, upkeepPending, upkeepDo, upkeepUndo, upkeepView, upkeepFeed, upkeepDetail, mergeUpkeepViews, readUpkeep, askOffer, askWaiting, answerAsk } from '../src/upkeep.js';
 import { formatTokens } from '../src/model-usage.js';
 import { changeHistory, VIA } from '../src/context-suggest.js';
 import { maintain, MAINTENANCE_INTERVAL_MS } from '../src/maintain.js';
@@ -19,8 +20,15 @@ const DAY = 86_400_000;
 const NOW = Date.now() - 30 * DAY;
 
 // One checkout for the file; each test gets its own cache and machine settings, so none reaches another.
+// Most of the file is about what thinker does where it was told to act on its own, so a test's machine is set to
+// `auto` unless it asks for the settings as they come (`level: null`: asked first, the default).
 const CHECKOUT = repo({ 'AGENTS.md': '# Guide\n\n## Releases\nHow releases go.\n\n## Ports\nHow ports go.\n' });
-const fresh = () => { fs.rmSync(path.join(CHECKOUT, '.thinker'), { recursive: true, force: true }); return { store: new Store(CHECKOUT).init(), home: tmp('home') }; };
+const fresh = ({ level = 'auto' } = {}) => {
+  fs.rmSync(path.join(CHECKOUT, '.thinker'), { recursive: true, force: true });
+  const home = tmp('home');
+  if (level) fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ upkeep: { level } }));
+  return { store: new Store(CHECKOUT).init(), home };
+};
 const off = (store, upkeep) => fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ version: 1, upkeep }));
 const stateFile = (store, name) => path.join(store.dir, 'state', name);
 const write = (store, name, value) => { fs.mkdirSync(path.join(store.dir, 'state'), { recursive: true }); fs.writeFileSync(stateFile(store, name), JSON.stringify(value)); };
@@ -57,18 +65,70 @@ test('told to stay off, thinker does not even look', async () => {
   assert.equal(upkeepView(store, { now: NOW, home, log: [] }).level, 'off');
 });
 
-test('told to ask first, thinker finds what is worth doing and acts on none of it', async () => {
-  const { store, home } = fresh();
-  off(store, { level: 'ask' });
+test('left as it comes, thinker asks first: what is worth doing is put to the person, and only a yes ships it', async () => {
+  const { store, home } = fresh({ level: null });
+  assert.equal(behaviorOf(store, { home }).level, 'ask', 'asking is what everybody starts with');
   const sp = spawner();
-  const r = await upkeepCheck(store, { now: NOW, home, fns: given(ONE, { spawn: sp.spawn }) });
+  const fns = given(report({ sections: [section('releases'), section('ports', { dollars: 8 }), section('style', { dollars: 1 })] }), { spawn: sp.spawn });
+  const r = await upkeepCheck(store, { now: NOW, home, fns });
   assert.deepEqual(r.did, []);
-  assert.equal(r.pending, 1);
+  assert.equal(r.asking, 2, 'the two that clear the bar, and not the cheap one');
   assert.equal(sp.calls.length, 0, 'no change was started');
   assert.deepEqual(changeHistory(store, { now: NOW }), []);
-  const { pending } = upkeepPending(store, { now: NOW, home });
-  assert.deepEqual(pending.map(i => i.id), ['change:section:AGENTS.md:releases']);
-  assert.match(pending[0].why, /asked to be asked/);
+  const { pending, batch } = upkeepPending(store, { now: NOW, home });
+  assert.deepEqual(pending.map(i => i.id), ['change:section:AGENTS.md:releases', 'change:section:AGENTS.md:ports']);
+  assert.match(pending[0].why, /asks you/);
+  assert.equal(batch.ask, true);
+  assert.match(upkeepView(store, { now: NOW, home, log: [] }).summary, /2 changes .* asks you about/);
+  assert.equal(askWaiting(store, { now: NOW, home }), true, 'the answer\'s tool is offered from here on');
+  // nobody at the session: nothing is asked, and the question keeps for one who is
+  assert.equal(askOffer(store, { client: 'claude', now: NOW, home, env: { CLAUDE_CODE_ENTRYPOINT: 'sdk-cli' } }), '');
+  // the next prompt has the person's agent ask, with its own question tool, each change under its number
+  const block = askOffer(store, { client: 'claude', now: NOW, home, env: {} });
+  assert.match(block, /AskUserQuestion/);
+  assert.match(block, /header "thinker"/);
+  assert.match(block, /1\. AGENTS\.md · releases: put up a PR to shorten it/i);
+  assert.match(block, /2\. AGENTS\.md · ports/i);
+  assert.doesNotMatch(block, /style/, 'what does not clear the bar is not asked about');
+  assert.match(block, /None of these/);
+  assert.match(block, /`changes` tool/);
+  assert.equal(askOffer(store, { client: 'claude', now: NOW, home, env: {} }), '', 'asked once');
+  assert.match(upkeepPending(store, { now: NOW, home }).batch.why, /waits for your answer/);
+  assert.equal(sp.calls.length, 0, 'asking changed nothing');
+  // an answer that names no line leaves the question standing
+  assert.match(await answerAsk(store, 'the first one', { now: NOW, home, fns }), /still waiting/);
+  // they chose the second: that one goes, as a pull request, by their word and not thinker's
+  const said = await answerAsk(store, '2', { now: NOW + 60_000, home, fns });
+  assert.match(said, /Sent a batch of 1 change/);
+  assert.equal(sp.calls.length, 1);
+  assert.equal(sp.calls[0].filter(a => a === '--pr').length, 1, 'a pull request, never the working tree');
+  const h = changeHistory(store, { now: NOW + 60_000 });
+  assert.deepEqual(h.map(e => [e.key, e.via]), [['section:AGENTS.md:ports', VIA.session]]);
+  assert.equal(readUpkeep(store).done.find(d => d.kind === 'batch').by, 'you');
+  assert.match(await answerAsk(store, '1', { now: NOW + 120_000, home, fns }), /no thinker question waiting/, 'one answer a question');
+  assert.equal(sp.calls.length, 1);
+});
+
+test('a no changes nothing, and thinker does not ask again inside the week', async () => {
+  const { store, home } = fresh({ level: null });
+  const sp = spawner();
+  const fns = given(ONE, { spawn: sp.spawn }), every = behaviorOf(store, { home }).batchEveryDays;
+  await upkeepCheck(store, { now: NOW, home, fns });
+  assert.match(askOffer(store, { client: 'pi', now: NOW, home, env: {} }), /ask the user in chat/, 'an agent with no question tool asks in the chat');
+  assert.match(await answerAsk(store, 'none', { now: NOW, home, fns }), /Nothing was changed/);
+  assert.equal(sp.calls.length, 0);
+  assert.deepEqual(changeHistory(store, { now: NOW }), [], 'and nothing was decided: it is not left alone for good');
+  const soon = NOW + (every - 1) * DAY;
+  assert.equal((await upkeepCheck(store, { now: soon, home, fns })).asking, undefined);
+  assert.match(upkeepPending(store, { now: soon, home }).batch.why, /asks at most every/);
+  assert.equal(askOffer(store, { client: 'claude', now: soon, home, env: {} }), '');
+  const due = NOW + (every + 1) * DAY;
+  assert.equal((await upkeepCheck(store, { now: due, home, fns })).asking, 1, 'the week up, it may ask again');
+  // told meanwhile to act on its own, the question kept is not put: the batch goes at the next check instead
+  setBehavior(store, 'level', 'auto', { home });
+  assert.equal(askOffer(store, { client: 'claude', now: due, home, env: {} }), '');
+  assert.deepEqual((await upkeepCheck(store, { now: due + 3600_000, home, fns })).did.map(d => d.kind), ['batch']);
+  assert.equal(sp.calls.length, 1);
 });
 
 test('thinker changes a thing by itself only where the case is strong', () => {
@@ -113,7 +173,7 @@ test('thinker takes the gentlest change that gets the saving', async () => {
 });
 
 test('a second setting keeps the first', async () => {
-  const { store, home } = fresh();
+  const { store, home } = fresh({ level: null });
   for (const scope of ['machine', 'repo']) {
     const where = scope === 'machine' ? path.join(home, 'config.json') : path.join(store.dir, 'config.json');
     assert.equal(setBehavior(store, 'batchEveryDays', '30', { scope, home }).value, 30);

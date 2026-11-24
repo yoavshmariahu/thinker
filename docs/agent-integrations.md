@@ -882,7 +882,7 @@ What a source costs a session is its tokens, which every model call reads again,
 model calls of a typical session here (the median, per agent), mostly as prompt-cache reads.
 Cursor records no model calls, so its sources are given by size alone. What is worth switching
 off is listed in one place, with the rest of the context: `thinker context`
-(`context-suggest.js`; thinker switches off what clearly pays itself, `upkeep.js`), each line saying what the source is in its own words and
+(`context-suggest.js`; what clearly pays is put to the person once a week, or switched off by thinker itself where it was told to act on its own, `upkeep.js`), each line saying what the source is in its own words and
 how the sessions here used it. A built-in tool is a line like any other there, decided with
 `thinker context --approve`, and never part of a question. Until 2026-10-25 this file's own two-weekly
 question asked for the same switches through each agent's question tool (Claude Code's

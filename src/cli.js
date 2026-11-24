@@ -142,8 +142,8 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  --dismiss 2, --history lists the decisions (a change under way, failed, or a pull request to merge
                                  is said so; reverted ones only with --reverted), --revert <n> takes one back, --retry <n> runs a
                                  failed change again; Recent activity on the page (thinker ui) lists the decisions. Thinker
-                                 makes the changes that save $1 a day or more itself, in batches (thinker activity says
-                                 what it did; thinker chat changes how it behaves)
+                                 asks you once a week, in a session, whether to ship the ones that clearly pay (thinker
+                                 activity says what was done; thinker chat changes how it behaves)
   explain [--days n] [--limit n] [--keys <k1,k2>] [--all] [--model m] [--json]
                                  writes what each part of the context is and why you would change it, in plain words a person who
                                  has never thought about an agent's prompt can read: one small-model call per six parts, kept for
@@ -165,18 +165,21 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  pull request changed after it was opened, a file read again), and the first-pass yield of the merged pull
                                  requests; it reads the report kept for the page, --refresh makes it again first; --diff splits every
                                  figure by a feature's two sides, the sessions it reached against the ones held out from it
-  activity [run [--look]] [--all] [--json]
+  activity [run [--look]] [answer <numbers|all|none>] [--all] [--json]
                                  Recent activity in the terminal, as it runs down the left of the page's chat: a line an action
                                  with what it came to (-10k tokens per prompt, $45/day), and for a pull request its
                                  link while it is in review and after; under them a line a session, what it handed to cheaper
-                                 agents and what that saved. Thinker does its work itself: between sessions it makes the
-                                 changes \`thinker context\` lists that clearly pay -- a section of the instruction file
-                                 nobody needs shortened or removed, a tool nobody calls made a reference (it stays
-                                 callable) -- each high waste and worth $5 a day or more, never a tool you plainly use,
-                                 together in one batch, at most one batch a repository a week. A batch is one line here
-                                 and one pull request, left for a person to merge. Nothing is listed for you to do. It checks with maintenance, every four hours; run
-                                 is that check (no model call; --look only looks). How it behaves, and taking a thing back,
-                                 is said to it (\`thinker chat\`)
+                                 agents and what that saved. Between sessions thinker finds the changes \`thinker context\`
+                                 lists that clearly pay -- a section of the instruction file nobody needs shortened or
+                                 removed, a tool nobody calls made a reference (it stays callable) -- each high waste
+                                 and worth $5 a day or more, never a tool you plainly use, together in one batch, at
+                                 most one batch a repository a week. It asks before it ships one: your agent puts the
+                                 batch to you as a question in your next session there, and nothing changes without
+                                 your yes (answer is how an agent hands your reply back). Told to act on its own
+                                 (\`thinker settings set upkeep.level auto\`) it sends the batch itself. A batch is one
+                                 line here and one pull request, left for a person to merge. It checks with
+                                 maintenance, every four hours; run is that check (no model call; --look only looks).
+                                 How it behaves, and taking a thing back, is said to it (\`thinker chat\`)
   chat [message] [--new] [--chat id] [--history] [--json]
                                  talk to thinker, as on the page it opens on: ask what it did and why, what it looked at
                                  and left alone, or why your sessions went as they did ("why so much rework in the merge
@@ -191,7 +194,7 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  another with it, --chat <id> names one, and --history lists them, as the page's Chat history does
   settings [set <id> <value>] [--json]
                                  how thinker works on this machine, set by hand, as on the page's Settings tab: what it
-                                 may change on its own (automatic, suggest only, off; instruction files, tools and MCP
+                                 may change and whether it asks first (ask first, automatic, off; instruction files, tools and MCP
                                  servers, skills), what is handed to a cheaper model (big reads,
                                  whole-suite test runs, from what size, on which model), learning from sessions and the
                                  profile, what it tells you, and what leaves the machine. A setting sits under the one

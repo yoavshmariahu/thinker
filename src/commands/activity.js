@@ -3,8 +3,9 @@
 // for the person to do: thinker does its work itself, and how it behaves -- or taking a thing back -- is said to it
 // (`thinker chat`), not typed as a flag. `run` is the check itself, as maintenance starts it every four hours
 // (`--look`: only look, which is all the page ever starts). The decisions and what each saved in full are `thinker
-// context --history`, the pull requests `thinker prs`.
-import { upkeepView, upkeepCheck, behaviorOf, renderUpkeep } from '../upkeep.js';
+// context --history`, the pull requests `thinker prs`. `answer` is not a person's verb either: it is how an agent
+// with no MCP tool hands back what the person said to thinker's weekly question (upkeep.js:answerAsk).
+import { upkeepView, upkeepCheck, behaviorOf, renderUpkeep, answerAsk } from '../upkeep.js';
 
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
@@ -16,9 +17,10 @@ async function activityCommand({ pos, flags, store, out }) {
     if (r.skipped) return out('Thinker is switched off here. `thinker chat "look after this repository again"` turns it back on.');
     for (const d of r.did) out(`thinker: ${d.said}`);
     for (const e of r.errors) out(`  could not look at ${e.chore}: ${e.message}`);
-    out(`${flags.look ? 'Looked' : 'Checked'}: ${r.did.length ? `${plural(r.did.length, 'thing')} done` : 'nothing done'}${r.pending ? `, ${r.pending} waiting ${r.pending === 1 ? 'its' : 'their'} turn` : ''}.`);
+    out(`${flags.look ? 'Looked' : 'Checked'}: ${r.did.length ? `${plural(r.did.length, 'thing')} done` : 'nothing done'}${r.asking ? `, ${plural(r.asking, 'change')} to ask you about in your next session here` : r.pending ? `, ${r.pending} waiting ${r.pending === 1 ? 'its' : 'their'} turn` : ''}.`);
     return;
   }
+  if (verb === 'answer') { out(await answerAsk(store, pos.slice(1).join(','), { asked: flags.asked === 'chat' ? 'chat' : 'picker', client: typeof flags.client === 'string' ? flags.client : null })); return; }
   if (verb) { out(`thinker activity does not know ${verb}. It lists what thinker did; \`thinker chat "…"\` is how you tell it to do, leave or take back a thing.`); process.exitCode = 1; return; }
   // the first look in a repository thinker has never checked: look now, it costs nothing and changes nothing
   if (behaviorOf(store).level !== 'off' && !upkeepView(store).lastCheck) await upkeepCheck(store, { act: false });

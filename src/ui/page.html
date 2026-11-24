@@ -547,7 +547,7 @@
       <button class="nav-link" data-tab="factory" title="The sessions as a pipeline: what each stage cost, the loops detected, the first-pass yield">Factory</button>
       <span class="nav-sep" aria-hidden="true"></span>
       <button class="nav-link" data-tab="activity" title="Every decision taken here, and what still needs you">Recent activity<span class="badge" id="act-badge" hidden></span></button>
-      <button class="nav-link" data-tab="settings" title="How thinker works: what it may change on its own, what it hands to a cheaper model, what it learns and what it tells you">Settings</button>
+      <button class="nav-link" data-tab="settings" title="How thinker works: what it may change and whether it asks first, what it hands to a cheaper model, what it learns and what it tells you">Settings</button>
     </div>
   </nav>
   <div id="scan-progress" class="scan-progress" hidden>
@@ -1060,8 +1060,8 @@ function renderSide(d) {
   const el = $('#side-body'), many = HREPO === 'all';
   const whose = x => many && x.repoName ? `<span>${esc(x.repoName)}</span>` : '';
   // one line on how thinker behaves here (the whole sentence on hover; it is changed by telling it, in the chat)
-  const how = { auto: 'Acting on its own, in batches', ask: 'Waiting for your word', off: 'Switched off here', mixed: 'Behaves differently by repository' }[d.level] || '';
-  $('#side-status').innerHTML = `<span title="${esc(d.behaviorSaid)}">${esc(how)}</span>${d.level !== 'off' ? ` · looked ${esc(d.lastCheck ? sinceMeasured(Date.parse(d.lastCheck)) : 'not yet')}` : ''}${(d.later || d.held) && d.summary ? ` · ${esc(d.summary.replace(/\.$/, ''))}` : ''}${d.looking ? ' · <span class="spinner"></span>looking…' : ''}`;
+  const how = { auto: 'Acting on its own, in batches', ask: 'Asks before it changes anything', off: 'Switched off here', mixed: 'Behaves differently by repository' }[d.level] || '';
+  $('#side-status').innerHTML = `<span title="${esc(d.behaviorSaid)}">${esc(how)}</span>${d.level !== 'off' ? ` · looked ${esc(d.lastCheck ? sinceMeasured(Date.parse(d.lastCheck)) : 'not yet')}` : ''}${(d.later || d.held || d.asking) && d.summary ? ` · ${esc(d.summary.replace(/\.$/, ''))}` : ''}${d.looking ? ' · <span class="spinner"></span>looking…' : ''}`;
   // a line an action: what was done (a pull request's number is its link), what it came to (green for a saving, with a
   // light green highlight once it is measured; red where it measured as costing more), then when, where and by whom
   const impact = f => !f.impactSaid ? '' : `<div class="side-impact${f.impact?.kb ? ' measured' : f.impact?.perPrompt < 0 ? ' worse' : f.impact?.measured ? ' measured' : ''}">${esc(f.impactSaid)}</div>`;
@@ -1116,7 +1116,7 @@ async function pollHome() {
   clearTimeout(HPOLL);
   if (TAB === 'chat' && UPK) {
     let d = null; try { d = await api(`/api/upkeep?repo=${encodeURIComponent(HREPO)}&look=0`); } catch {}
-    const sig = v => JSON.stringify([v.later, v.level, (v.feed || []).slice(0, 8).map(f => [f.at, f.text, f.impactSaid, f.undone]), v.delegated?.said, (v.delegated?.sessions || []).slice(0, SIDE_SESSIONS).map(x => [x.at, x.impactSaid])]);
+    const sig = v => JSON.stringify([v.later, v.asking, v.level, (v.feed || []).slice(0, 8).map(f => [f.at, f.text, f.impactSaid, f.undone]), v.delegated?.said, (v.delegated?.sessions || []).slice(0, SIDE_SESSIONS).map(x => [x.at, x.impactSaid])]);
     if (d && (sig(UPK) !== sig(d) || UPK.looking)) loadSide();
   }
   HPOLL = setTimeout(pollHome, TAB === 'chat' && UPK?.looking ? HOME_FAST_MS : HOME_POLL_MS);

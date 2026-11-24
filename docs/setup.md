@@ -50,16 +50,18 @@ With no terminal, the report is printed.
 
 Open the [dashboard](#open-your-dashboard) whenever you want, or follow a weekly suggestion from your agent.
 
-**Thinker itself.** It makes the changes that clearly pay without being asked: an instruction section nobody
-needs is shortened or removed in a pull request (never in your working tree), a tool nobody calls is made a
-reference, which keeps it callable. Only the high-value ones: a change has to be graded high waste and save
-$5 a day or more by itself, a tool you plainly use (called in a tenth of the sessions that load it) is left
-alone whatever it costs, and an MCP server is switched off outright only where no session called it at all.
-The ones that pass go out together as one batch, and a week later each is checked and taken back if it did
-not pay. Ask it in the chat what it looked at and left alone, and why; it will tell you, and do one anyway if
-you say so. Your next
-session says once what it did, `thinker activity` lists it, and `thinker chat` is where you tell it to do
-more, less or nothing (`upkeep: false` in `.thinker/config.json` stops it for a repository).
+**Thinker itself.** It finds the changes that clearly pay and asks you before it ships them: an instruction
+section nobody needs is shortened or removed in a pull request (never in your working tree), a tool nobody
+calls is made a reference, which keeps it callable. Only the high-value ones: a change has to be graded high
+waste and save $5 a day or more by itself, a tool you plainly use (called in a tenth of the sessions that load
+it) is left alone whatever it costs, and an MCP server is switched off outright only where no session called
+it at all. The ones that pass go together as one batch, and once a week at most your agent asks you, in a
+session, which of them to ship. Nothing is changed without your yes. Ask it in the chat what it looked at and
+left alone, and why; it will tell you, and do one anyway if you say so. `thinker activity` lists what was
+done, and `thinker chat` is where you tell it to do more, less or nothing. To have it ship the batch without
+asking, choose Automatic on the Settings tab (`thinker settings set upkeep.level auto`): it then says once
+in your next session what it did, checks each change a week later and takes back what did not pay.
+`upkeep: false` in `.thinker/config.json` stops it for a repository.
 
 **The page.** `thinker ui`, from any directory, opens it in your browser:
 
