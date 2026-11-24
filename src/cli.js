@@ -31,6 +31,7 @@ import { commands as containerCommands } from './commands/containers.js';
 import { commands as errorCommands } from './commands/errors.js';
 import { commands as fleetCommands } from './commands/fleet.js';
 import { commands as activityCommands } from './commands/activity.js';
+import { commands as behaviorsCommands } from './commands/behaviors.js';
 import { commands as chatCommands } from './commands/chat.js';
 import { commands as settingsCommands } from './commands/settings.js';
 import { isDisabledRepo, OFF_MESSAGE, layeredConfig } from './repo-switch.js';
@@ -165,6 +166,11 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  pull request changed after it was opened, a file read again), and the first-pass yield of the merged pull
                                  requests; it reads the report kept for the page, --refresh makes it again first; --diff splits every
                                  figure by a feature's two sides, the sessions it reached against the ones held out from it
+  behaviors [--base ref] [--json]
+                                 the repository's behavior graph (BEHAVIORS.md: features, the behaviors beneath them, the tests
+                                 and the code that name each), what the change since HEAD (or --base) did to it, the tests that
+                                 change has to pass and what it still owes; off until behaviors.enabled, when the hooks hold an
+                                 agent's edits and test runs to it
   activity [run [--look]] [--all] [--json]
                                  Recent activity in the terminal, as it runs down the left of the page's chat: a line an action
                                  with what it came to (-10k tokens per prompt, $45/day), and for a pull request its
@@ -333,7 +339,7 @@ function unknownFlags(c, given, help = HELP) {
 const CACHE_COMMANDS = ['learn', 'profile', 'maintain', 'session-work', 'instructions', 'context', 'explain', 'report', 'factory', 'activity'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...cacheCommands, ...prsCommands, ...learnCommands, ...profileCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...doctorCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...factoryCommands, ...modelsCommands, ...savingsCommands, ...proxyCommands, ...containerCommands, ...errorCommands, ...fleetCommands, ...activityCommands, ...chatCommands, ...settingsCommands };
+const COMMANDS = { ...behaviorsCommands, ...cacheCommands, ...prsCommands, ...learnCommands, ...profileCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...doctorCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...factoryCommands, ...modelsCommands, ...savingsCommands, ...proxyCommands, ...containerCommands, ...errorCommands, ...fleetCommands, ...activityCommands, ...chatCommands, ...settingsCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
 const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'savings', 'stats', 'ranker', 'hook', 'serve', 'proxy', 'containers', 'errors', 'models', 'config', 'settings', 'status', 'fleet-report', undefined];

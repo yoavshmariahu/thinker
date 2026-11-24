@@ -11,6 +11,7 @@ import { Store, findRepoRoot } from '../store.js';
 import { isDisabledRepo, layeredConfig } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
 import { preToolHook, windowTool, noteSubagent } from '../delegate.js';
+import { behaviorsPreTool, behaviorsStop } from '../behavior-hooks.js';
 import { beginTurn, currentTurn, isHarnessEvent, sessionState, locked } from '../session-state.js';
 import { delegatedOf } from '../delegated.js';
 import { parseTranscript, subagentStats, continuedSince, recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
@@ -146,6 +147,10 @@ async function hookCommand(ctx) {
     // PreToolUse: a read or a whole-suite run handed to a subagent on a cheaper model, deterministically
     // (delegate.js). Nothing is printed when the call goes through; a denial carries the subagent's report.
     if (pos[0] === 'pretool') {
+      // The behavior structure goes first (behavior-hooks.js, off by default): an edit checked as it would land,
+      // a test run told or refused in favour of the tests the session's edits need. Where it has nothing to
+      // say the call is the delegation's to decide, as before.
+      try { const b = behaviorsPreTool({ ev, store, session, repo, client }); if (b) { out(b); return; } } catch (e) { recordError('hook.behaviors', e, { repo }); }
       const o = await preToolHook({ ev, store, session, cwd: ev.cwd || repo, client });
       if (o) out(o);
       return;
@@ -330,6 +335,12 @@ async function hookCommand(ctx) {
       try { fs.rmSync(traceFile(store.dir, session), { force: true }); } catch {}
       if (client === 'cursor') out('{}');
       return;
+    }
+    // A turn whose edits still owe the behavior graph something, or whose tests have not passed since the last
+    // edit, is held here (behavior-hooks.js, off by default): nothing else of the turn's end is said or logged
+    // until the stop that goes through. Never as the session closes: there is no turn left to hold.
+    if (client === 'claude' && !/^session_?end$/i.test(ev.hook_event_name || '')) {
+      try { const hold = behaviorsStop({ ev, store, session, repo, client }); if (hold) { out(hold); return; } } catch (e) { recordError('hook.behaviors', e, { repo }); }
     }
     if (client === 'cursor') out('{}');
     if (client === 'agy') out('{"decision":"allow"}');
