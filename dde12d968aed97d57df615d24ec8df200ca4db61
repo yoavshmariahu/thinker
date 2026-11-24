@@ -1,0 +1,1880 @@
+---
+{
+ "schema": "tci/1",
+ "base": null,
+ "annotations": {
+  "l1": {
+   "behavior": "check-keeps-release-instead-of-installing",
+   "intent": "Introduce the module that keeps what the check found, with its imports and constants."
+  },
+  "l2": {
+   "behavior": "check-keeps-release-instead-of-installing",
+   "intent": "Store a found release in state/update-ask.json, report whether it is news, and drop it when nothing waits."
+  },
+  "l3": {
+   "behavior": "check-keeps-release-instead-of-installing",
+   "intent": "Import the scheduled-run detector and the keep/drop helpers that the background check uses."
+  },
+  "l4": {
+   "behavior": "check-keeps-release-instead-of-installing",
+   "intent": "Name the OS job's new words and take the network, install, rewire and telemetry steps as parameters so the command's rules can be tested."
+  },
+  "l5": {
+   "behavior": "check-keeps-release-instead-of-installing",
+   "intent": "Treat the OS job's run like the background check, which looks but does not install."
+  },
+  "l6": {
+   "behavior": "check-keeps-release-instead-of-installing",
+   "intent": "Under the ask level, check for a release and install it only when the run was told to apply or the level is auto; skip the check under off."
+  },
+  "l7": {
+   "behavior": "check-keeps-release-instead-of-installing",
+   "intent": "Keep a found release for the question and log it once, drop the record when this copy is current or nobody looks, and still check the wiring."
+  },
+  "l8": {
+   "behavior": "check-keeps-release-instead-of-installing",
+   "intent": "Note that the four-hourly check only looks for a release unless the level is auto."
+  },
+  "l9": {
+   "behavior": "os-job-marked-as-scheduled",
+   "intent": "Define the scheduled arguments and label, and decide whether an update run is the OS job's own, including old schedules."
+  },
+  "l10": {
+   "behavior": "os-job-marked-as-scheduled",
+   "intent": "Write the LaunchAgent with the shared label and the `--scheduled` arguments."
+  },
+  "l11": {
+   "behavior": "os-job-marked-as-scheduled",
+   "intent": "Write the cron line with `--scheduled` and replace the old line in either form."
+  },
+  "l12": {
+   "behavior": "os-job-marked-as-scheduled",
+   "intent": "Treat a schedule that lacks the `--scheduled` words as out of date, so it is rewritten."
+  },
+  "l13": {
+   "behavior": "os-job-marked-as-scheduled",
+   "intent": "Never refresh the schedule from inside the scheduled job itself."
+  },
+  "l14": {
+   "behavior": "typed-update-installs-and-clears",
+   "intent": "Use the injected check function for a typed update."
+  },
+  "l15": {
+   "behavior": "typed-update-installs-and-clears",
+   "intent": "When already up to date on the latest, drop any waiting release before rewiring."
+  },
+  "l16": {
+   "behavior": "typed-update-installs-and-clears",
+   "intent": "Install through the injected functions and drop the waiting release once it is installed."
+  },
+  "l17": {
+   "behavior": "ask-in-session",
+   "intent": "Decide whether a question is due: a release waits that is not the installed one, the level is ask, and the last question is old enough."
+  },
+  "l18": {
+   "behavior": "ask-in-session",
+   "intent": "Build the thinker-update block that has the agent ask the question and say how to record the answer, and record that it was asked."
+  },
+  "l19": {
+   "behavior": "ask-in-session",
+   "intent": "Import the update question."
+  },
+  "l20": {
+   "behavior": "ask-in-session",
+   "intent": "Put the update question in the prompt hook's one-question chain, after the error-report offer and before the weekly changes."
+  },
+  "l21": {
+   "behavior": "ask-in-session",
+   "intent": "Export the unattended-session check so the update question uses the same rule."
+  },
+  "l22": {
+   "behavior": "answer-the-update-question",
+   "intent": "Report whether a question waits for its answer, so the MCP tool is offered."
+  },
+  "l23": {
+   "behavior": "answer-the-update-question",
+   "intent": "Record the answer, start a detached apply update on yes or always, set the level to auto on always, and say what was done."
+  },
+  "l24": {
+   "behavior": "answer-the-update-question",
+   "intent": "Import the waiting check and the answer handler."
+  },
+  "l25": {
+   "behavior": "answer-the-update-question",
+   "intent": "Note in the comment that the server now answers the update question."
+  },
+  "l26": {
+   "behavior": "answer-the-update-question",
+   "intent": "Register the update tool with the other question tools."
+  },
+  "l27": {
+   "behavior": "answer-the-update-question",
+   "intent": "Offer an `update` tool, while a question waits, that records the choice and starts the update."
+  },
+  "l28": {
+   "behavior": "answer-the-update-question",
+   "intent": "Skip the PR-comment run when the command is only answering the question."
+  },
+  "l29": {
+   "behavior": "answer-the-update-question",
+   "intent": "Add `thinker update --answer yes|no|always` as the command-line door for the answer."
+  },
+  "l30": {
+   "behavior": "answer-the-update-question",
+   "intent": "Make an update the person asked for wait for a running check's lock instead of being dropped."
+  },
+  "l31": {
+   "behavior": "answer-the-update-question",
+   "intent": "Record in the notice file and the log that an applied update was asked for, not automatic."
+  },
+  "l32": {
+   "behavior": "answer-the-update-question",
+   "intent": "Say 'updated' rather than 'auto-updated' in the terminal notice for an update the person asked for."
+  },
+  "l33": {
+   "behavior": "terminal-release-notice",
+   "intent": "Produce the release-out line once for each waiting release, only under the ask level."
+  },
+  "l34": {
+   "behavior": "terminal-release-notice",
+   "intent": "Import the release notice."
+  },
+  "l35": {
+   "behavior": "terminal-release-notice",
+   "intent": "Print the release notice beside the pending post-update notice on a terminal."
+  },
+  "l36": {
+   "behavior": "update-level-setting",
+   "intent": "Define the defaults and read the machine's update level and question frequency, with `update: false` read as off."
+  },
+  "l37": {
+   "behavior": "update-level-setting",
+   "intent": "Note that the update level is now a setting."
+  },
+  "l38": {
+   "behavior": "update-level-setting",
+   "intent": "Import the update defaults."
+  },
+  "l39": {
+   "behavior": "update-level-setting",
+   "intent": "Add an Updates group with the level as three cards and the question frequency shown only under ask."
+  },
+  "l40": {
+   "behavior": "update-level-setting",
+   "intent": "Read a whole `update` block switched off as level off."
+  },
+  "l41": {
+   "behavior": "update-level-setting",
+   "intent": "Show in `update --status` how new releases are handled and how to change it."
+  },
+  "l42": {
+   "behavior": "update-level-setting",
+   "intent": "Describe the schedule as update checks rather than auto-updates."
+  },
+  "l43": {
+   "behavior": "update-level-setting",
+   "intent": "Import the update level."
+  },
+  "l44": {
+   "behavior": "update-level-setting",
+   "intent": "Report the update check and whether a new release is asked about, installed or not looked for."
+  },
+  "l45": {
+   "behavior": "update-level-setting",
+   "intent": "Explain in the help that a found release is asked about, and how to set the level."
+  },
+  "l46": {
+   "behavior": "update-level-setting",
+   "intent": "Explain in the installer's help that `--no-auto-update` turns off the background check, whose finds are asked about."
+  }
+ },
+ "behaviors": {
+  "check-keeps-release-instead-of-installing": {
+   "id": "check-keeps-release-instead-of-installing",
+   "title": "A background check for a release no longer installs it unless updates are set to automatic",
+   "description": "The update check that runs on use (`--background`) or from the OS job now looks for a release and records it for the person to be asked about. It installs only under `update.level: auto`, does not look at all under `off`, and still checks the agents' wiring.",
+   "afterwards": true
+  },
+  "os-job-marked-as-scheduled": {
+   "id": "os-job-marked-as-scheduled",
+   "title": "The OS job's runs are told apart from a person's `update --quiet`",
+   "description": "The LaunchAgent and crontab now run `update --scheduled --quiet`. An older schedule that still runs `update --quiet` is recognised by launchd's label, or on Linux by its crontab line, which is then rewritten. The refresh rewrites any schedule that lacks the new words.",
+   "afterwards": true
+  },
+  "typed-update-installs-and-clears": {
+   "id": "typed-update-installs-and-clears",
+   "title": "A typed `thinker update` still installs, and clears the waiting release",
+   "description": "When a person runs `thinker update` themselves, it installs the latest release as before, logs it as not automatic, and drops the record of a release waiting for the question.",
+   "afterwards": true
+  },
+  "ask-in-session": {
+   "id": "ask-in-session",
+   "title": "Ask the person in their session whether to update",
+   "description": "When a release waits and the level is ask, the prompt hook has the agent ask through its own question tool (or in the chat): Update now, Not now, Always update automatically. The question comes at most once every `askEveryDays` and is about the newest release. It is never asked in unattended sessions or about the release already installed.",
+   "afterwards": true
+  },
+  "answer-the-update-question": {
+   "id": "answer-the-update-question",
+   "title": "Act on the answer: update now, not now, or always",
+   "description": "The answer comes back through thinker's MCP tool `update` or `thinker update --answer`. Yes starts `update --background --apply` in its own process, which waits for a running check and installs under any level. Always also sets the level to auto. No changes nothing. An update the person asked for is logged and announced as asked, not automatic.",
+   "afterwards": true
+  },
+  "terminal-release-notice": {
+   "id": "terminal-release-notice",
+   "title": "Tell a terminal once that a release is out",
+   "description": "Under the ask level, the next command typed at a terminal prints a one-line notice that a release is out and that `thinker update` installs it. The notice appears once for each release.",
+   "afterwards": true
+  },
+  "update-level-setting": {
+   "id": "update-level-setting",
+   "title": "Choose how releases are handled: ask, automatic or off",
+   "description": "`update.level` (ask by default) and `update.askEveryDays` are machine settings, shown in an Updates group on the Settings tab and in `thinker settings`. `update: false` reads as off. Status, doctor, help and the installer describe a check that asks before installing.",
+   "afterwards": true
+  }
+ },
+ "links": [
+  {
+   "behavior": "check-keeps-release-instead-of-installing",
+   "test": "test/update-ask.test.js::the check on use finds a release, installs nothing and keeps it for the question",
+   "says": "A background check that finds a release installs nothing, still rewires, records the release once as update-available, and releases its lock.",
+   "afterwards": true
+  },
+  {
+   "behavior": "check-keeps-release-instead-of-installing",
+   "test": "test/update-ask.test.js::a person who chose automatic updates gets them as before, and one who chose off is not looked for",
+   "says": "Under level auto the background check installs and logs an automatic update; under level off it does not check, drops any kept release and still rewires.",
+   "afterwards": true
+  },
+  {
+   "behavior": "os-job-marked-as-scheduled",
+   "test": "test/update-ask.test.js::the OS job installs nothing either, under its new words or the old ones launchd still runs",
+   "says": "A `--scheduled` run installs nothing, and a plain `update --quiet` counts as the job only when launchd's label is set and the run is not to a named release or at a terminal.",
+   "afterwards": true
+  },
+  {
+   "behavior": "os-job-marked-as-scheduled",
+   "test": "test/update-ask.test.js::the schedule thinker writes says its run is the job's own",
+   "says": "The LaunchAgent that scheduleDaily writes runs `update --scheduled --quiet`.",
+   "afterwards": true
+  },
+  {
+   "behavior": "typed-update-installs-and-clears",
+   "test": "test/update-ask.test.js::thinker update, typed, installs the release and nothing waits afterwards",
+   "says": "A typed `thinker update` installs the release, leaves nothing waiting, and logs an update that is not automatic.",
+   "afterwards": true
+  },
+  {
+   "behavior": "ask-in-session",
+   "test": "test/update-ask.test.js::the question is put once, through the agent's own question tool, and not again inside the week",
+   "says": "A waiting release is asked about once through AskUserQuestion with the three options, is not asked again within the week even when a newer release comes out, is asked about the newest release a week later, and is asked in the chat for agents without a question tool.",
+   "afterwards": true
+  },
+  {
+   "behavior": "ask-in-session",
+   "test": "test/update-ask.test.js::how often the question may come is the person's setting",
+   "says": "With askEveryDays set to 1, the next question is due exactly one day after the last.",
+   "afterwards": true
+  },
+  {
+   "behavior": "ask-in-session",
+   "test": "test/update-ask.test.js::nobody is asked where nobody is at the session, or about the release they already run",
+   "says": "No question is put in an SDK session, and none once the waiting release is already the installed version.",
+   "afterwards": true
+  },
+  {
+   "behavior": "answer-the-update-question",
+   "test": "test/update-ask.test.js::not now changes nothing and starts nothing",
+   "says": "Answering 'Not now' starts no update, keeps the level at ask, closes the pending question, logs the answer as no, and leaves the release waiting.",
+   "afterwards": true
+  },
+  {
+   "behavior": "answer-the-update-question",
+   "test": "test/update-ask.test.js::yes starts the update in a process of its own, and always also stops the asking",
+   "says": "Yes starts one update without changing the level, always also sets the level to auto, a failed start is reported, and startUpdate spawns a detached `update --background --apply --quiet` but never in test mode.",
+   "afterwards": true
+  },
+  {
+   "behavior": "answer-the-update-question",
+   "test": "test/update-ask.test.js::the update a person said yes to installs under any setting, and is not called automatic",
+   "says": "An `--apply` background run installs the release, logs it with auto false and asked true, clears the waiting release, and the notice says 'updated' rather than 'auto-updated'.",
+   "afterwards": true
+  },
+  {
+   "behavior": "terminal-release-notice",
+   "test": "test/update-ask.test.js::a terminal is told a release is out once a release",
+   "says": "The notice is empty with nothing waiting, appears once for a found release, appears again for a newer one, and is empty after the record is dropped.",
+   "afterwards": true
+  },
+  {
+   "behavior": "update-level-setting",
+   "test": "test/update-ask.test.js::the settings show how a release is handled, asked first unless the person says otherwise",
+   "says": "The Updates group shows level ask with options ask/auto/off and a 7-day frequency, setting auto is saved and hides the frequency, and both values can be set back.",
+   "afterwards": true
+  },
+  {
+   "behavior": "update-level-setting",
+   "test": "test/update-ask.test.js::a person who chose automatic updates gets them as before, and one who chose off is not looked for",
+   "says": "A config of `update: false` reads as level off.",
+   "afterwards": true
+  }
+ ],
+ "sessions": [],
+ "afterwards": {
+  "base": "c9fab2712a52111c7b3fc6f9da4ef90791491734",
+  "at": "2026-11-24T19:17:02.634Z",
+  "model": "claude-opus-5-5",
+  "added": {
+   "src/update-ask.js": {
+    "l1": "1-35",
+    "l2": "54-80",
+    "l17": "82-95",
+    "l18": "108-133",
+    "l22": "97-106",
+    "l23": "135-160",
+    "l33": "162-170",
+    "l36": "36-52"
+   },
+   "src/commands/setup.js": {
+    "l3": "15-16",
+    "l4": "230-241",
+    "l5": "314-319",
+    "l6": "325-341",
+    "l7": "344-353",
+    "l13": "327-329",
+    "l14": "372",
+    "l15": "391-393",
+    "l16": "413-420",
+    "l28": "227",
+    "l29": "307-312",
+    "l30": "320-324",
+    "l31": "342-343",
+    "l41": "270-271",
+    "l42": "288-303"
+   },
+   "src/update.js": {
+    "l8": "495-496",
+    "l9": "509-533",
+    "l10": "557-562",
+    "l11": "598-601",
+    "l12": "611-625",
+    "l32": "722"
+   },
+   "src/commands/hooks.js": {
+    "l19": "31",
+    "l20": "251"
+   },
+   "src/upkeep.js": {
+    "l21": "623"
+   },
+   "src/mcp-server.js": {
+    "l24": "17",
+    "l25": "95-96",
+    "l26": "103",
+    "l27": "172-184"
+   },
+   "src/cli.js": {
+    "l34": "9",
+    "l35": "377",
+    "l45": "258-260"
+   },
+   "src/settings.js": {
+    "l37": "22-23",
+    "l38": "31",
+    "l39": "88-95",
+    "l40": "105"
+   },
+   "src/commands/doctor.js": {
+    "l43": "9",
+    "l44": "272-274"
+   },
+   "install.sh": {
+    "l46": "31-32"
+   }
+  },
+  "deleted": {}
+ },
+ "evidence": {
+  "tree": "f7a00ff346b588dcf10d048f2156ae57da01a974",
+  "command": "if [ -f scripts/select-tests.mjs ]; then files=$(node scripts/select-tests.mjs) || exit 1; else files=$(ls test/*.test.js); fi; [ -n \"$files\" ] || { echo '<testsuites/>' > {report}; exit 0; }; run=$(mktemp -d \"${TMPDIR:-/tmp}/thinker-test-run.XXXXXX\"); env -u CLAUDE_CODE_ENTRYPOINT -u CURSOR_AGENT TMPDIR=\"$run\" THINKER_TEST=1 THINKER_MODELS_DIR=\"${THINKER_MODELS_DIR:-$HOME/.thinker/models}\" node --test --test-force-exit --test-reporter=junit --test-reporter-destination={report} $files; rc=$?; rm -rf \"$run\"; exit $rc",
+  "finishedAt": "2026-11-24T19:16:02.193Z",
+  "durationMs": 3705,
+  "results": [
+   {
+    "id": "test/chat.test.js::a question changes nothing",
+    "name": "a question changes nothing",
+    "suite": [],
+    "path": "test/chat.test.js",
+    "line": 50,
+    "endLine": 60,
+    "status": "passed",
+    "durationMs": 40.775
+   },
+   {
+    "id": "test/chat.test.js::an action thinker has no way of doing is dropped and said so",
+    "name": "an action thinker has no way of doing is dropped and said so",
+    "suite": [],
+    "path": "test/chat.test.js",
+    "line": 62,
+    "endLine": 69,
+    "status": "passed",
+    "durationMs": 29.174
+   },
+   {
+    "id": "test/chat.test.js::a setting thinker does not have, or a value it cannot take, never lands",
+    "name": "a setting thinker does not have, or a value it cannot take, never lands",
+    "suite": [],
+    "path": "test/chat.test.js",
+    "line": 71,
+    "endLine": 89,
+    "status": "passed",
+    "durationMs": 30.264
+   },
+   {
+    "id": "test/chat.test.js::an action that blows up is reported as not done, and the ones after it still run",
+    "name": "an action that blows up is reported as not done, and the ones after it still run",
+    "suite": [],
+    "path": "test/chat.test.js",
+    "line": 91,
+    "endLine": 104,
+    "status": "passed",
+    "durationMs": 20.761000000000003
+   },
+   {
+    "id": "test/chat.test.js::a wish for one repository stays there, a wish for none is the whole machine, and \"less of these\" moves the bar one step",
+    "name": "a wish for one repository stays there, a wish for none is the whole machine, and \"less of these\" moves the bar one step",
+    "suite": [],
+    "path": "test/chat.test.js",
+    "line": 106,
+    "endLine": 121,
+    "status": "passed",
+    "durationMs": 104.948
+   },
+   {
+    "id": "test/chat.test.js::an unknown repository, thing or undo id is refused",
+    "name": "an unknown repository, thing or undo id is refused",
+    "suite": [],
+    "path": "test/chat.test.js",
+    "line": 123,
+    "endLine": 139,
+    "status": "passed",
+    "durationMs": 30.211
+   },
+   {
+    "id": "test/chat.test.js::told to do a thing, to leave one and to take one back, thinker does each once",
+    "name": "told to do a thing, to leave one and to take one back, thinker does each once",
+    "suite": [],
+    "path": "test/chat.test.js",
+    "line": 141,
+    "endLine": 174,
+    "status": "passed",
+    "durationMs": 71.16300000000001
+   },
+   {
+    "id": "test/chat.test.js::an answer that needs the sessions costs one more model call and only one",
+    "name": "an answer that needs the sessions costs one more model call and only one",
+    "suite": [],
+    "path": "test/chat.test.js",
+    "line": 176,
+    "endLine": 192,
+    "status": "passed",
+    "durationMs": 78.961
+   },
+   {
+    "id": "test/chat.test.js::a model that cannot answer leaves the message and says why",
+    "name": "a model that cannot answer leaves the message and says why",
+    "suite": [],
+    "path": "test/chat.test.js",
+    "line": 194,
+    "endLine": 204,
+    "status": "passed",
+    "durationMs": 37.042
+   },
+   {
+    "id": "test/chat.test.js::with no model on this machine the message waits for a session and is answered later",
+    "name": "with no model on this machine the message waits for a session and is answered later",
+    "suite": [],
+    "path": "test/chat.test.js",
+    "line": 206,
+    "endLine": 220,
+    "status": "passed",
+    "durationMs": 53.16
+   },
+   {
+    "id": "test/chat.test.js::one answer may change only so much",
+    "name": "one answer may change only so much",
+    "suite": [],
+    "path": "test/chat.test.js",
+    "line": 222,
+    "endLine": 228,
+    "status": "passed",
+    "durationMs": 38.669000000000004
+   },
+   {
+    "id": "test/chat.test.js::what thinker is given to say about savings is the accountant's own count",
+    "name": "what thinker is given to say about savings is the accountant's own count",
+    "suite": [],
+    "path": "test/chat.test.js",
+    "status": "passed",
+    "durationMs": 35.38
+   },
+   {
+    "id": "test/chat.test.js::the conversation stays on this machine: the file is the person's alone and the log holds no words",
+    "name": "the conversation stays on this machine: the file is the person's alone and the log holds no words",
+    "suite": [],
+    "path": "test/chat.test.js",
+    "status": "passed",
+    "durationMs": 52.315
+   },
+   {
+    "id": "test/chat.test.js::a card attached to a message carries only what the page may send",
+    "name": "a card attached to a message carries only what the page may send",
+    "suite": [],
+    "path": "test/chat.test.js",
+    "line": 257,
+    "endLine": 268,
+    "status": "passed",
+    "durationMs": 0.34299999999999997
+   },
+   {
+    "id": "test/chat.test.js::chat calls the normal provider path without pinning the profile model",
+    "name": "chat calls the normal provider path without pinning the profile model",
+    "suite": [],
+    "path": "test/chat.test.js",
+    "line": 271,
+    "endLine": 278,
+    "status": "passed",
+    "durationMs": 28.457
+   },
+   {
+    "id": "test/chat.test.js::authentication failures keep the message and expose recovery for the chosen provider",
+    "name": "authentication failures keep the message and expose recovery for the chosen provider",
+    "suite": [],
+    "path": "test/chat.test.js",
+    "line": 280,
+    "endLine": 306,
+    "status": "passed",
+    "durationMs": 109.613
+   },
+   {
+    "id": "test/cutting.test.js::out of the box nothing is cut by either door, and `cut: true` in the machine config puts it back with no session held out",
+    "name": "out of the box nothing is cut by either door, and `cut: true` in the machine config puts it back with no session held out",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "line": 43,
+    "endLine": 60,
+    "status": "passed",
+    "durationMs": 2.927
+   },
+   {
+    "id": "test/cutting.test.js::nothing is cut below the trigger, with too little to take, or with nothing finished, and the answer says which",
+    "name": "nothing is cut below the trigger, with too little to take, or with nothing finished, and the answer says which",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "line": 62,
+    "endLine": 73,
+    "status": "passed",
+    "durationMs": 0.11299999999999999
+   },
+   {
+    "id": "test/cutting.test.js::past the trigger at the start of a turn, a cut that pays is made",
+    "name": "past the trigger at the start of a turn, a cut that pays is made",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "line": 75,
+    "endLine": 83,
+    "status": "passed",
+    "durationMs": 0.106
+   },
+   {
+    "id": "test/cutting.test.js::a cut that would not repay inside the payback limit is refused, and says what it held back",
+    "name": "a cut that would not repay inside the payback limit is refused, and says what it held back",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "line": 85,
+    "endLine": 94,
+    "status": "passed",
+    "durationMs": 0.06999999999999999
+   },
+   {
+    "id": "test/cutting.test.js::inside a turn the cut does not move",
+    "name": "inside a turn the cut does not move",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "line": 96,
+    "endLine": 104,
+    "status": "passed",
+    "durationMs": 0.727
+   },
+   {
+    "id": "test/cutting.test.js::a stale copy of a conversation's record cannot undo a newer one",
+    "name": "a stale copy of a conversation's record cannot undo a newer one",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "status": "passed",
+    "durationMs": 0.9959999999999999
+   },
+   {
+    "id": "test/cutting.test.js::when the answer to a cut lands, the record and the row say what left the prompt",
+    "name": "when the answer to a cut lands, the record and the row say what left the prompt",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "line": 123,
+    "endLine": 137,
+    "status": "passed",
+    "durationMs": 0.147
+   },
+   {
+    "id": "test/cutting.test.js::a session picked up cold obeys the same trigger and size floor",
+    "name": "a session picked up cold obeys the same trigger and size floor",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "line": 139,
+    "endLine": 147,
+    "status": "passed",
+    "durationMs": 0.092
+   },
+   {
+    "id": "test/cutting.test.js::of the rungs that pay, the one that saves most is taken, not the deepest",
+    "name": "of the rungs that pay, the one that saves most is taken, not the deepest",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "line": 149,
+    "endLine": 157,
+    "status": "passed",
+    "durationMs": 0.111
+   },
+   {
+    "id": "test/cutting.test.js::with cutting switched off neither door cuts, both stamp it off, and both still say what they would have taken",
+    "name": "with cutting switched off neither door cuts, both stamp it off, and both still say what they would have taken",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "line": 159,
+    "endLine": 174,
+    "status": "passed",
+    "durationMs": 0.188
+   },
+   {
+    "id": "test/cutting.test.js::the newest copy of a file the person works from stays in the prompt",
+    "name": "the newest copy of a file the person works from stays in the prompt",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "line": 176,
+    "endLine": 196,
+    "status": "passed",
+    "durationMs": 0.929
+   },
+   {
+    "id": "test/cutting.test.js::what the profile learned the person points at is kept, and each checkout's list is its own",
+    "name": "what the profile learned the person points at is kept, and each checkout's list is its own",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "status": "passed",
+    "durationMs": 3.473
+   },
+   {
+    "id": "test/cutting.test.js::the desktop door clears exactly where the proxy's pricing says a cut pays",
+    "name": "the desktop door clears exactly where the proxy's pricing says a cut pays",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "status": "passed",
+    "durationMs": 1.827
+   },
+   {
+    "id": "test/cutting.test.js::every setting of the proxy's clearing is honoured by the desktop door or written down as one it cannot have",
+    "name": "every setting of the proxy's clearing is honoured by the desktop door or written down as one it cannot have",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "status": "passed",
+    "durationMs": 0.096
+   },
+   {
+    "id": "test/cutting.test.js::the desktop door clears a conversation that is mostly finished results, and names what goes",
+    "name": "the desktop door clears a conversation that is mostly finished results, and names what goes",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "line": 267,
+    "endLine": 284,
+    "status": "passed",
+    "durationMs": 14.115
+   },
+   {
+    "id": "test/cutting.test.js::a session the proxy already serves, one held out, or a test is left alone, and the answer says which",
+    "name": "a session the proxy already serves, one held out, or a test is left alone, and the answer says which",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "line": 286,
+    "endLine": 300,
+    "status": "passed",
+    "durationMs": 0.179
+   },
+   {
+    "id": "test/cutting.test.js::an attempt that cleared nothing is held until the context has grown, not asked again after every answer",
+    "name": "an attempt that cleared nothing is held until the context has grown, not asked again after every answer",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "line": 302,
+    "endLine": 313,
+    "status": "passed",
+    "durationMs": 0.089
+   },
+   {
+    "id": "test/cutting.test.js::what stands in a cut result's place says it was removed after use and how big it was, and a cut call keeps its arguments",
+    "name": "what stands in a cut result's place says it was removed after use and how big it was, and a cut call keeps its arguments",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "status": "passed",
+    "durationMs": 0.128
+   },
+   {
+    "id": "test/cutting.test.js::a conversation's record outlives the proxy, and a request with no session writes nothing",
+    "name": "a conversation's record outlives the proxy, and a request with no session writes nothing",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "status": "passed",
+    "durationMs": 0.607
+   },
+   {
+    "id": "test/cutting.test.js::the clearing mod decides nothing itself: it asks the installed thinker",
+    "name": "the clearing mod decides nothing itself: it asks the installed thinker",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "line": 346,
+    "endLine": 359,
+    "status": "passed",
+    "durationMs": 1.174
+   },
+   {
+    "id": "test/cutting.test.js::the clearing mod charges a clear what the proxy charges it",
+    "name": "the clearing mod charges a clear what the proxy charges it",
+    "suite": [],
+    "path": "test/cutting.test.js",
+    "line": 365,
+    "endLine": 386,
+    "status": "passed",
+    "durationMs": 51.928000000000004
+   },
+   {
+    "id": "test/delegation.test.js::a big read is handed to a subagent and the denial says where to take it, while a smaller one goes through",
+    "name": "a big read is handed to a subagent and the denial says where to take it, while a smaller one goes through",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "line": 55,
+    "endLine": 79,
+    "status": "passed",
+    "durationMs": 5.585999999999999
+   },
+   {
+    "id": "test/delegation.test.js::after a denial the model can still read the lines it needs",
+    "name": "after a denial the model can still read the lines it needs",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "line": 81,
+    "endLine": 85,
+    "status": "passed",
+    "durationMs": 0.971
+   },
+   {
+    "id": "test/delegation.test.js::a picture is never handed away, whatever its size on disk",
+    "name": "a picture is never handed away, whatever its size on disk",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "line": 87,
+    "endLine": 96,
+    "status": "passed",
+    "durationMs": 1.758
+   },
+   {
+    "id": "test/delegation.test.js::a file the person keeps is never handed away",
+    "name": "a file the person keeps is never handed away",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "line": 98,
+    "endLine": 108,
+    "status": "passed",
+    "durationMs": 0.277
+   },
+   {
+    "id": "test/delegation.test.js::a held-out session is decided and logged but never denied",
+    "name": "a held-out session is decided and logged but never denied",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "line": 110,
+    "endLine": 116,
+    "status": "passed",
+    "durationMs": 0.135
+   },
+   {
+    "id": "test/delegation.test.js::a subagent reading for the model is never sent to another subagent",
+    "name": "a subagent reading for the model is never sent to another subagent",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "line": 118,
+    "endLine": 130,
+    "status": "passed",
+    "durationMs": 0.275
+   },
+   {
+    "id": "test/delegation.test.js::a turn hands over its budget of reads and no more, and never the same file twice",
+    "name": "a turn hands over its budget of reads and no more, and never the same file twice",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "line": 132,
+    "endLine": 146,
+    "status": "passed",
+    "durationMs": 1.176
+   },
+   {
+    "id": "test/delegation.test.js::a whole-suite run goes to the verifier and one test file stays with the model",
+    "name": "a whole-suite run goes to the verifier and one test file stays with the model",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "line": 148,
+    "endLine": 168,
+    "status": "passed",
+    "durationMs": 1.02
+   },
+   {
+    "id": "test/delegation.test.js::a shell line that prints a whole file is a read, and one that trims for itself is not",
+    "name": "a shell line that prints a whole file is a read, and one that trims for itself is not",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "line": 170,
+    "endLine": 180,
+    "status": "passed",
+    "durationMs": 0.40099999999999997
+   },
+   {
+    "id": "test/delegation.test.js::each switch lets its own kind of work through",
+    "name": "each switch lets its own kind of work through",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "line": 182,
+    "endLine": 188,
+    "status": "passed",
+    "durationMs": 99.35
+   },
+   {
+    "id": "test/delegation.test.js::what a person set in their own settings is what the trigger does",
+    "name": "what a person set in their own settings is what the trigger does",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "line": 190,
+    "endLine": 202,
+    "status": "passed",
+    "durationMs": 0.8310000000000001
+   },
+   {
+    "id": "test/delegation.test.js::a read nothing can answer for goes through",
+    "name": "a read nothing can answer for goes through",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "line": 204,
+    "endLine": 213,
+    "status": "passed",
+    "durationMs": 0.187
+   },
+   {
+    "id": "test/delegation.test.js::a file read again unchanged is answered with a pointer to the copy the model already has",
+    "name": "a file read again unchanged is answered with a pointer to the copy the model already has",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "line": 215,
+    "endLine": 230,
+    "status": "passed",
+    "durationMs": 8.066
+   },
+   {
+    "id": "test/delegation.test.js::one tool call seen by both of Claude Code's doors is decided once",
+    "name": "one tool call seen by both of Claude Code's doors is decided once",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "status": "passed",
+    "durationMs": 1.366
+   },
+   {
+    "id": "test/delegation.test.js::thinker writes its own subagent file and removes it again, and leaves a person's own alone",
+    "name": "thinker writes its own subagent file and removes it again, and leaves a person's own alone",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "status": "passed",
+    "durationMs": 0.755
+   },
+   {
+    "id": "test/delegation.test.js::on OpenCode the read is understood in its own words and the denial comes back as the call's result",
+    "name": "on OpenCode the read is understood in its own words and the denial comes back as the call's result",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "status": "passed",
+    "durationMs": 1.237
+   },
+   {
+    "id": "test/delegation.test.js::the installed hook answers a big read with a denial, and says nothing at all in a test run",
+    "name": "the installed hook answers a big read with a denial, and says nothing at all in a test run",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "line": 281,
+    "endLine": 296,
+    "status": "passed",
+    "durationMs": 996.783
+   },
+   {
+    "id": "test/delegation.test.js::a read goes to thinker's hosted model when one is named, and the lead works from its report",
+    "name": "a read goes to thinker's hosted model when one is named, and the lead works from its report",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "status": "passed",
+    "durationMs": 0.82
+   },
+   {
+    "id": "test/delegation.test.js::where the hosted model cannot take a read, it goes to the host's own subagent as before",
+    "name": "where the hosted model cannot take a read, it goes to the host's own subagent as before",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "status": "passed",
+    "durationMs": 0.9460000000000001
+   },
+   {
+    "id": "test/delegation.test.js::a hosted run is OpenCode on thinker's endpoint under the machine's key, allowed to read and nothing else",
+    "name": "a hosted run is OpenCode on thinker's endpoint under the machine's key, allowed to read and nothing else",
+    "suite": [],
+    "path": "test/delegation.test.js",
+    "status": "passed",
+    "durationMs": 189.536
+   },
+   {
+    "id": "test/factory-ui.test.js::weekly usage graph distinguishes zero, missing, and an unfinished week",
+    "name": "weekly usage graph distinguishes zero, missing, and an unfinished week",
+    "suite": [],
+    "path": "test/factory-ui.test.js",
+    "line": 15,
+    "endLine": 22,
+    "status": "passed",
+    "durationMs": 3.887
+   },
+   {
+    "id": "test/factory-ui.test.js::weekly usage bars use the same zero-based scale and leave report data unchanged",
+    "name": "weekly usage bars use the same zero-based scale and leave report data unchanged",
+    "suite": [],
+    "path": "test/factory-ui.test.js",
+    "line": 24,
+    "endLine": 35,
+    "status": "passed",
+    "durationMs": 0.217
+   },
+   {
+    "id": "test/factory-ui.test.js::absent history has an explicit empty state rather than fabricated zero bars",
+    "name": "absent history has an explicit empty state rather than fabricated zero bars",
+    "suite": [],
+    "path": "test/factory-ui.test.js",
+    "line": 37,
+    "endLine": 42,
+    "status": "passed",
+    "durationMs": 0.116
+   },
+   {
+    "id": "test/factory-ui.test.js::stage drawer hands the selected stage to Chat and closes before switching views",
+    "name": "stage drawer hands the selected stage to Chat and closes before switching views",
+    "suite": [],
+    "path": "test/factory-ui.test.js",
+    "line": 44,
+    "endLine": 44,
+    "status": "passed",
+    "durationMs": 1.3760000000000001
+   },
+   {
+    "id": "test/instructions.test.js::a section keeps its name when the text around it changes, and a section with subsections owns only its own prose",
+    "name": "a section keeps its name when the text around it changes, and a section with subsections owns only its own prose",
+    "suite": [],
+    "path": "test/instructions.test.js",
+    "line": 49,
+    "endLine": 62,
+    "status": "passed",
+    "durationMs": 1.6720000000000002
+   },
+   {
+    "id": "test/instructions.test.js::a section is counted as used when the work does what it is about, and a turn counts once however many calls it made",
+    "name": "a section is counted as used when the work does what it is about, and a turn counts once however many calls it made",
+    "suite": [],
+    "path": "test/instructions.test.js",
+    "line": 64,
+    "endLine": 81,
+    "status": "passed",
+    "durationMs": 76.023
+   },
+   {
+    "id": "test/instructions.test.js::a rule that names no paths is read by every session, and one that names paths only when they are touched",
+    "name": "a rule that names no paths is read by every session, and one that names paths only when they are touched",
+    "suite": [],
+    "path": "test/instructions.test.js",
+    "line": 83,
+    "endLine": 98,
+    "status": "passed",
+    "durationMs": 128.288
+   },
+   {
+    "id": "test/instructions.test.js::a section wastes what it costs in the prompts that did not need it, and the most wasteful is what thinker offers to change",
+    "name": "a section wastes what it costs in the prompts that did not need it, and the most wasteful is what thinker offers to change",
+    "suite": [],
+    "path": "test/instructions.test.js",
+    "line": 107,
+    "endLine": 123,
+    "status": "passed",
+    "durationMs": 176.60899999999998
+   },
+   {
+    "id": "test/instructions.test.js::a section changed lately is measured afresh, and is not offered until enough sessions have read it since",
+    "name": "a section changed lately is measured afresh, and is not offered until enough sessions have read it since",
+    "suite": [],
+    "path": "test/instructions.test.js",
+    "line": 125,
+    "endLine": 145,
+    "status": "passed",
+    "durationMs": 250.23899999999998
+   },
+   {
+    "id": "test/instructions.test.js::a change decided lately is not offered again, and a change whose job failed comes back",
+    "name": "a change decided lately is not offered again, and a change whose job failed comes back",
+    "suite": [],
+    "path": "test/instructions.test.js",
+    "line": 147,
+    "endLine": 158,
+    "status": "passed",
+    "durationMs": 121.828
+   },
+   {
+    "id": "test/instructions.test.js::a preview writes nothing, and keeps what each section said and what it would say",
+    "name": "a preview writes nothing, and keeps what each section said and what it would say",
+    "suite": [],
+    "path": "test/instructions.test.js",
+    "line": 162,
+    "endLine": 182,
+    "status": "passed",
+    "durationMs": 241.41000000000003
+   },
+   {
+    "id": "test/instructions.test.js::a compress keeps the heading even when the model drops it, and a rewrite that is not shorter is asked for once more, not for ever",
+    "name": "a compress keeps the heading even when the model drops it, and a rewrite that is not shorter is asked for once more, not for ever",
+    "suite": [],
+    "path": "test/instructions.test.js",
+    "line": 184,
+    "endLine": 194,
+    "status": "passed",
+    "durationMs": 125.89500000000001
+   },
+   {
+    "id": "test/instructions.test.js::apply writes exactly what was previewed, and refuses a file that changed since",
+    "name": "apply writes exactly what was previewed, and refuses a file that changed since",
+    "suite": [],
+    "path": "test/instructions.test.js",
+    "line": 196,
+    "endLine": 209,
+    "status": "passed",
+    "durationMs": 148.441
+   },
+   {
+    "id": "test/instructions.test.js::a file that is one instruction from end to end is shortened whole, and taken out by being deleted",
+    "name": "a file that is one instruction from end to end is shortened whole, and taken out by being deleted",
+    "suite": [],
+    "path": "test/instructions.test.js",
+    "line": 211,
+    "endLine": 227,
+    "status": "passed",
+    "durationMs": 302.816
+   },
+   {
+    "id": "test/instructions.test.js::no pull request can be opened without a GitHub origin, or without the GitHub CLI",
+    "name": "no pull request can be opened without a GitHub origin, or without the GitHub CLI",
+    "suite": [],
+    "path": "test/instructions.test.js",
+    "line": 229,
+    "endLine": 240,
+    "status": "passed",
+    "durationMs": 248.65
+   },
+   {
+    "id": "test/instructions.test.js::opening a pull request leaves the checkout alone and carries the change made from the default branch",
+    "name": "opening a pull request leaves the checkout alone and carries the change made from the default branch",
+    "suite": [],
+    "path": "test/instructions.test.js",
+    "line": 242,
+    "endLine": 263,
+    "status": "passed",
+    "durationMs": 315.84000000000003
+   },
+   {
+    "id": "test/instructions.test.js::a pull request is refused when the default branch no longer holds the section, or holds it twice",
+    "name": "a pull request is refused when the default branch no longer holds the section, or holds it twice",
+    "suite": [],
+    "path": "test/instructions.test.js",
+    "line": 265,
+    "endLine": 274,
+    "status": "passed",
+    "durationMs": 0.23399999999999999
+   },
+   {
+    "id": "test/instructions.test.js::approving a section records the decision before anything is made and hands it to one job, writing nothing itself",
+    "name": "approving a section records the decision before anything is made and hands it to one job, writing nothing itself",
+    "suite": [],
+    "path": "test/instructions.test.js",
+    "line": 278,
+    "endLine": 293,
+    "status": "passed",
+    "durationMs": 95.8
+   },
+   {
+    "id": "test/instructions.test.js::a job whose process died reads as failed once, with its reason, and a retry runs every section of it again",
+    "name": "a job whose process died reads as failed once, with its reason, and a retry runs every section of it again",
+    "suite": [],
+    "path": "test/instructions.test.js",
+    "line": 295,
+    "endLine": 312,
+    "status": "passed",
+    "durationMs": 48.342000000000006
+   },
+   {
+    "id": "test/instructions.test.js::a pull request is followed to its fate: merged is done, merged but not pulled says so, closed is offered again",
+    "name": "a pull request is followed to its fate: merged is done, merged but not pulled says so, closed is offered again",
+    "suite": [],
+    "path": "test/instructions.test.js",
+    "line": 314,
+    "endLine": 337,
+    "status": "passed",
+    "durationMs": 87.06899999999999
+   },
+   {
+    "id": "test/instructions.test.js::an undo never discards what the person wrote afterwards, and a pull request still open is undone by closing it",
+    "name": "an undo never discards what the person wrote afterwards, and a pull request still open is undone by closing it",
+    "suite": [],
+    "path": "test/instructions.test.js",
+    "line": 339,
+    "endLine": 359,
+    "status": "passed",
+    "durationMs": 63.059000000000005
+   },
+   {
+    "id": "test/proxy-cut.test.js::past the trigger the old finished results go up as placeholders and nothing else changes",
+    "name": "past the trigger the old finished results go up as placeholders and nothing else changes",
+    "suite": [],
+    "path": "test/proxy-cut.test.js",
+    "line": 69,
+    "endLine": 84,
+    "status": "passed",
+    "durationMs": 20.262999999999998
+   },
+   {
+    "id": "test/proxy-cut.test.js::as it ships, a boundary seeds the cut on one request and makes it on the next",
+    "name": "as it ships, a boundary seeds the cut on one request and makes it on the next",
+    "suite": [],
+    "path": "test/proxy-cut.test.js",
+    "line": 86,
+    "endLine": 105,
+    "status": "passed",
+    "durationMs": 10.201
+   },
+   {
+    "id": "test/proxy-cut.test.js::inside a turn the cut does not move",
+    "name": "inside a turn the cut does not move",
+    "suite": [],
+    "path": "test/proxy-cut.test.js",
+    "line": 107,
+    "endLine": 121,
+    "status": "passed",
+    "durationMs": 34.454
+   },
+   {
+    "id": "test/proxy-cut.test.js::the next turn carries the earlier cut unchanged and only adds to it",
+    "name": "the next turn carries the earlier cut unchanged and only adds to it",
+    "suite": [],
+    "path": "test/proxy-cut.test.js",
+    "line": 123,
+    "endLine": 134,
+    "status": "passed",
+    "durationMs": 15.69
+   },
+   {
+    "id": "test/proxy-cut.test.js::a request the cut does not touch goes up as the agent's own bytes",
+    "name": "a request the cut does not touch goes up as the agent's own bytes",
+    "suite": [],
+    "path": "test/proxy-cut.test.js",
+    "line": 136,
+    "endLine": 150,
+    "status": "passed",
+    "durationMs": 1.596
+   },
+   {
+    "id": "test/proxy-cut.test.js::the same conversation on three wires gives one decision",
+    "name": "the same conversation on three wires gives one decision",
+    "suite": [],
+    "path": "test/proxy-cut.test.js",
+    "line": 152,
+    "endLine": 182,
+    "status": "passed",
+    "durationMs": 40.086999999999996
+   },
+   {
+    "id": "test/proxy-cut.test.js::a held-out session goes up untouched, whichever wire it is on",
+    "name": "a held-out session goes up untouched, whichever wire it is on",
+    "suite": [],
+    "path": "test/proxy-cut.test.js",
+    "line": 191,
+    "endLine": 202,
+    "status": "passed",
+    "durationMs": 13.268
+   },
+   {
+    "id": "test/proxy-cut.test.js::the Codex and gateway doors replace what they cut and send the rest in the shape it came",
+    "name": "the Codex and gateway doors replace what they cut and send the rest in the shape it came",
+    "suite": [],
+    "path": "test/proxy-cut.test.js",
+    "line": 204,
+    "endLine": 244,
+    "status": "passed",
+    "durationMs": 5.63
+   },
+   {
+    "id": "test/proxy-cut.test.js::what a cut is credited with is counted from the results as they were before it",
+    "name": "what a cut is credited with is counted from the results as they were before it",
+    "suite": [],
+    "path": "test/proxy-cut.test.js",
+    "line": 246,
+    "endLine": 254,
+    "status": "passed",
+    "durationMs": 4.518000000000001
+   },
+   {
+    "id": "test/proxy-cut.test.js::a request past the trigger reaches the API cut, and the row says what was cleared",
+    "name": "a request past the trigger reaches the API cut, and the row says what was cleared",
+    "suite": [],
+    "path": "test/proxy-cut.test.js",
+    "line": 283,
+    "endLine": 297,
+    "status": "passed",
+    "durationMs": 38.318999999999996
+   },
+   {
+    "id": "test/proxy-cut.test.js::a 400 that names the cut sends the same request again uncut and the agent sees a normal answer",
+    "name": "a 400 that names the cut sends the same request again uncut and the agent sees a normal answer",
+    "suite": [],
+    "path": "test/proxy-cut.test.js",
+    "line": 299,
+    "endLine": 314,
+    "status": "passed",
+    "durationMs": 13.302
+   },
+   {
+    "id": "test/proxy-cut.test.js::a cut the API refused is credited nothing",
+    "name": "a cut the API refused is credited nothing",
+    "suite": [],
+    "path": "test/proxy-cut.test.js",
+    "line": 316,
+    "endLine": 328,
+    "status": "passed",
+    "durationMs": 16.014
+   },
+   {
+    "id": "test/proxy-cut.test.js::two requests of one conversation in flight together carry the same cut",
+    "name": "two requests of one conversation in flight together carry the same cut",
+    "suite": [],
+    "path": "test/proxy-cut.test.js",
+    "line": 330,
+    "endLine": 350,
+    "status": "passed",
+    "durationMs": 17.59
+   },
+   {
+    "id": "test/proxy-cut.test.js::a request that names no session is not cut, since nothing could hold the cut still through the turn",
+    "name": "a request that names no session is not cut, since nothing could hold the cut still through the turn",
+    "suite": [],
+    "path": "test/proxy-cut.test.js",
+    "line": 352,
+    "endLine": 361,
+    "status": "passed",
+    "durationMs": 12.405
+   },
+   {
+    "id": "test/proxy-cut.test.js::a request routed to another provider carries the provider's key and never the person's",
+    "name": "a request routed to another provider carries the provider's key and never the person's",
+    "suite": [],
+    "path": "test/proxy-cut.test.js",
+    "line": 364,
+    "endLine": 374,
+    "status": "passed",
+    "durationMs": 0.475
+   },
+   {
+    "id": "test/proxy-cut.test.js::the proxy stands down after a run of refusals, unless the API is still answering that agent",
+    "name": "the proxy stands down after a run of refusals, unless the API is still answering that agent",
+    "suite": [],
+    "path": "test/proxy-cut.test.js",
+    "line": 376,
+    "endLine": 392,
+    "status": "passed",
+    "durationMs": 0.514
+   },
+   {
+    "id": "test/proxy-cut.test.js::a cut saves a result's screenshot to disk, or leaves the picture in the prompt",
+    "name": "a cut saves a result's screenshot to disk, or leaves the picture in the prompt",
+    "suite": [],
+    "path": "test/proxy-cut.test.js",
+    "line": 394,
+    "endLine": 403,
+    "status": "passed",
+    "durationMs": 1.9949999999999999
+   },
+   {
+    "id": "test/recap.test.js::a recap is told by its last message: Claude Code's own words at the start of it",
+    "name": "a recap is told by its last message: Claude Code's own words at the start of it",
+    "suite": [],
+    "path": "test/recap.test.js",
+    "status": "passed",
+    "durationMs": 0.7969999999999999
+   },
+   {
+    "id": "test/recap.test.js::the decision: a recap is no boundary, and it leaves the turn and the set where they were",
+    "name": "the decision: a recap is no boundary, and it leaves the turn and the set where they were",
+    "suite": [],
+    "path": "test/recap.test.js",
+    "line": 60,
+    "endLine": 80,
+    "status": "passed",
+    "durationMs": 1.214
+   },
+   {
+    "id": "test/recap.test.js::through the door: the recap goes as it came, and the prompt after it is the boundary",
+    "name": "through the door: the recap goes as it came, and the prompt after it is the boundary",
+    "suite": [],
+    "path": "test/recap.test.js",
+    "line": 82,
+    "endLine": 104,
+    "status": "passed",
+    "durationMs": 23.269000000000002
+   },
+   {
+    "id": "test/recap.test.js::a session already cut: the recap carries the set a call inside the turn carried, byte for byte",
+    "name": "a session already cut: the recap carries the set a call inside the turn carried, byte for byte",
+    "suite": [],
+    "path": "test/recap.test.js",
+    "line": 106,
+    "endLine": 120,
+    "status": "passed",
+    "durationMs": 15.286
+   },
+   {
+    "id": "test/recap.test.js::a seeded cut is not made on the recap: it waits for the person's prompt",
+    "name": "a seeded cut is not made on the recap: it waits for the person's prompt",
+    "suite": [],
+    "path": "test/recap.test.js",
+    "status": "passed",
+    "durationMs": 69.33
+   },
+   {
+    "id": "test/savings.test.js::the net is what was saved less the rewrites and the re-reads a cut caused, for one session and for any sum of them",
+    "name": "the net is what was saved less the rewrites and the re-reads a cut caused, for one session and for any sum of them",
+    "suite": [],
+    "path": "test/savings.test.js",
+    "line": 49,
+    "endLine": 67,
+    "status": "passed",
+    "durationMs": 2.2659999999999996
+   },
+   {
+    "id": "test/savings.test.js::a cleared token is worth a cache read, and a cache write where its request read nothing back",
+    "name": "a cleared token is worth a cache read, and a cache write where its request read nothing back",
+    "suite": [],
+    "path": "test/savings.test.js",
+    "line": 69,
+    "endLine": 80,
+    "status": "passed",
+    "durationMs": 1.1460000000000001
+   },
+   {
+    "id": "test/savings.test.js::only the cut's own request is charged for the rewrite, and a cut made cold is never charged",
+    "name": "only the cut's own request is charged for the rewrite, and a cut made cold is never charged",
+    "suite": [],
+    "path": "test/savings.test.js",
+    "status": "passed",
+    "durationMs": 1.712
+   },
+   {
+    "id": "test/savings.test.js::each clear is counted once across the proxy's log, the desktop record and the log's mirror of it",
+    "name": "each clear is counted once across the proxy's log, the desktop record and the log's mirror of it",
+    "suite": [],
+    "path": "test/savings.test.js",
+    "status": "passed",
+    "durationMs": 1.009
+   },
+   {
+    "id": "test/savings.test.js::a session's per-request rows add up; its running total takes the newest, never the sum",
+    "name": "a session's per-request rows add up; its running total takes the newest, never the sum",
+    "suite": [],
+    "path": "test/savings.test.js",
+    "status": "passed",
+    "durationMs": 0.496
+   },
+   {
+    "id": "test/savings.test.js::a desktop clear reaches the machine's log once, and again only once it has grown",
+    "name": "a desktop clear reaches the machine's log once, and again only once it has grown",
+    "suite": [],
+    "path": "test/savings.test.js",
+    "status": "passed",
+    "durationMs": 2.045
+   },
+   {
+    "id": "test/savings.test.js::a delegated read saves the write the lead never made, less what the subagent cost, plus a read on each later call",
+    "name": "a delegated read saves the write the lead never made, less what the subagent cost, plus a read on each later call",
+    "suite": [],
+    "path": "test/savings.test.js",
+    "line": 143,
+    "endLine": 164,
+    "status": "passed",
+    "durationMs": 0.906
+   },
+   {
+    "id": "test/savings.test.js::a handoff that was held out, declined, failed or that the lead then read anyway saves nothing",
+    "name": "a handoff that was held out, declined, failed or that the lead then read anyway saves nothing",
+    "suite": [],
+    "path": "test/savings.test.js",
+    "line": 166,
+    "endLine": 180,
+    "status": "passed",
+    "durationMs": 0.262
+   },
+   {
+    "id": "test/savings.test.js::what a delegated read kept out is read back from the session's own transcript",
+    "name": "what a delegated read kept out is read back from the session's own transcript",
+    "suite": [],
+    "path": "test/savings.test.js",
+    "status": "passed",
+    "durationMs": 0.8809999999999999
+   },
+   {
+    "id": "test/savings.test.js::a session whose end-of-turn record holds the answer is counted from that record alone, never twice",
+    "name": "a session whose end-of-turn record holds the answer is counted from that record alone, never twice",
+    "suite": [],
+    "path": "test/savings.test.js",
+    "line": 210,
+    "endLine": 223,
+    "status": "passed",
+    "durationMs": 0.251
+   },
+   {
+    "id": "test/savings.test.js::cleared context, delegated reads and reads the model already had add up and never overlap",
+    "name": "cleared context, delegated reads and reads the model already had add up and never overlap",
+    "suite": [],
+    "path": "test/savings.test.js",
+    "line": 225,
+    "endLine": 236,
+    "status": "passed",
+    "durationMs": 0.177
+   },
+   {
+    "id": "test/savings.test.js::a model nobody priced leaves a gap in the dollars, never a zero",
+    "name": "a model nobody priced leaves a gap in the dollars, never a zero",
+    "suite": [],
+    "path": "test/savings.test.js",
+    "line": 238,
+    "endLine": 253,
+    "status": "passed",
+    "durationMs": 0.273
+   },
+   {
+    "id": "test/savings.test.js::when a session was cut is read from the proxy's log, the mod's record and the log's mirror of it",
+    "name": "when a session was cut is read from the proxy's log, the mod's record and the log's mirror of it",
+    "suite": [],
+    "path": "test/savings.test.js",
+    "status": "passed",
+    "durationMs": 1.6440000000000001
+   },
+   {
+    "id": "test/savings.test.js::a file read again after a cut took it is charged; a kept file and the newest results are not",
+    "name": "a file read again after a cut took it is charged; a kept file and the newest results are not",
+    "suite": [],
+    "path": "test/savings.test.js",
+    "line": 270,
+    "endLine": 291,
+    "status": "passed",
+    "durationMs": 2.2560000000000002
+   },
+   {
+    "id": "test/savings.test.js::one ledger for every door: today, the last fortnight with its net, and lifetime",
+    "name": "one ledger for every door: today, the last fortnight with its net, and lifetime",
+    "suite": [],
+    "path": "test/savings.test.js",
+    "line": 293,
+    "endLine": 325,
+    "status": "passed",
+    "durationMs": 3.4250000000000003
+   },
+   {
+    "id": "test/savings.test.js::every saving names the cut policy it was made under, and a session that spans two is marked",
+    "name": "every saving names the cut policy it was made under, and a session that spans two is marked",
+    "suite": [],
+    "path": "test/savings.test.js",
+    "line": 327,
+    "endLine": 338,
+    "status": "passed",
+    "durationMs": 3.1470000000000002
+   },
+   {
+    "id": "test/savings.test.js::a day's counted saving takes a session that outlived an update, and leaves out a clear that names no policy",
+    "name": "a day's counted saving takes a session that outlived an update, and leaves out a clear that names no policy",
+    "suite": [],
+    "path": "test/savings.test.js",
+    "status": "passed",
+    "durationMs": 12.459
+   },
+   {
+    "id": "test/savings.test.js::no module but the accountant prices a saving",
+    "name": "no module but the accountant prices a saving",
+    "suite": [],
+    "path": "test/savings.test.js",
+    "line": 368,
+    "endLine": 368,
+    "status": "passed",
+    "durationMs": 21.770999999999997
+   },
+   {
+    "id": "test/update-ask.test.js::the check on use finds a release, installs nothing and keeps it for the question",
+    "name": "the check on use finds a release, installs nothing and keeps it for the question",
+    "suite": [],
+    "path": "test/update-ask.test.js",
+    "line": 41,
+    "endLine": 50,
+    "status": "passed",
+    "durationMs": 84.271
+   },
+   {
+    "id": "test/update-ask.test.js::the OS job installs nothing either, under its new words or the old ones launchd still runs",
+    "name": "the OS job installs nothing either, under its new words or the old ones launchd still runs",
+    "suite": [],
+    "path": "test/update-ask.test.js",
+    "line": 52,
+    "endLine": 63,
+    "status": "passed",
+    "durationMs": 24.832
+   },
+   {
+    "id": "test/update-ask.test.js::the schedule thinker writes says its run is the job's own",
+    "name": "the schedule thinker writes says its run is the job's own",
+    "suite": [],
+    "path": "test/update-ask.test.js",
+    "status": "passed",
+    "durationMs": 2.397
+   },
+   {
+    "id": "test/update-ask.test.js::thinker update, typed, installs the release and nothing waits afterwards",
+    "name": "thinker update, typed, installs the release and nothing waits afterwards",
+    "suite": [],
+    "path": "test/update-ask.test.js",
+    "line": 71,
+    "endLine": 78,
+    "status": "passed",
+    "durationMs": 61.369
+   },
+   {
+    "id": "test/update-ask.test.js::a person who chose automatic updates gets them as before, and one who chose off is not looked for",
+    "name": "a person who chose automatic updates gets them as before, and one who chose off is not looked for",
+    "suite": [],
+    "path": "test/update-ask.test.js",
+    "line": 80,
+    "endLine": 96,
+    "status": "passed",
+    "durationMs": 62.567
+   },
+   {
+    "id": "test/update-ask.test.js::the question is put once, through the agent's own question tool, and not again inside the week",
+    "name": "the question is put once, through the agent's own question tool, and not again inside the week",
+    "suite": [],
+    "path": "test/update-ask.test.js",
+    "status": "passed",
+    "durationMs": 1.7440000000000002
+   },
+   {
+    "id": "test/update-ask.test.js::how often the question may come is the person's setting",
+    "name": "how often the question may come is the person's setting",
+    "suite": [],
+    "path": "test/update-ask.test.js",
+    "status": "passed",
+    "durationMs": 1.588
+   },
+   {
+    "id": "test/update-ask.test.js::nobody is asked where nobody is at the session, or about the release they already run",
+    "name": "nobody is asked where nobody is at the session, or about the release they already run",
+    "suite": [],
+    "path": "test/update-ask.test.js",
+    "line": 128,
+    "endLine": 135,
+    "status": "passed",
+    "durationMs": 0.439
+   },
+   {
+    "id": "test/update-ask.test.js::not now changes nothing and starts nothing",
+    "name": "not now changes nothing and starts nothing",
+    "suite": [],
+    "path": "test/update-ask.test.js",
+    "line": 137,
+    "endLine": 149,
+    "status": "passed",
+    "durationMs": 1.173
+   },
+   {
+    "id": "test/update-ask.test.js::yes starts the update in a process of its own, and always also stops the asking",
+    "name": "yes starts the update in a process of its own, and always also stops the asking",
+    "suite": [],
+    "path": "test/update-ask.test.js",
+    "line": 151,
+    "endLine": 171,
+    "status": "passed",
+    "durationMs": 2.868
+   },
+   {
+    "id": "test/update-ask.test.js::the update a person said yes to installs under any setting, and is not called automatic",
+    "name": "the update a person said yes to installs under any setting, and is not called automatic",
+    "suite": [],
+    "path": "test/update-ask.test.js",
+    "line": 173,
+    "endLine": 181,
+    "status": "passed",
+    "durationMs": 31.586999999999996
+   },
+   {
+    "id": "test/update-ask.test.js::a terminal is told a release is out once a release",
+    "name": "a terminal is told a release is out once a release",
+    "suite": [],
+    "path": "test/update-ask.test.js",
+    "line": 183,
+    "endLine": 193,
+    "status": "passed",
+    "durationMs": 1.137
+   },
+   {
+    "id": "test/update-ask.test.js::the settings show how a release is handled, asked first unless the person says otherwise",
+    "name": "the settings show how a release is handled, asked first unless the person says otherwise",
+    "suite": [],
+    "path": "test/update-ask.test.js",
+    "line": 195,
+    "endLine": 206,
+    "status": "passed",
+    "durationMs": 1.952
+   },
+   {
+    "id": "test/update-note.test.js::the note of this release, where it has one, is short and has an id",
+    "name": "the note of this release, where it has one, is short and has an id",
+    "suite": [],
+    "path": "test/update-note.test.js",
+    "line": 18,
+    "endLine": 22,
+    "status": "passed",
+    "durationMs": 0.6449999999999999
+   },
+   {
+    "id": "test/update-note.test.js::a note is armed only by an update to a release that brings it",
+    "name": "a note is armed only by an update to a release that brings it",
+    "suite": [],
+    "path": "test/update-note.test.js",
+    "line": 24,
+    "endLine": 52,
+    "status": "passed",
+    "durationMs": 8.120000000000001
+   },
+   {
+    "id": "test/update-note.test.js::of every turn that ends at once, one is shown the note, and nothing can show it again",
+    "name": "of every turn that ends at once, one is shown the note, and nothing can show it again",
+    "suite": [],
+    "path": "test/update-note.test.js",
+    "line": 54,
+    "endLine": 84,
+    "status": "passed",
+    "durationMs": 1534.981
+   },
+   {
+    "id": "test/update-note.test.js::a note names its release and fills its links, for the agents with a card and without one",
+    "name": "a note names its release and fills its links, for the agents with a card and without one",
+    "suite": [],
+    "path": "test/update-note.test.js",
+    "line": 86,
+    "endLine": 95,
+    "status": "passed",
+    "durationMs": 0.412
+   },
+   {
+    "id": "test/update-note.test.js::each door says the note to the first turn that ends, and to no turn after it",
+    "name": "each door says the note to the first turn that ends, and to no turn after it",
+    "suite": [],
+    "path": "test/update-note.test.js",
+    "line": 97,
+    "endLine": 132,
+    "status": "passed",
+    "durationMs": 1456.956
+   },
+   {
+    "id": "test/upkeep.test.js::told to stay off, thinker does not even look",
+    "name": "told to stay off, thinker does not even look",
+    "suite": [],
+    "path": "test/upkeep.test.js",
+    "line": 55,
+    "endLine": 66,
+    "status": "passed",
+    "durationMs": 39.96
+   },
+   {
+    "id": "test/upkeep.test.js::left as it comes, thinker asks first: what is worth doing is put to the person, and only a yes ships it",
+    "name": "left as it comes, thinker asks first: what is worth doing is put to the person, and only a yes ships it",
+    "suite": [],
+    "path": "test/upkeep.test.js",
+    "line": 68,
+    "endLine": 110,
+    "status": "passed",
+    "durationMs": 42.434
+   },
+   {
+    "id": "test/upkeep.test.js::a no changes nothing, and thinker does not ask again inside the week",
+    "name": "a no changes nothing, and thinker does not ask again inside the week",
+    "suite": [],
+    "path": "test/upkeep.test.js",
+    "line": 112,
+    "endLine": 132,
+    "status": "passed",
+    "durationMs": 45.911
+   },
+   {
+    "id": "test/upkeep.test.js::thinker changes a thing by itself only where the case is strong",
+    "name": "thinker changes a thing by itself only where the case is strong",
+    "suite": [],
+    "path": "test/upkeep.test.js",
+    "line": 134,
+    "endLine": 155,
+    "status": "passed",
+    "durationMs": 0.195
+   },
+   {
+    "id": "test/upkeep.test.js::thinker takes the gentlest change that gets the saving",
+    "name": "thinker takes the gentlest change that gets the saving",
+    "suite": [],
+    "path": "test/upkeep.test.js",
+    "line": 157,
+    "endLine": 173,
+    "status": "passed",
+    "durationMs": 42.33
+   },
+   {
+    "id": "test/upkeep.test.js::a second setting keeps the first",
+    "name": "a second setting keeps the first",
+    "suite": [],
+    "path": "test/upkeep.test.js",
+    "line": 175,
+    "endLine": 184,
+    "status": "passed",
+    "durationMs": 70.321
+   },
+   {
+    "id": "test/upkeep.test.js::what a batch did is one line of the activity, and that line is how it is taken back",
+    "name": "what a batch did is one line of the activity, and that line is how it is taken back",
+    "suite": [],
+    "path": "test/upkeep.test.js",
+    "line": 186,
+    "endLine": 219,
+    "status": "passed",
+    "durationMs": 62.559000000000005
+   },
+   {
+    "id": "test/upkeep.test.js::the changes worth making go out together, as one job and one pull request",
+    "name": "the changes worth making go out together, as one job and one pull request",
+    "suite": [],
+    "path": "test/upkeep.test.js",
+    "line": 221,
+    "endLine": 236,
+    "status": "passed",
+    "durationMs": 43.672999999999995
+   },
+   {
+    "id": "test/upkeep.test.js::where no pull request can be opened, the file is not thinker's to change",
+    "name": "where no pull request can be opened, the file is not thinker's to change",
+    "suite": [],
+    "path": "test/upkeep.test.js",
+    "status": "passed",
+    "durationMs": 28.602
+   },
+   {
+    "id": "test/upkeep.test.js::the same thing is never done twice",
+    "name": "the same thing is never done twice",
+    "suite": [],
+    "path": "test/upkeep.test.js",
+    "line": 254,
+    "endLine": 266,
+    "status": "passed",
+    "durationMs": 44.88
+   },
+   {
+    "id": "test/upkeep.test.js::a batch waits its turn: never over a change still being made, never twice inside the week",
+    "name": "a batch waits its turn: never over a change still being made, never twice inside the week",
+    "suite": [],
+    "path": "test/upkeep.test.js",
+    "line": 268,
+    "endLine": 285,
+    "status": "passed",
+    "durationMs": 36.609
+   },
+   {
+    "id": "test/upkeep.test.js::a week on, a change that backfired is taken back and not tried again",
+    "name": "a week on, a change that backfired is taken back and not tried again",
+    "suite": [],
+    "path": "test/upkeep.test.js",
+    "line": 287,
+    "endLine": 310,
+    "status": "passed",
+    "durationMs": 40.631
+   },
+   {
+    "id": "test/upkeep.test.js::a pull request the person closed without merging is a no",
+    "name": "a pull request the person closed without merging is a no",
+    "suite": [],
+    "path": "test/upkeep.test.js",
+    "line": 312,
+    "endLine": 324,
+    "status": "passed",
+    "durationMs": 47.556000000000004
+   },
+   {
+    "id": "test/upkeep.test.js::a check calls no model",
+    "name": "a check calls no model",
+    "suite": [],
+    "path": "test/upkeep.test.js",
+    "line": 326,
+    "endLine": 338,
+    "status": "passed",
+    "durationMs": 27.845000000000002
+   },
+   {
+    "id": "test/upkeep.test.js::a change of its own that failed is tried again a day later, a few times, then left",
+    "name": "a change of its own that failed is tried again a day later, a few times, then left",
+    "suite": [],
+    "path": "test/upkeep.test.js",
+    "line": 340,
+    "endLine": 363,
+    "status": "passed",
+    "durationMs": 34.871
+   },
+   {
+    "id": "test/upkeep.test.js::what the person took back thinker does not do again",
+    "name": "what the person took back thinker does not do again",
+    "suite": [],
+    "path": "test/upkeep.test.js",
+    "line": 365,
+    "endLine": 381,
+    "status": "passed",
+    "durationMs": 61.616
+   },
+   {
+    "id": "test/upkeep.test.js::maintenance looks on its own clock and not before, and a look from the page changes nothing",
+    "name": "maintenance looks on its own clock and not before, and a look from the page changes nothing",
+    "suite": [],
+    "path": "test/upkeep.test.js",
+    "line": 383,
+    "endLine": 409,
+    "status": "passed",
+    "durationMs": 174.316
+   }
+  ]
+ }
+}
