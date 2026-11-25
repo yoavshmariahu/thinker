@@ -12,6 +12,7 @@
 //   cursor  Cursor agent transcript JSONL (tool calls without their results)
 //   gemini  Gemini CLI session JSON
 import fs from 'node:fs';
+import { codexWorkspaces, sessionWorkspaces, workspaceMatches } from './session-scope.js';
 import { normalizeModelUsage } from './model-usage.js';
 import os from 'node:os';
 import path from 'node:path';
@@ -206,12 +207,13 @@ export const REWRITE_CAUSES = [
   ['tail', 'Pause of 5 to 60 minutes'], ['model', 'Change of model'], ['midway', 'Mid-conversation, no pause'],
 ];
 export const REWRITE_MIN_CONTEXT = 20_000;
-export function cacheRewrites(calls) {
+export function cacheRewrites(calls, include = () => true) {
   const out = Object.fromEntries(REWRITE_CAUSES.map(([k]) => [k, { n: 0, fresh: 0, write: 0, write1h: 0 }])), prev = new Map();
   let calls_ = 0;
   for (const c of calls) {
-    calls_++;
     const agent = c.agent || 'main', p = prev.get(agent); prev.set(agent, c);
+    if (!include(c)) continue;
+    calls_++;
     const ctx = (c.fresh || 0) + (c.read || 0) + (c.write || 0), miss = (c.fresh || 0) + (c.write || 0);
     if (ctx <= REWRITE_MIN_CONTEXT || miss <= 0.5 * ctx) continue;
     const gap = p && c.t && p.t ? (c.t - p.t) / 60000 : 0;
@@ -329,7 +331,13 @@ function parseMessages(rows, fromLine, since = 0) {
   return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value, carried, compactions, rewrites: cacheRewrites(calls), calls, continued: since > 0 ? { at: since, dropped } : undefined };
 }
 
-function parseCodex(rows, fromLine) {
+function parseCodex(rows, fromLine, repos) {
+  const workspaces = codexWorkspaces(rows);
+  const modern = rows.some(j => j?.type === 'token_usage_record' && j.payload?.usage);
+  const seenResponses = new Set();
+  const matchesByPath = new Map();
+  const matches = cwd => { if (!matchesByPath.has(cwd)) matchesByPath.set(cwd, workspaceMatches(cwd, repos)); return matchesByPath.get(cwd); };
+  const split = repos?.length && new Set(workspaces.filter(Boolean)).size > 1;
   const events = [], results = new Map(), models = new ModelTally(), stats = new Stats();
   let cwd = null;
   const seenPrompts = new Set();
@@ -347,28 +355,34 @@ function parseCodex(rows, fromLine) {
   rows.forEach((j, i) => {
     if (!j) return;
     const p = j.payload || {};
-    if (j.type === 'session_meta' && p.cwd) cwd = p.cwd;
-    if (j.type === 'turn_context' || j.type === 'session_meta') { models.add(p.model); if (p.model) model = p.model; }
+    const selected = matches(workspaces[i]);
+    if (selected && workspaces[i]) cwd = workspaces[i];
+    if (j.type === 'turn_context' || j.type === 'session_meta') { if (selected) models.add(p.model); if (p.model) model = p.model; }
     if (j.type === 'thread.started' || j.type === 'turn.started') models.add(j.model ?? j.thread?.model);
-    if (j.type === 'turn.completed') stats.turn(j.usage, 'codex');
-    if (j.type === 'event_msg' && p.type === 'token_count') {
-      const last = p.info?.last_token_usage, total = p.info?.total_token_usage;
+    if (j.type === 'turn.completed' && selected && !modern) stats.turn(j.usage, 'codex');
+    if ((modern && j.type === 'token_usage_record') || (!modern && j.type === 'event_msg' && p.type === 'token_count')) {
+      if (modern && p.response_id && seenResponses.has(p.response_id)) return;
+      if (modern && p.response_id) seenResponses.add(p.response_id);
+      const last = modern ? p.usage : p.info?.last_token_usage, total = p.info?.total_token_usage;
       if (total) lastTotal = total;
       if (last && typeof last === 'object') {
-        lastUsages.push(last);
-        for (const k of Object.keys(run)) carried[k] += run[k];
-        carried.instructions += instructionTokens;
+        if (selected) {
+          models.add(model);
+          lastUsages.push(last);
+          for (const k of Object.keys(run)) carried[k] += run[k];
+          carried.instructions += instructionTokens;
+        }
         run.thinking += last.reasoning_output_tokens || 0;
         const read = last.cached_input_tokens || 0, write = last.cache_write_input_tokens || 0;
-        calls.push({ t: Date.parse(j.timestamp) || 0, fresh: Math.max(0, (last.input_tokens || 0) - read - write), read, write, out: last.output_tokens || 0, model, agent: 'main', compaction: false });
+        calls.push({ t: Date.parse(j.timestamp) || 0, fresh: Math.max(0, (last.input_tokens || 0) - read - write), read, write, out: last.output_tokens || 0, model, cwd: workspaces[i], agent: 'main', compaction: false });
       }
     }
-    if (j.type === 'response_item' && (p.type === 'function_call' || p.type === 'custom_tool_call' || p.type === 'local_shell_call')) { stats.toolCalls++; run.agentCalls += est(p.arguments ?? p.input ?? p.action ?? {}); }
-    if (j.type === 'response_item' && p.type === 'message' && p.role === 'assistant') { msgTurns++; run.agentText += est(textOf(p.content)); }
+    if (j.type === 'response_item' && (p.type === 'function_call' || p.type === 'custom_tool_call' || p.type === 'local_shell_call')) { if (selected) stats.toolCalls++; run.agentCalls += est(p.arguments ?? p.input ?? p.action ?? {}); }
+    if (j.type === 'response_item' && p.type === 'message' && p.role === 'assistant') { if (selected) msgTurns++; run.agentText += est(textOf(p.content)); }
     if (j.type === 'response_item' && p.type === 'message' && p.role === 'user') { const t = textOf(p.content); if (/^<user_instructions/.test(t.trim())) instructionTokens = est(t); else if (/^<(environment_context|skills_instructions)/.test(t.trim())) run.notes += est(t); else run.prompts += est(t); }
     if (j.type === 'response_item' && p.type === 'message' && p.role === 'developer') instructionTokens += est(textOf(p.content)); // the instruction files, as Codex sends them
     if (j.type === 'response_item' && p.type === 'additional_tools') run.notes += est(p);
-    if (i < fromLine) return;
+    if (!selected || i < fromLine) return;
     // rollout files
     if (j.type === 'event_msg' && p.type === 'item_completed' && p.item?.type === 'UserMessage') prompt(textOf(p.item.content), j.timestamp);
     else if (j.type === 'event_msg' && p.type === 'user_message') prompt(p.message, j.timestamp);
@@ -394,8 +408,8 @@ function parseCodex(rows, fromLine) {
   });
   // per-call usage where the rollout has it (the calls are the turns), else the cumulative total with the messages as turns
   if (lastUsages.length) for (const u of lastUsages) stats.turn(u, 'codex');
-  else { stats.turns = msgTurns; if (lastTotal) stats.total(lastTotal); }
-  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value, carried: lastUsages.length ? carried : undefined, rewrites: cacheRewrites(calls), calls };
+  else { stats.turns = msgTurns; if (lastTotal && !split) stats.total(lastTotal); }
+  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value, carried: lastUsages.length ? carried : undefined, rewrites: cacheRewrites(calls, c => matches(c.cwd)), calls: calls.filter(c => matches(c.cwd)) };
 }
 
 function parseGemini(j, fromLine) {
@@ -475,7 +489,7 @@ function parseAgy(rows, fromLine = 0) {
 // moment (continuations below): Claude Code rows stamped at or before it are context alone, never this session's calls;
 // lineCount is where the next incremental read should start. `model` is the model the
 // session ran on when the transcript names it (Claude Code, Codex, Gemini), else null.
-export function parseTranscript(file, { fromLine = 0, format, since = 0 } = {}) {
+export function parseTranscript(file, { fromLine = 0, format, since = 0, repos } = {}) {
   const text = fs.readFileSync(file, 'utf8');
   const fmt = format && format !== 'auto' ? format : detectFormat(text);
   if (fmt === 'gemini') { let j = {}; try { j = JSON.parse(text); } catch {} const r = parseGemini(j, fromLine); return { events: r.events, lineCount: r.count, cwd: r.cwd, model: r.model, stats: r.stats, carried: r.carried, rewrites: r.rewrites, format: fmt }; }
@@ -483,7 +497,7 @@ export function parseTranscript(file, { fromLine = 0, format, since = 0 } = {}) 
   const rows = jsonLines(text);
   // A trailing newline is the start of the next record, not a consumed record.
   // Retry a partially written final record too, when it becomes valid JSON.
-  const r = fmt === 'agy' ? parseAgy(rows, fromLine) : fmt === 'codex' ? parseCodex(rows, fromLine) : fmt === 'events' ? parseEvents(rows, fromLine) : parseMessages(rows, fromLine, since);
+  const r = fmt === 'agy' ? parseAgy(rows, fromLine) : fmt === 'codex' ? parseCodex(rows, fromLine, repos) : fmt === 'events' ? parseEvents(rows, fromLine) : parseMessages(rows, fromLine, since);
   return { model: null, ...r, lineCount: lines.length - (rows.at(-1) === null ? 1 : 0), format: fmt };
 }
 
@@ -593,7 +607,7 @@ export function findSessions(repo, { sinceMs = 14 * 86400_000, storeDir } = {}) 
     if (!(ws ? roots.has(ws) : [...roots].some(r => slug(r) === d))) continue;
     for (const id of ls(path.join(cursorRoot, d, 'agent-transcripts'))) add('cursor', path.join(cursorRoot, d, 'agent-transcripts', id, id + '.jsonl'), id);
   }
-  // Codex files are by date, not by project: read the first line for the cwd
+  // Codex files are by date. Any recorded workspace can own part of a session.
   const codexRoot = path.join(process.env.CODEX_HOME || path.join(home, '.codex'), 'sessions');
   for (let d = 0; d * 86400_000 <= sinceMs; d++) {
     const t = new Date(Date.now() - d * 86400_000);
@@ -601,10 +615,13 @@ export function findSessions(repo, { sinceMs = 14 * 86400_000, storeDir } = {}) 
     for (const f of ls(dir)) {
       if (!f.endsWith('.jsonl')) continue;
       try {
-        const fd = fs.openSync(path.join(dir, f), 'r'); const buf = Buffer.alloc(4096); const n = fs.readSync(fd, buf, 0, 4096, 0); fs.closeSync(fd);
-        const cwd = (buf.toString('utf8', 0, n).match(/"cwd":"((?:[^"\\]|\\.)*)"/) || [])[1];
+        const file = path.join(dir, f), workspaces = sessionWorkspaces(file);
         const id = (f.match(/([0-9a-f]{8}-[0-9a-f-]{27,})\.jsonl$/) || [])[1] || f.slice(0, -6);
-        if (cwd && [repo, real].some(r => cwd === r || cwd.startsWith(r + '/'))) add('codex', path.join(dir, f), id);
+        if (workspaces.paths.some(cwd => workspaceMatches(cwd, [repo, real]))) {
+          add('codex', file, id);
+          const s = out.at(-1);
+          if (s?.file === file) Object.assign(s, { repos: [repo], workspaces: workspaces.timeline });
+        }
       } catch {}
     }
   }

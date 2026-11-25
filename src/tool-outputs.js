@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseTranscript } from './transcripts.js';
 
-const KEEP = 1000, VERSION = 15; // 15: a harness note is sized by what the agent sent, not by the transcript's whole row (transcripts.js:noteTokens)
+const KEEP = 1000, VERSION = 16; // 16: Codex usage records and repository-scoped session totals
 // what each level's cap leaves of an output, in tokens (diet.js:DIET_LEVELS outputChars / 4): the part of a
 // compressible tool's result past it is a saving at least (the other trims, round search hits and file windows, come on top);
 // an MCP server has the moderate level alone (diet.js:mcpLevel), so its high saving is its moderate one
@@ -108,11 +108,11 @@ function sessionRecords(store, sessions, { levelAt = null, key = '', onSession }
     onSession?.(s);
     let size = 0; try { size = fs.statSync(s.file).size; } catch { continue; }
     let r = st[s.session];
-    if (!r || r.size !== size || r.v !== VERSION || (key && r.tk !== key) || (r.since || 0) !== (s.since || 0)) {
-      let parsed; try { parsed = parseTranscript(s.file, { since: s.since || 0 }); } catch { continue; }
+    if (!r || r.size !== size || r.v !== VERSION || r.scope !== JSON.stringify(s.repos || []) || (key && r.tk !== key) || (r.since || 0) !== (s.since || 0)) {
+      let parsed; try { parsed = parseTranscript(s.file, { since: s.since || 0, repos: s.repos }); } catch { continue; }
       const at = parsed.events.reduce((a, e) => e.t === 'tool' && e.at && (!a || e.at < a) ? e.at : a, 0) || s.mtime;
       const level = levelAt ? (key, t) => levelAt(key, t ?? at) : null;
-      r = st[s.session] = { v: VERSION, size, mtime: s.mtime, at, since: s.since || 0, tk: levelAt ? key : '', model: parsed.model || null, turns: parsed.stats?.turns || 0, usage: usageOf(parsed.stats, parsed.carried, parsed.rewrites), by: sessionOutputs(parsed.events, parsed.stats?.turns || 0, parsed.compactions || [], { levelAt: level }) };
+      r = st[s.session] = { v: VERSION, scope: JSON.stringify(s.repos || []), size, mtime: s.mtime, at, since: s.since || 0, tk: levelAt ? key : '', model: parsed.model || null, turns: parsed.stats?.turns || 0, usage: usageOf(parsed.stats, parsed.carried, parsed.rewrites), by: sessionOutputs(parsed.events, parsed.stats?.turns || 0, parsed.compactions || [], { levelAt: level }) };
       changed = true;
     }
     recs.push({ ...r, at: r.at || s.mtime, session: s.session, client: s.client, t: s.mtime, parent: s.parent || null, agent: s.agent || null, type: s.type || null });

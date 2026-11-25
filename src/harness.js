@@ -810,7 +810,7 @@ export function harnessSavings(store, { sessions, cursor, home = os.homedir(), t
   cursor ||= [];
   sessions ??= [...new Map(checkouts(store.repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 })).map(s => [s.file, s])).values()];
   const records = applied.some(a => a.undo?.key === 'desktop-connector') ? desktopFor(home) : null;
-  const read = sessions.filter(s => ['claude', 'codex'].includes(s.client)).map(s => ({ ...(s.client === 'codex' ? codexSessionHarness(s.file) : claudeSessionHarness(s.file, records, s.since || 0)), client: s.client, mtime: s.mtime })).filter(h => (h.loaded.size || h.coverage?.size) && h.start && !h.parent);
+  const read = sessions.filter(s => ['claude', 'codex'].includes(s.client)).map(s => ({ ...(s.client === 'codex' ? codexSessionHarness(s.file, s.repos) : claudeSessionHarness(s.file, records, s.since || 0)), client: s.client, mtime: s.mtime })).filter(h => (h.loaded.size || h.coverage?.size) && h.start && !h.parent);
   const keysOf = a => {
     if (a.client === 'codex') return k => (a.evidenceKeys || [a.key.slice(6)]).includes(k);
     const ks = a.members || [a.key];

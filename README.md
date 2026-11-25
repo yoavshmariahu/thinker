@@ -42,6 +42,8 @@ thinker ui --tab report
 
 `thinker report` prints a report in the terminal; use `thinker ui` for the browser dashboard.
 
+Codex chats can start outside a repository and work in several repositories. Thinker splits their recorded model calls by the working directories in the transcript, including explicit tool execution directories. Each call belongs to one repository; earlier conversation context carried by that call is counted there too. Existing transcripts are included on the next report. A repository mentioned only in prose, a dynamically computed tool directory, or a directory hidden inside a shell command is not enough to establish attribution. Older multi-workspace transcripts with only a cumulative usage total remain unpriced rather than having that total counted in every repository.
+
 ## What works with which agent
 
 Four things thinker does, and where each one reaches. "Automatic" means the installer wires it; "by hand" means

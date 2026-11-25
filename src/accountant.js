@@ -1,3 +1,4 @@
+import { workspaceAt, workspaceMatches } from './session-scope.js';
 // The accountant: the one place thinker's savings are counted (the owner, 2026-11-22: "we need to build a single
 // source of truth. we should have an accountant module that is fully responsible for tracking savings", and then
 // "consolidate any savings logic into the accountant").
@@ -303,8 +304,11 @@ export function weeklySavings({ columns, now, config, events = [], compression =
     while (lo < hi) { const mid = (lo + hi) >>> 1; if (timeline[mid].t <= t) lo = mid + 1; else hi = mid; }
     return timeline[Math.max(0, lo - 1)].origin;
   };
+  const scopes = new Map(sessions.filter(s => s.repos?.length).map(s => [sessionKey(s.session), s]));
   for (const r of compression) {
-    const owner = origin && ownerAt(r);
+    const scope = scopes.get(sessionKey(r.session));
+    if (scope && !workspaceMatches(workspaceAt(scope.workspaces, r.at), scope.repos)) continue;
+    const owner = !scope && origin && ownerAt(r);
     if (owner && owner !== origin) continue;
     if (!known.has(sessionKey(r.session)) || r.truncated || !(r.status >= 200 && r.status < 300)) continue;
     // Where the API cleared, it reported the tokens; since thinker cuts the context itself the row carries

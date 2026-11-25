@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 // Codex records the visible skill catalog and deferred MCP namespace descriptions, not always
 // the full tool schemas. Count only recorded text; settings are control metadata, never load evidence.
 import fs from 'node:fs';
+import { codexWorkspaces, workspaceMatches } from './session-scope.js';
 import os from 'node:os';
 import path from 'node:path';
 import { parse, stringify } from 'smol-toml';
@@ -40,10 +41,10 @@ export function codexHarnessConfig(repo, { home = os.homedir(), env = process.en
 const HARNESS_CACHE = diskCache('session-harness', 2); // 2: `usedCalls` (2026-10-25)
 const freeze = h => ({ ...h, loaded: [...h.loaded], used: [...h.used], texts: [...h.texts].map(([k, t]) => [k, String(t).slice(0, 4000)]), skillPaths: [...h.skillPaths], skillReads: [...h.skillReads], coverage: [...h.coverage] });
 const thaw = v => ({ ...v, loaded: new Map(v.loaded), used: new Set(v.used), texts: new Map(v.texts), skillPaths: new Map(v.skillPaths), skillReads: new Set(v.skillReads), coverage: new Set(v.coverage) });
-export function codexSessionHarness(file) {
-  return cachedByFiles(HARNESS_CACHE, cacheKey('codex', file), [file], () => readCodexSessionHarness(file), { freeze, thaw });
+export function codexSessionHarness(file, repos) {
+  return cachedByFiles(HARNESS_CACHE, cacheKey('codex', file, JSON.stringify(repos || [])), [file], () => readCodexSessionHarness(file, repos), { freeze, thaw });
 }
-function readCodexSessionHarness(file) {
+function readCodexSessionHarness(file, repos) {
   const loaded = new Map(), used = new Set(), texts = new Map(), skillPaths = new Map(), coverage = new Set(), calls = new Set();
   // the responses each source was called in (by the usage records so far), so its use is counted by prompts
   const usedCalls = new Map(), usedIn = (k, turn) => (usedCalls.get(k) || usedCalls.set(k, new Set()).get(k)).add(turn);
@@ -73,8 +74,12 @@ function readCodexSessionHarness(file) {
   };
   // the files a patch edited and the skills opened, in order (skill-suggest.js reads them)
   const inputs = [], edited = [], skillOpens = [];
-  for (const line of readText(file).split('\n')) {
-    let j; try { j = JSON.parse(line); } catch { continue; }
+  const rows = readText(file).split('\n').map(line => { try { return JSON.parse(line); } catch { return null; } });
+  const workspaces = codexWorkspaces(rows), matches = new Map();
+  for (const [i, j] of rows.entries()) {
+    if (!j) continue;
+    if (!matches.has(workspaces[i])) matches.set(workspaces[i], workspaceMatches(workspaces[i], repos));
+    const selected = matches.get(workspaces[i]);
     const p = j.payload || {};
     if (j.type === 'session_meta') {
       cwd = p.cwd; start = p.timestamp || j.timestamp; id = p.id || p.session_id; parent = p.parent_thread_id;
@@ -85,13 +90,14 @@ function readCodexSessionHarness(file) {
       if (p.state?.host_skills?.includeInstructions !== false) catalog(p.state?.host_skills?.body || '');
       namespaces(p.state?.tools, p.full !== false);
     }
-    if (j.type === 'token_usage_record' && p.response_id) calls.add(p.response_id);
+    if (selected && j.type === 'token_usage_record' && p.response_id) calls.add(p.response_id);
     if (j.type !== 'response_item') continue;
     if (p.type === 'message' && p.role === 'developer') {
       const text = (p.content || []).map(c => c.text || '').join('\n'); catalog(text);
       const section = text.match(/Deferred tool namespaces:\s*\n([\s\S]*?)(?=<\/tools>|\n\n|$)/)?.[1];
       if (section !== undefined) namespaces(Object.fromEntries([...section.matchAll(/^- (mcp__[^\s:]+)(?:: (.*))?$/gm)].map(m => [m[1], m[2] || ''])));
     }
+    if (!selected) continue;
     if (['function_call', 'custom_tool_call'].includes(p.type)) {
       const text = `${p.name || ''}\n${typeof p.arguments === 'string' ? p.arguments : JSON.stringify(p.arguments || '')}\n${p.input || ''}`;
       inputs.push(text);
@@ -137,7 +143,7 @@ function pluginTools(dir) {
 
 export function codexHarnessUsage(repo, sessions, options = {}) {
   let config, valid = true; try { config = codexHarnessConfig(repo, options); } catch { valid = false; config = { servers: new Map(), plugins: new Map(), skills: new Map() }; }
-  const read = sessions.map(s => { const h = codexSessionHarness(s.file); options.onSession?.(s); return { s, h }; });
+  const read = sessions.map(s => { const h = codexSessionHarness(s.file, s.repos); options.onSession?.(s); return { s, h }; });
   const plugins = [...config.plugins.values()].map(p => {
     const [name, market] = p.id.split('@');
     const dir = path.join(process.env.CODEX_HOME || path.join(options.home || os.homedir(), '.codex'), 'plugins/cache', market || '', name);
